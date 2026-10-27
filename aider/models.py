@@ -967,7 +967,10 @@ class Model(ModelSettings):
 
             os.environ[openai_api_key] = token
 
-    def send_completion(self, messages, functions, stream, temperature=None):
+    def send_completion(
+        self, messages, functions, stream, temperature=None,
+        tools=None, tool_choice=None,
+    ):
         if os.environ.get("AIDER_SANITY_CHECK_TURNS"):
             sanity_check_messages(messages)
 
@@ -988,12 +991,23 @@ class Model(ModelSettings):
 
             kwargs["temperature"] = temperature
 
+        # Preserve Aider's existing edit-format function-calling behavior.
         if functions is not None:
             function = functions[0]
             kwargs["tools"] = [dict(type="function", function=function)]
-            kwargs["tool_choice"] = {"type": "function", "function": {"name": function["name"]}}
+            kwargs["tool_choice"] = {
+                "type": "function",
+                "function": {"name": function["name"]},
+            }
+
         if self.extra_params:
             kwargs.update(self.extra_params)
+
+        # Native OpenAI-compatible tools are independent of Aider's legacy
+        # edit-format functions. Each entry is a complete tool schema.
+        if tools is not None:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = tool_choice if tool_choice is not None else "auto"
         if self.is_ollama() and "num_ctx" not in kwargs:
             num_ctx = int(self.token_count(messages) * 1.25) + 8192
             kwargs["num_ctx"] = num_ctx
