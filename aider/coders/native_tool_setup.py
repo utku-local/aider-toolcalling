@@ -8,19 +8,27 @@ from pathlib import Path
 from typing import Any
 
 from aider.io import ConfirmGroup
+from aider.native_command_policy import PolicyDecision, decide
+from aider.native_snapshots import SnapshotStore
+from aider.native_todo import TodoList, register_todo_tool
 from aider.native_tool_context import ToolContext, ToolPermission
 from aider.native_tool_ledger import OperationLedger, OperationStatus
 from aider.native_toolcalling import NativeToolRegistry
 from aider.native_tools_builtin import register_read_tools
 from aider.native_tools_edit import register_edit_tools
+from aider.native_tools_git import register_git_tool
 from aider.native_tools_search import register_search_tools
 from aider.native_tools_shell import register_shell_tools
 from aider.repomap import RepoMap
+
+from .native_agent_config import load_agent_config
 
 SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache"})
 HIDDEN_PREFIX = "."
 MAX_WALKED_FILES = 20_000
 SYMBOL_MAP_TOKENS = 1024
+# Commands run unsandboxed until a sandbox exists; allow rules then only auto-approve trusted programs.
+SANDBOXED = False
 
 
 def walk_files(root: Path) -> list[str]:
@@ -78,19 +86,31 @@ def record_edit(coder: Any, abs_path: str) -> None:
     coder.native_pending_edits.add(abs_path)
 
 
+def check_command(coder: Any, root: Path, command: str) -> PolicyDecision:
+    return decide(command, root, coder.native_agent_config.rules, SANDBOXED)
+
+
+def before_write(coder: Any, abs_path: str) -> None:
+    coder.native_snapshots.capture(coder.native_ledger.request, abs_path)
+
+
 def make_tool_context(coder: Any) -> ToolContext:
+    root = Path(coder.root).resolve()
     return ToolContext(
-        root=Path(coder.root).resolve(),
+        root=root,
         list_files=lambda: project_files(coder),
         find_tags=lambda abs_path, rel_path: symbol_tags(coder, abs_path, rel_path),
         approve=lambda permission, title, details: approve(coder, permission, title, details),
         on_edit=lambda path: record_edit(coder, path),
         dry_run=bool(coder.dry_run),
+        check_command=lambda command: check_command(coder, root, command),
+        before_write=lambda path: before_write(coder, path),
+        todos=coder.native_todos,
     )
 
 
 def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
-    """Registry for `coder`; `include_actions` adds edit_file, write_file and run_command."""
+    """Registry for `coder`; `include_actions` adds todo_write, edit_file, write_file and run_command."""
     coder.native_tool_edits = set()
     coder.native_pending_edits = set()
     coder.native_write_group = ConfirmGroup()
@@ -98,11 +118,16 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     coder.native_ledger = OperationLedger()
     coder.native_round_serial = 0
     coder.native_log_failed = False
+    coder.native_todos = TodoList()
+    coder.native_snapshots = SnapshotStore()
+    coder.native_agent_config = load_agent_config(coder.root, coder.io)
     ctx = make_tool_context(coder)
     registry = NativeToolRegistry()
     register_read_tools(registry, ctx.root)
     register_search_tools(registry, ctx)
+    register_git_tool(registry, ctx)
     if include_actions:
+        register_todo_tool(registry, ctx.todos)
         register_edit_tools(registry, ctx)
         register_shell_tools(registry, ctx)
     return registry

@@ -19,6 +19,7 @@ from aider.format_settings import format_settings
 from aider.help import Help, install_help_extra
 from aider.io import CommandCompletionException
 from aider.llm import litellm
+from aider.native_undo import undo_agent_request
 from aider.repo import ANY_GIT_ERROR
 from aider.run_cmd import run_cmd
 from aider.scrape import Scraper, install_playwright
@@ -549,6 +550,10 @@ class Commands:
                 " /clear to make space)"
             )
         self.io.tool_output(f"{cost_pad}{fmt(limit)} tokens max context window size")
+
+    def cmd_undo_agent(self, args: str) -> None:
+        "Restore the files changed by the agent's tools in its most recent request"
+        undo_agent_request(self.coder)
 
     def cmd_undo(self, args):
         "Undo the last git commit if it was done by aider"

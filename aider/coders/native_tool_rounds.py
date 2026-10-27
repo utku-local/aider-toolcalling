@@ -26,7 +26,8 @@ def prepare_request_messages(coder: Any, messages: list[dict[str, Any]]) -> list
     if not coder.native_tools:
         return messages
     prepared = compact_tool_history(drop_orphan_tool_messages(messages))
-    return with_working_state(prepared, render_working_state(coder.native_ledger.records))
+    tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
+    return with_working_state(prepared, render_working_state(coder.native_ledger.records, tasks))
 
 
 def first_message(completion: Any) -> Optional[Any]:
