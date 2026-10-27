@@ -9,6 +9,9 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from aider.native_tool_calls import ToolCall
+from aider.native_tool_schema import validate_arguments
+
 
 class NativeToolError(ValueError):
     """Raised when a tool call cannot be executed as requested."""
@@ -50,32 +53,26 @@ class NativeToolRegistry:
     def schemas(self) -> list[dict[str, Any]]:
         return [entry[0] for entry in self._tools.values()]
 
-    def execute(self, tool_call: Any) -> ToolResult:
-        """Execute one registered tool call; never execute unknown names."""
-        function = getattr(tool_call, "function", None)
-        call_id = getattr(tool_call, "id", None)
-        if not function or not call_id:
-            raise NativeToolError("Tool call is missing its function or call ID")
-
-        name = getattr(function, "name", None)
-        raw_arguments = getattr(function, "arguments", "{}")
-
-        if name not in self._tools:
-            raise NativeToolError(f"Tool is not registered: {name!r}")
+    def execute(self, call: ToolCall) -> ToolResult:
+        """Execute one registered, schema-valid tool call; never execute unknown names."""
+        if call.name not in self._tools:
+            raise NativeToolError(
+                f"Tool is not registered: {call.name!r}; available tools: {sorted(self._tools)}"
+            )
 
         try:
-            arguments = (
-                json.loads(raw_arguments)
-                if isinstance(raw_arguments, str)
-                else raw_arguments
-            )
-        except (TypeError, json.JSONDecodeError) as exc:
-            raise NativeToolError(f"Invalid JSON arguments for tool {name!r}") from exc
+            arguments = json.loads(call.arguments)
+        except json.JSONDecodeError as exc:
+            raise NativeToolError(f"Invalid JSON arguments for tool {call.name!r}: {exc}") from exc
 
         if not isinstance(arguments, dict):
             raise NativeToolError("Tool arguments must be a JSON object")
 
-        _, handler = self._tools[name]
+        schema, handler = self._tools[call.name]
+        problems = validate_arguments(schema["function"]["parameters"], arguments)
+        if problems:
+            raise NativeToolError(f"Invalid arguments for tool {call.name!r}: {'; '.join(problems)}")
+
         result = handler(**arguments)
 
         if isinstance(result, str):
@@ -84,8 +81,8 @@ class NativeToolRegistry:
             content = json.dumps(result, ensure_ascii=False, default=str)
 
         return ToolResult(
-            tool_call_id=call_id,
-            name=name,
+            tool_call_id=call.id,
+            name=call.name,
             content=content,
         )
 

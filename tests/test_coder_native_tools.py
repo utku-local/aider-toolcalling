@@ -85,7 +85,9 @@ class CoderNativeToolsTest(unittest.TestCase):
         self.assertEqual(len(scripted.requests), 2)
         first, second = scripted.requests
         tool_names = [tool["function"]["name"] for tool in first["tools"]]
-        self.assertEqual(tool_names, ["read_file", "list_files"])
+        self.assertEqual(
+            tool_names, ["read_file", "list_files", "find_files", "search_code", "find_symbol"]
+        )
         self.assertEqual(first["tool_choice"], "auto")
 
         assistant, tool = second["messages"][-2:]
@@ -108,16 +110,33 @@ class CoderNativeToolsTest(unittest.TestCase):
         self.assertNotIn("tools", scripted.requests[0])
         self.assertNotIn("tool_choice", scripted.requests[0])
 
-    def test_loop_stops_after_max_rounds(self) -> None:
+    def test_loop_forces_a_final_answer_after_max_rounds(self) -> None:
         coder = self.make_coder(native_tools=True)
         completions = [
             make_completion(tool_calls=list_files_call(f"c{i}")) for i in range(MAX_TOOL_ROUNDS + 1)
         ]
+        completions.append(make_completion(FINAL_TEXT, tool_calls=list_files_call("ignored")))
         scripted = ScriptedModel(completions)
         self.run_coder(coder, scripted)
 
-        self.assertEqual(len(scripted.requests), MAX_TOOL_ROUNDS + 1)
+        self.assertEqual(len(scripted.requests), MAX_TOOL_ROUNDS + 2)
+        self.assertEqual(scripted.requests[-1]["tool_choice"], "none")
+        tool_ids = [m["tool_call_id"] for m in scripted.requests[-1]["messages"] if m["role"] == "tool"]
+        self.assertEqual(tool_ids, [f"c{i}" for i in range(MAX_TOOL_ROUNDS + 1)])
         self.assertFalse(coder.partial_response_function_call)
+        self.assertEqual(coder.partial_response_content, FINAL_TEXT)
+
+    def test_text_tool_calls_and_missing_ids(self) -> None:
+        coder = self.make_coder(native_tools=True)
+        text_call = '<tool_call>{"name": "read_file", "arguments": {"path": "hello.txt"}}</tool_call>'
+        scripted = ScriptedModel([make_completion(text_call), make_completion(FINAL_TEXT)])
+        self.run_coder(coder, scripted)
+
+        assistant, tool = scripted.requests[1]["messages"][-2:]
+        self.assertEqual(assistant["content"], "")
+        self.assertEqual(assistant["tool_calls"][0]["id"], tool["tool_call_id"])
+        self.assertEqual(tool["content"], "hello\n")
+        self.assertEqual(coder.partial_response_content, FINAL_TEXT)
 
 
 class NativeToolsFlagTest(unittest.TestCase):
