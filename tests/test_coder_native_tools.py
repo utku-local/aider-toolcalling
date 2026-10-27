@@ -16,7 +16,9 @@ from aider.args import get_parser
 from aider.coders import Coder
 from aider.io import InputOutput
 from aider.models import Model
-from aider.native_tool_loop import MAX_TOOL_ROUNDS
+from aider.coders.native_tool_rounds import MAX_CONTINUATIONS
+
+ROUND_BUDGET = 2
 
 MODEL_NAME = "openai/test-model"
 FINAL_TEXT = "The project has one file."
@@ -110,20 +112,32 @@ class CoderNativeToolsTest(unittest.TestCase):
         self.assertNotIn("tools", scripted.requests[0])
         self.assertNotIn("tool_choice", scripted.requests[0])
 
-    def test_loop_forces_a_final_answer_after_max_rounds(self) -> None:
+    def run_until_limit(self, answer: bool, rounds_expected: int) -> tuple[Coder, ScriptedModel]:
         coder = self.make_coder(native_tools=True)
-        completions = [
-            make_completion(tool_calls=list_files_call(f"c{i}")) for i in range(MAX_TOOL_ROUNDS + 1)
-        ]
+        coder.io = InputOutput(yes=answer, pretty=False)
+        coder.max_tool_rounds = ROUND_BUDGET
+        completions = [make_completion(tool_calls=list_files_call(f"c{i}")) for i in range(rounds_expected)]
         completions.append(make_completion(FINAL_TEXT, tool_calls=list_files_call("ignored")))
         scripted = ScriptedModel(completions)
         self.run_coder(coder, scripted)
+        return coder, scripted
 
-        self.assertEqual(len(scripted.requests), MAX_TOOL_ROUNDS + 2)
+    def test_declined_continuation_forces_a_final_answer(self) -> None:
+        coder, scripted = self.run_until_limit(False, ROUND_BUDGET)
+
+        self.assertEqual(len(scripted.requests), ROUND_BUDGET + 1)
         self.assertEqual(scripted.requests[-1]["tool_choice"], "none")
         tool_ids = [m["tool_call_id"] for m in scripted.requests[-1]["messages"] if m["role"] == "tool"]
-        self.assertEqual(tool_ids, [f"c{i}" for i in range(MAX_TOOL_ROUNDS + 1)])
+        self.assertEqual(tool_ids, [f"c{i}" for i in range(ROUND_BUDGET)])
         self.assertFalse(coder.partial_response_function_call)
+        self.assertEqual(coder.partial_response_content, FINAL_TEXT)
+
+    def test_approved_continuations_are_capped(self) -> None:
+        total = ROUND_BUDGET * (1 + MAX_CONTINUATIONS)
+        coder, scripted = self.run_until_limit(True, total)
+
+        self.assertEqual(len(scripted.requests), total + 1)
+        self.assertEqual(scripted.requests[-1]["tool_choice"], "none")
         self.assertEqual(coder.partial_response_content, FINAL_TEXT)
 
     def test_text_tool_calls_and_missing_ids(self) -> None:

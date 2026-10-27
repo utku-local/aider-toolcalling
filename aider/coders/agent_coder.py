@@ -29,6 +29,7 @@ class AgentCoder(Coder):
 
     def send_message(self, inp: str) -> Iterator[str]:
         self.native_write_group = ConfirmGroup()
+        self.native_ledger.start_request()
         return super().send_message(inp)
 
     def check_for_file_mentions(self, content: str) -> None:

@@ -7,16 +7,20 @@ Tool failures are reported back to the model as tool results instead of interrup
 from typing import Any, Optional
 
 from aider.native_tool_calls import ToolCall, field
+from aider.native_tool_ledger import OperationLedger
 from aider.native_toolcalling import (
     NativeToolRegistry,
     ToolResult,
     make_tool_result_message,
 )
 
-# Upper bound on model -> tools -> model round trips for one user message.
-MAX_TOOL_ROUNDS = 8
+# Default budget of model -> tools -> model round trips per user message (--max-tool-rounds).
+DEFAULT_MAX_TOOL_ROUNDS = 25
 TOOL_ERROR_PREFIX = "Error: "
 FINAL_ANSWER_CHOICE = "none"
+MAX_TOOL_RESULT_CHARS = 30_000
+RESULT_TRUNCATED = "\n[result truncated to {limit} characters; request a smaller range or a narrower search]"
+REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
 
 
 def get_tool_calls(message: Optional[Any]) -> list[Any]:
@@ -40,23 +44,45 @@ def assistant_tool_call_message(content: str, calls: list[ToolCall]) -> dict[str
     }
 
 
-def execute_tool_call(registry: NativeToolRegistry, call: ToolCall) -> ToolResult:
-    """Run one call; any failure becomes an error result the model can read."""
+def cap_result(result: ToolResult) -> ToolResult:
+    if len(result.content) <= MAX_TOOL_RESULT_CHARS:
+        return result
+    note = RESULT_TRUNCATED.format(limit=MAX_TOOL_RESULT_CHARS)
+    return ToolResult(result.tool_call_id, result.name, result.content[:MAX_TOOL_RESULT_CHARS] + note)
+
+
+def run_registered(registry: NativeToolRegistry, call: ToolCall) -> tuple[ToolResult, bool]:
+    """Run one call; any failure becomes an error result the model can read. Returns (result, failed)."""
     try:
-        return registry.execute(call)
+        return registry.execute(call), False
     except Exception as err:  # tool handlers may raise anything; the model gets the message
-        return ToolResult(
-            tool_call_id=call.id,
-            name=call.name,
-            content=f"{TOOL_ERROR_PREFIX}{err}",
-        )
+        return ToolResult(tool_call_id=call.id, name=call.name, content=f"{TOOL_ERROR_PREFIX}{err}"), True
+
+
+def execute_tool_call(
+    registry: NativeToolRegistry, call: ToolCall, ledger: Optional[OperationLedger] = None
+) -> ToolResult:
+    """Run one call and record it in `ledger` (None: no record); a call id that already ran is not rerun."""
+    if ledger is None:
+        return cap_result(run_registered(registry, call)[0])
+    previous = ledger.finished(call.id)
+    if previous is not None:
+        return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
+    record = ledger.begin(call.id, call.name, call.arguments)
+    result, failed = run_registered(registry, call)
+    result = cap_result(result)
+    ledger.finish(record, result.content, failed)
+    return result
 
 
 def build_tool_round_messages(
-    registry: NativeToolRegistry, content: str, calls: list[ToolCall]
+    registry: NativeToolRegistry,
+    content: str,
+    calls: list[ToolCall],
+    ledger: Optional[OperationLedger] = None,
 ) -> list[dict[str, Any]]:
     """Messages to append after a tool-calling turn: the turn itself, then each result."""
-    results = [execute_tool_call(registry, call) for call in calls]
+    results = [execute_tool_call(registry, call, ledger) for call in calls]
     return [assistant_tool_call_message(content, calls)] + [
         make_tool_result_message(result) for result in results
     ]

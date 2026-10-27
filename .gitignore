@@ -4,3 +4,4 @@ __pycache__/
 .env
 .loop/
 .aider*
+evals/results/
