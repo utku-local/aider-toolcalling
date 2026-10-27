@@ -20,6 +20,7 @@ TOOL_ERROR_PREFIX = "Error: "
 FINAL_ANSWER_CHOICE = "none"
 MAX_TOOL_RESULT_CHARS = 30_000
 RESULT_TRUNCATED = "\n[result truncated to {limit} characters; request a smaller range or a narrower search]"
+INTERRUPTED_RESULT = "Error: interrupted by the user before the tool finished"
 REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
 
 
@@ -69,7 +70,12 @@ def execute_tool_call(
     if previous is not None:
         return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
     record = ledger.begin(call.id, call.name, call.arguments)
-    result, failed = run_registered(registry, call)
+    try:
+        result, failed = run_registered(registry, call)
+    except KeyboardInterrupt:
+        # Close the record so the ledger never shows an interrupted call as still running or approved.
+        ledger.finish(record, INTERRUPTED_RESULT, failed=True)
+        raise
     result = cap_result(result)
     ledger.finish(record, result.content, failed)
     return result

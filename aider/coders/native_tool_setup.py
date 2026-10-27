@@ -142,7 +142,7 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     coder.native_processes = ProcessManager()
     ctx = make_tool_context(coder)
     registry = NativeToolRegistry()
-    register_read_tools(registry, ctx.root)
+    register_read_tools(registry, ctx)
     register_search_tools(registry, ctx)
     register_git_tool(registry, ctx)
     if include_actions:

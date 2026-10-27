@@ -37,6 +37,13 @@ def list_files_call(call_id: str) -> list[SimpleNamespace]:
     return [SimpleNamespace(id=call_id, type="function", function=function)]
 
 
+def tool_exchange(messages: list[dict]) -> list[dict]:
+    """The last assistant tool call and its result, skipping the working-state message at the end."""
+    if messages and messages[-1]["role"] == "user":
+        messages = messages[:-1]
+    return messages[-2:]
+
+
 class ScriptedModel:
     """Returns the scripted completions in order and snapshots each request."""
 
@@ -92,7 +99,7 @@ class CoderNativeToolsTest(unittest.TestCase):
         )
         self.assertEqual(first["tool_choice"], "auto")
 
-        assistant, tool = second["messages"][-2:]
+        assistant, tool = tool_exchange(second["messages"])
         self.assertEqual(assistant["role"], "assistant")
         self.assertEqual(assistant["tool_calls"][0]["id"], "c1")
         self.assertEqual(tool["role"], "tool")
@@ -146,7 +153,7 @@ class CoderNativeToolsTest(unittest.TestCase):
         scripted = ScriptedModel([make_completion(text_call), make_completion(FINAL_TEXT)])
         self.run_coder(coder, scripted)
 
-        assistant, tool = scripted.requests[1]["messages"][-2:]
+        assistant, tool = tool_exchange(scripted.requests[1]["messages"])
         self.assertEqual(assistant["content"], "")
         self.assertEqual(assistant["tool_calls"][0]["id"], tool["tool_call_id"])
         self.assertEqual(tool["content"], "hello\n")

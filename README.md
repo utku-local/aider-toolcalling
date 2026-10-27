@@ -48,7 +48,7 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 
 | Tool | Modes | Approval |
 |---|---|---|
-| `read_file`, `list_files`, `find_files`, `search_code`, `find_symbol` | `--agent`, `--native-tools` | none (read-only, confined to the project root) |
+| `read_file`, `list_files`, `find_files`, `search_code`, `find_symbol` | `--agent`, `--native-tools` | none (read-only, confined to the project root); secret files such as `.env` or keys are asked every time and skipped by search |
 | `edit_file`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
 | `git` (status, diff, log, show, blame) | `--agent`, `--native-tools` | none (read-only, allow-listed flags) |
 | `todo_write` | `--agent` | none (the agent's task list) |
@@ -85,7 +85,9 @@ installed copy instead.
 - Up to `--max-tool-rounds` (default 25) model/tool round trips per message; then Aider asks whether to continue
   (at most three times) or the model answers without tools.
 - Every tool call is recorded in an operation ledger and in `.aider.tools.jsonl`; the model gets a working state
-  built from it, and old tool results are sent as one-line summaries.
+  built from it at the end of each request. Past about 12K tokens, old tool results are sent as one-line summaries.
+- The request prefix stays stable between rounds, so a server with prefix caching (for `mlx_vlm.server`:
+  `APC_ENABLED=1`) only processes the new tokens of each round.
 - Tool errors (unknown tool, invalid JSON, arguments that do not match the tool schema) are returned to the model,
   not raised.
 - Structured `tool_calls` and Qwen-style `<tool_call>` blocks in the text are both understood.
@@ -131,6 +133,9 @@ Run from the repo root so the patched package is imported:
 
 Runs the tasks in `evals/tasks.py` in temporary repos with `--agent --yes-always` (edits approved, commands not) and
 writes one JSON line per task to `evals/results/`, plus a summary: success rate, rounds, calls, time, tokens.
+`--sandbox` adds a sandbox config allowing python and pytest, so the agent can run its own checks.
+`--set hard` (or `all`) selects the harder tasks in `evals/tasks_hard.py`; `--repeat N` runs each task N times and
+reports a pass rate per task.
 
 ## License
 

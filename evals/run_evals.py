@@ -2,6 +2,8 @@
 Each task gets a fresh temporary git repo; the patched Aider runs with --agent --yes-always, so edits are approved
 and shell commands are not, then the task's check script decides pass or fail.
 Run it with the aider-chat interpreter from the repo root: python -m evals.run_evals [--tasks a,b] [--model M].
+With --sandbox each project gets a .aider-agent.json that sandboxes commands and allows python and pytest, so the
+agent can verify its work without approval inside the sandbox.
 """
 
 import argparse
@@ -16,10 +18,14 @@ from pathlib import Path
 
 from evals.metrics import TaskResult, parse_metrics, summarize
 from evals.tasks import TASKS, EvalTask
+from evals.tasks_hard import HARD_TASKS
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = REPO_ROOT / "evals" / "results"
 DEFAULT_TIMEOUT_SECONDS = 900
+TASK_SETS = {"basic": TASKS, "hard": HARD_TASKS, "all": TASKS + HARD_TASKS}
+DEFAULT_SET = "basic"
+DEFAULT_REPEAT = 1
 CHECK_TIMEOUT_SECONDS = 60
 GIT_IDENTITY = ("-c", "user.email=eval@localhost", "-c", "user.name=eval")
 AIDER_FLAGS = (
@@ -34,9 +40,16 @@ AIDER_FLAGS = (
     "--no-pretty",
 )
 CHECK_FILE = "_eval_check.py"
+AGENT_CONFIG_FILE = ".aider-agent.json"
+SANDBOX_CONFIG = {
+    "sandbox": True,
+    "commands": {"allow": [{"program": "python"}, {"program": "python3"}, {"program": "pytest"}]},
+}
 
 
-def setup_project(task: EvalTask, root: Path) -> None:
+def setup_project(task: EvalTask, root: Path, sandbox: bool) -> None:
+    if sandbox:
+        (root / AGENT_CONFIG_FILE).write_text(json.dumps(SANDBOX_CONFIG))
     for rel, text in task.files.items():
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,37 +86,44 @@ def run_check(task: EvalTask, root: Path) -> bool:
     return done.returncode == 0
 
 
-def run_task(task: EvalTask, model: str, timeout: int) -> TaskResult:
+def run_task(task: EvalTask, model: str, timeout: int, sandbox: bool) -> TaskResult:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        setup_project(task, root)
+        setup_project(task, root, sandbox)
         output, seconds = run_agent(task, root, model, timeout)
         return TaskResult(task.name, run_check(task, root), round(seconds, 1), parse_metrics(output))
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the agent evaluation set.")
-    parser.add_argument("--tasks", default="", help="Comma-separated task names (default: all)")
+    parser.add_argument("--tasks", default="", help="Comma-separated task names (default: the whole set)")
+    parser.add_argument("--set", default=DEFAULT_SET, choices=sorted(TASK_SETS), help="Task set (default: basic)")
+    parser.add_argument("--repeat", type=int, default=DEFAULT_REPEAT, help="Runs per task (default: 1)")
     parser.add_argument("--model", default="", help="Model name passed to aider (default: aider config)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS, help="Seconds per task")
+    parser.add_argument(
+        "--sandbox", action="store_true", default=False,
+        help="Sandbox commands and allow python/pytest without approval (default: False)",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     wanted = {name for name in args.tasks.split(",") if name}
-    tasks = [t for t in TASKS if not wanted or t.name in wanted]
+    tasks = [t for t in TASK_SETS[args.set] if not wanted or t.name in wanted]
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = RESULTS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}.jsonl"
-    print(f"Repo root: {REPO_ROOT}\nResults: {out_path}")
+    print(f"Repo root: {REPO_ROOT}\nResults: {out_path}\nSandbox: {args.sandbox}")
     results = []
     with open(out_path, "w") as handle:
-        for task in tasks:
-            result = run_task(task, args.model, args.timeout)
-            results.append(result)
-            handle.write(json.dumps(result.as_dict()) + "\n")
-            handle.flush()
-            print(f"{'PASS' if result.passed else 'FAIL'} {task.name} ({result.seconds}s)")
+        for run in range(1, args.repeat + 1):
+            for task in tasks:
+                result = run_task(task, args.model, args.timeout, args.sandbox)
+                results.append(result)
+                handle.write(json.dumps({**result.as_dict(), "run": run}) + "\n")
+                handle.flush()
+                print(f"{'PASS' if result.passed else 'FAIL'} {task.name} run {run} ({result.seconds}s)")
     print(json.dumps(summarize(results), indent=2))
 
 
