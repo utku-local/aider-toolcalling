@@ -1,66 +1,53 @@
-"""Unit tests for the pure helpers in aider.native_tool_loop.
-They feed fake completion messages with tool_calls through a small registry and inspect the produced messages.
-Error paths (unknown tool, bad JSON, raising handler) must become tool result messages instead of exceptions.
+"""Unit tests for the pure helpers in aider.native_tool_loop and the registry they drive.
+They feed normalized ToolCalls through a small registry and inspect the assistant and tool messages produced.
+Error paths (unknown tool, bad JSON, schema violations, raising handler) must become tool results, not exceptions.
 """
 
 import json
 import unittest
-from types import SimpleNamespace
-from typing import Any
 
-from aider.native_tool_loop import (
-    TOOL_ERROR_PREFIX,
-    UNKNOWN_TOOL_NAME,
-    build_tool_round_messages,
-    get_tool_calls,
-    tool_call_name,
-)
+from aider.native_tool_calls import ToolCall
+from aider.native_tool_loop import TOOL_ERROR_PREFIX, build_tool_round_messages
 from aider.native_toolcalling import NativeToolRegistry
 
-ECHO_PARAMETERS = {"type": "object", "properties": {"text": {"type": "string"}}}
-
-
-def make_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=call_id, type="function", function=SimpleNamespace(name=name, arguments=arguments)
-    )
-
-
-def make_message(*calls: SimpleNamespace, content: Any = None) -> SimpleNamespace:
-    return SimpleNamespace(content=content, tool_calls=list(calls) or None)
+ECHO_PARAMETERS = {
+    "type": "object",
+    "properties": {"text": {"type": "string"}, "times": {"type": "integer"}},
+    "required": ["text"],
+}
 
 
 def boom() -> str:
     raise RuntimeError("handler failed")
 
 
+def echo(text: str, times: int = 1) -> str:
+    return text.upper() * times
+
+
 def make_registry() -> NativeToolRegistry:
     registry = NativeToolRegistry()
-    registry.register("echo", "Echo text", ECHO_PARAMETERS, lambda text: text.upper())
-    registry.register("boom", "Always fails", {"type": "object"}, boom)
+    registry.register("echo", "Echo text", ECHO_PARAMETERS, echo)
+    registry.register("boom", "Always fails", {"type": "object", "properties": {}}, boom)
     return registry
 
 
-class NativeToolLoopTest(unittest.TestCase):
-    def test_get_tool_calls_handles_missing_values(self) -> None:
-        self.assertEqual(get_tool_calls(None), [])
-        self.assertEqual(get_tool_calls(SimpleNamespace(content="x")), [])
-        self.assertEqual(get_tool_calls(make_message()), [])
+def call(call_id: str, name: str, arguments: object) -> ToolCall:
+    text = arguments if isinstance(arguments, str) else json.dumps(arguments)
+    return ToolCall(id=call_id, name=name, arguments=text)
 
-    def test_tool_call_name_falls_back_to_unknown(self) -> None:
-        self.assertEqual(tool_call_name(SimpleNamespace(id="1")), UNKNOWN_TOOL_NAME)
+
+class NativeToolLoopTest(unittest.TestCase):
+    def run_round(self, *calls: ToolCall) -> list[dict]:
+        return build_tool_round_messages(make_registry(), "thinking", list(calls))
 
     def test_successful_round_builds_assistant_and_tool_messages(self) -> None:
-        message = make_message(
-            make_call("c1", "echo", json.dumps({"text": "hi"})),
-            make_call("c2", "echo", json.dumps({"text": "yo"})),
-        )
-        out = build_tool_round_messages(make_registry(), message)
+        out = self.run_round(call("c1", "echo", {"text": "hi"}), call("c2", "echo", {"text": "yo"}))
 
         self.assertEqual(out[0]["role"], "assistant")
-        self.assertEqual(out[0]["content"], "")
+        self.assertEqual(out[0]["content"], "thinking")
         self.assertEqual([c["id"] for c in out[0]["tool_calls"]], ["c1", "c2"])
-        self.assertEqual(out[0]["tool_calls"][0]["function"]["name"], "echo")
+        self.assertEqual(out[0]["tool_calls"][0]["function"]["arguments"], '{"text": "hi"}')
         self.assertEqual(
             out[1:],
             [
@@ -69,20 +56,34 @@ class NativeToolLoopTest(unittest.TestCase):
             ],
         )
 
-    def test_errors_become_tool_results(self) -> None:
-        message = make_message(
-            make_call("c1", "missing", "{}"),
-            make_call("c2", "echo", "{not json"),
-            make_call("c3", "boom", "{}"),
-        )
-        out = build_tool_round_messages(make_registry(), message)
+    def assert_error(self, tool_call: ToolCall, *fragments: str) -> None:
+        result = self.run_round(tool_call)[1]
+        self.assertEqual(result["tool_call_id"], tool_call.id)
+        self.assertTrue(result["content"].startswith(TOOL_ERROR_PREFIX), result["content"])
+        for fragment in fragments:
+            self.assertIn(fragment, result["content"])
 
-        tool_messages = out[1:]
-        self.assertEqual([m["tool_call_id"] for m in tool_messages], ["c1", "c2", "c3"])
-        for msg in tool_messages:
-            self.assertEqual(msg["role"], "tool")
-            self.assertTrue(msg["content"].startswith(TOOL_ERROR_PREFIX), msg["content"])
-        self.assertIn("handler failed", tool_messages[2]["content"])
+    def test_unknown_tool_lists_available_tools(self) -> None:
+        self.assert_error(call("c1", "missing", {}), "not registered", "boom", "echo")
+
+    def test_bad_json_is_reported(self) -> None:
+        self.assert_error(call("c1", "echo", "{not json"), "Invalid JSON")
+
+    def test_non_object_arguments_are_reported(self) -> None:
+        self.assert_error(call("c1", "echo", "[1, 2]"), "JSON object")
+
+    def test_schema_violations_are_reported(self) -> None:
+        self.assert_error(call("c1", "echo", {}), "missing required argument 'text'")
+        self.assert_error(call("c2", "echo", {"text": "a", "loud": True}), "unknown argument 'loud'")
+        self.assert_error(call("c3", "echo", {"text": 5}), "'text' must be of type string")
+        self.assert_error(call("c4", "echo", {"text": "a", "times": True}), "type integer")
+
+    def test_handler_exception_is_reported(self) -> None:
+        self.assert_error(call("c1", "boom", {}), "handler failed")
+
+    def test_optional_arguments_reach_the_handler(self) -> None:
+        out = self.run_round(call("c1", "echo", {"text": "ab", "times": 2}))
+        self.assertEqual(out[1]["content"], "ABAB")
 
 
 if __name__ == "__main__":

@@ -35,7 +35,10 @@ installed copy instead.
 
 - `--native-tools` (default off) exposes `read_file` and `list_files`, both confined to the project root.
 - It implies `--no-stream`; streaming tool calls are not supported yet.
-- At most 8 model/tool round trips per message; tool errors are returned to the model, not raised.
+- At most 8 model/tool round trips per message; after that the model is asked to answer without tools.
+- Tool errors (unknown tool, invalid JSON, arguments that do not match the tool schema) are returned to the model,
+  not raised.
+- Structured `tool_calls` and Qwen-style `<tool_call>` blocks in the text are both understood.
 
 ## Structure
 
@@ -43,6 +46,8 @@ installed copy instead.
 |---|---|
 | `aider/native_toolcalling.py` | Tool registry, execution and tool result messages |
 | `aider/native_tool_loop.py` | Pure helpers for one tool round |
+| `aider/native_tool_calls.py` | Normalizes tool calls from any response shape |
+| `aider/native_tool_schema.py` | Validates tool arguments against their JSON schema |
 | `aider/native_tools_builtin.py` | Read-only `read_file` / `list_files` tools |
 | `aider/coders/native_tool_rounds.py` | Drives the tool loop for a Coder |
 | `aider/models.py`, `aider/coders/base_coder.py`, `aider/args.py`, `aider/main.py` | Small hooks into upstream Aider |
