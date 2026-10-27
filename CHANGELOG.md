@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Real-project tasks: `python -m evals.mine_real_tasks --repo PATH --python PY` turns small bug-fix commits (Python sources plus tests) into tasks, keeping only those whose tests fail before the fix and pass at the fix. The task project is history-free, every non-test file the fix touched (sources, changelog, docs) is back at its pre-fix version, and the check also requires the tests to be unchanged. `run_evals --real FILE` runs them, with `python` in the agent's commands pointing at the project's interpreter.
+
 ## [0.4.0] - 2026-10-27
 
 ### Added

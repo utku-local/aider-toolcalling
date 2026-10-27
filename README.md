@@ -114,7 +114,7 @@ installed copy instead.
 | `aider/native_sandbox.py`, `native_tools_background.py`, `native_tools_fetch.py` | Sandbox, background commands, `fetch_url` |
 | `aider/coders/native_session.py`, `aider/agent_main.py`, `pyproject.toml` | Session save and `--resume`, the `aider-agent` command, packaging |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
-| `evals/` | Evaluation tasks, metrics and runner |
+| `evals/` | Evaluation tasks (basic, hard, mined from real commits), metrics and runner |
 | `tests/` | Unit and mocked end-to-end tests |
 
 ## Tests
@@ -136,6 +136,16 @@ writes one JSON line per task to `evals/results/`, plus a summary: success rate,
 `--sandbox` adds a sandbox config allowing python and pytest, so the agent can run its own checks.
 `--set hard` (or `all`) selects the harder tasks in `evals/tasks_hard.py`; `--repeat N` runs each task N times and
 reports a pass rate per task.
+
+Real-project tasks come from your own bug-fix commits:
+
+```
+python -m evals.mine_real_tasks --repo ~/path/to/repo --python /path/to/its/python   # writes evals/real/<repo>.json
+python -m evals.run_evals --real evals/real/<repo>.json --sandbox
+```
+
+The task project has no git history and the fix's non-test changes undone, so the agent cannot read the answer;
+the check runs the fix's tests and requires them to be unchanged.
 
 ## License
 
