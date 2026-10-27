@@ -1,6 +1,6 @@
 """Loads the agent's project configuration from .aider-agent.json in the project root.
-It reads command allow and deny rules for the command policy; a missing file means no rules (every command is
-asked), and a malformed file is reported once and ignored the same way.
+It reads command allow and deny rules for the command policy and whether commands run in the macOS sandbox;
+a missing file means no rules and no sandbox, and a malformed file is reported once and ignored the same way.
 Instruction files such as AGENTS.md are found here too, so the AgentCoder can add them read-only to the chat.
 """
 
@@ -19,9 +19,10 @@ CONFIG_ENCODING = "utf-8"
 
 @dataclass(frozen=True)
 class AgentConfig:
-    """Project settings; default: no command rules."""
+    """Project settings; defaults: no command rules, no sandbox."""
 
     rules: CommandRules = CommandRules()
+    sandbox: bool = False
 
 
 class AgentConfigError(ValueError):
@@ -47,7 +48,10 @@ def parse_config(data: Any) -> AgentConfig:
         allow=tuple(parse_rule(r) for r in commands.get("allow", [])),
         deny=tuple(parse_rule(r) for r in commands.get("deny", [])),
     )
-    return AgentConfig(rules)
+    sandbox = data.get("sandbox", False)
+    if not isinstance(sandbox, bool):
+        raise AgentConfigError('"sandbox" must be true or false')
+    return AgentConfig(rules, sandbox)
 
 
 def load_agent_config(root: str, io: Any) -> AgentConfig:

@@ -12,6 +12,7 @@ from aider.native_toolcalling import NativeToolRegistry
 from .agent_prompts import AgentPrompts
 from .base_coder import Coder
 from .native_agent_config import instruction_files
+from .native_session import save_session
 from .native_tool_setup import build_native_tools
 
 
@@ -33,7 +34,8 @@ class AgentCoder(Coder):
     def send_message(self, inp: str) -> Iterator[str]:
         self.native_write_group = ConfirmGroup()
         self.native_ledger.start_request()
-        return super().send_message(inp)
+        yield from super().send_message(inp)
+        save_session(self)
 
     def check_for_file_mentions(self, content: str) -> None:
         """The agent reads files through tools, so mentions never prompt to add files."""

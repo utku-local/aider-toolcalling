@@ -7,6 +7,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- macOS sandbox for agent commands (`"sandbox": true` in `.aider-agent.json`): `run_command` and background commands run under `sandbox-exec` with writes limited to the project and temp directories and no network. With the sandbox on, allow rules auto-approve without `trust_unsandboxed`; risky and compound commands are still asked.
+- Background commands: `start_background`, `read_background` (incremental output) and `stop_background`, with the same policy, approval and sandbox as `run_command`; at most 4 at once, all stopped on exit.
+- `fetch_url` tool: one http(s) page as text; every fetch is asked and `--yes-always` does not approve it.
+- Agent sessions are saved after every request to `.aider.agent-session.json` (history with tool messages, operation ledger, task list); `--resume` restores them.
+- Packaging: `pyproject.toml` with the dependencies of aider-chat 0.86.2 and an `aider-agent` command, so the patched Aider installs without `PYTHONPATH` (`uv tool install`).
+
+### Fixed
+
+- In plain streaming output the tool summary line was appended to the last line of the reply.
+
+### Added
+
 - Command policy for `run_command`: commands are parsed into argv (program, subcommand, arguments), not matched as text. Compound commands, path arguments outside the project, network access, deletion, git remote operations and package installs are labelled risks and always asked; `sudo`, force pushes and recursive deletion of the project root or outside it are refused.
 - `.aider-agent.json` project config with command `allow` and `deny` rules (program plus optional subcommands). Allow rules auto-approve only for `trust_unsandboxed` rules until a sandbox exists.
 - Read-only `git` tool (status, diff, log, show, blame) without approval: no shell, allow-listed flags, paths inside the project, no pager, external diff, textconv, global or system git config.
