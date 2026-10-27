@@ -1,19 +1,32 @@
 """Drives the native tool-calling loop for a Coder, streamed or not.
-While the model replies with tool calls, it executes them, appends the tool messages and queries the model again,
-streaming each follow-up reply when the coder streams; streamed tool calls come from the coder's accumulator.
-After MAX_TOOL_ROUNDS it asks once more with tool_choice "none", and it reports rounds, calls and elapsed time.
+While the model replies with tool calls, it executes them through the operation ledger, appends the tool messages
+to the caller's message list (so an API retry resumes after the rounds already done) and queries the model again.
+Each request is sent with old tool results compacted and the ledger's working state attached; at the round budget
+the user may extend it, otherwise the model is asked once more with tool_choice "none".
 """
 
 import time
 from typing import Any, Generator, Optional
 
 from aider.native_tool_calls import describe_call, normalize_tool_calls, visible_content
-from aider.native_tool_loop import (
-    FINAL_ANSWER_CHOICE,
-    MAX_TOOL_ROUNDS,
-    build_tool_round_messages,
-)
+from aider.native_tool_compaction import compact_tool_history, with_working_state
+from aider.native_tool_loop import FINAL_ANSWER_CHOICE, build_tool_round_messages, drop_orphan_tool_messages
 from aider.native_tool_stream import ToolCallAccumulator
+from aider.native_tool_summary import summarize_result
+from aider.native_working_state import render_working_state
+
+from .native_tool_log import append_operation_log
+
+MAX_CONTINUATIONS = 3
+RESULT_INDENT = "  -> "
+
+
+def prepare_request_messages(coder: Any, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """What is actually sent: valid tool pairs, compacted old results, the working state."""
+    if not coder.native_tools:
+        return messages
+    prepared = compact_tool_history(drop_orphan_tool_messages(messages))
+    return with_working_state(prepared, render_working_state(coder.native_ledger.records))
 
 
 def first_message(completion: Any) -> Optional[Any]:
@@ -43,7 +56,7 @@ def request(
     tool_choice: Optional[str],
 ) -> Generator[str, None, Any]:
     hash_object, completion = model.send_completion(
-        messages,
+        prepare_request_messages(coder, messages),
         functions,
         coder.stream,
         coder.temperature,
@@ -60,12 +73,19 @@ def request(
     return completion
 
 
-def run_tool_round(
-    coder: Any, messages: list[dict[str, Any]], completion: Any, round_index: int
-) -> int:
+def show_results(coder: Any, round_messages: list[dict[str, Any]]) -> None:
+    for message in round_messages[1:]:
+        content = message["content"]
+        coder.io.tool_output(RESULT_INDENT + summarize_result(message["name"], content))
+        if coder.verbose:
+            coder.io.tool_output(content)
+
+
+def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) -> int:
     """Execute the tool calls of the last reply; returns how many there were."""
     message = current_message(coder, completion)
-    calls = normalize_tool_calls(message, round_index)
+    coder.native_round_serial += 1
+    calls = normalize_tool_calls(message, coder.native_round_serial)
     if not calls:
         return 0
 
@@ -74,7 +94,12 @@ def run_tool_round(
     coder.partial_response_function_call = dict()
     for call in calls:
         coder.io.tool_output(f"Running tool: {describe_call(call)}")
-    round_messages = build_tool_round_messages(coder.native_tools, visible_content(message), calls)
+    logged = len(coder.native_ledger.records)
+    round_messages = build_tool_round_messages(
+        coder.native_tools, visible_content(message), calls, coder.native_ledger
+    )
+    show_results(coder, round_messages)
+    append_operation_log(coder, coder.native_ledger.records[logged:])
     messages.extend(round_messages)
     # Keep the exchange in the chat history so later turns remember what the tools returned.
     coder.cur_messages += round_messages
@@ -88,6 +113,14 @@ def report(coder: Any, rounds: int, calls: int, started: float) -> None:
         coder.io.tool_output(f"Native tools: {rounds} round(s), {calls} call(s), {elapsed:.1f}s")
 
 
+def may_continue(coder: Any, rounds: int, continuations: int) -> bool:
+    if continuations >= MAX_CONTINUATIONS:
+        return False
+    return coder.io.confirm_ask(
+        f"The model used {rounds} tool rounds. Allow {coder.max_tool_rounds} more?"
+    )
+
+
 def run_native_tool_rounds(
     coder: Any,
     model: Any,
@@ -97,23 +130,23 @@ def run_native_tool_rounds(
 ) -> Generator[str, None, Any]:
     """Execute requested tools and re-query the model until it answers without tools."""
     started = time.monotonic()
-    rounds = calls = 0
-    for round_index in range(MAX_TOOL_ROUNDS):
-        executed = run_tool_round(coder, messages, completion, round_index)
+    rounds = calls = continuations = 0
+    budget = coder.max_tool_rounds
+    while True:
+        executed = run_tool_round(coder, messages, completion)
         if not executed:
             report(coder, rounds, calls, started)
             return completion
         rounds, calls = rounds + 1, calls + executed
+        if rounds >= budget:
+            if not may_continue(coder, rounds, continuations):
+                break
+            continuations, budget = continuations + 1, budget + coder.max_tool_rounds
         completion = yield from request(coder, model, messages, functions, None)
 
-    executed = run_tool_round(coder, messages, completion, MAX_TOOL_ROUNDS)
-    if executed:
-        rounds, calls = rounds + 1, calls + executed
-        coder.io.tool_warning(
-            f"Reached {MAX_TOOL_ROUNDS} tool rounds; asking the model to answer without tools."
-        )
-        completion = yield from request(coder, model, messages, functions, FINAL_ANSWER_CHOICE)
-        coder.partial_response_function_call = dict()
-        coder.partial_response_content = visible_content(current_message(coder, completion))
+    coder.io.tool_warning(f"Stopped after {rounds} tool rounds; asking the model to answer without tools.")
+    completion = yield from request(coder, model, messages, functions, FINAL_ANSWER_CHOICE)
+    coder.partial_response_function_call = dict()
+    coder.partial_response_content = visible_content(current_message(coder, completion))
     report(coder, rounds, calls, started)
     return completion

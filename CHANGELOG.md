@@ -5,6 +5,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Operation ledger: every tool call is recorded with its id, arguments, request, status (started, awaiting approval, approved, denied, executed, failed) and result, separately from the chat history. A call id that already finished in the current request is not run again.
+- Structured working state (files read and changed, commands with exit codes, declined operations, recent tool errors), built from the ledger and attached to every request.
+- Tool results older than the last two rounds are sent as one-line summaries; the stored history keeps them in full. A single tool result is capped at 30,000 characters.
+- `--max-tool-rounds N` (default 25); at the limit Aider asks whether to allow another N rounds, at most three times.
+- Each tool result is summarized in the terminal (`-> 42 lines`, `-> exit 1: ...`); `--verbose` prints it in full.
+- `.aider.tools.jsonl` audit log of finished operations in the project root.
+- Evaluation set: 10 tasks with automatic checks and `python -m evals.run_evals`, recording success, rounds, calls, time and tokens.
+
+### Fixed
+
+- An API retry during tool rounds restarted from the message list before those rounds, so the model could repeat edits that had already been applied. Rounds are now appended to the request's own message list and a retry resumes after them.
+
 ## [0.2.0] - 2026-10-27
 
 ### Added

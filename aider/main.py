@@ -1004,6 +1004,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             auto_copy_context=args.copy_paste,
             auto_accept_architect=args.auto_accept_architect,
             native_tools=args.native_tools,
+            max_tool_rounds=args.max_tool_rounds,
             add_gitignore_files=args.add_gitignore_files,
         )
     except UnknownEditFormat as err:

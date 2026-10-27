@@ -50,7 +50,10 @@ installed copy instead.
 - `--native-tools` (default off) exposes the read-only and search tools in any chat mode.
 - Works with and without streaming; tool calls are assembled from stream chunks.
 - After a request with tool calls, Aider prints the number of rounds, calls and the elapsed time.
-- At most 8 model/tool round trips per message; after that the model is asked to answer without tools.
+- Up to `--max-tool-rounds` (default 25) model/tool round trips per message; then Aider asks whether to continue
+  (at most three times) or the model answers without tools.
+- Every tool call is recorded in an operation ledger and in `.aider.tools.jsonl`; the model gets a working state
+  built from it, and old tool results are sent as one-line summaries.
 - Tool errors (unknown tool, invalid JSON, arguments that do not match the tool schema) are returned to the model,
   not raised.
 - Structured `tool_calls` and Qwen-style `<tool_call>` blocks in the text are both understood.
@@ -71,6 +74,9 @@ installed copy instead.
 | `aider/native_tool_context.py` | Context and permission levels shared by the tools |
 | `aider/native_tools_search.py`, `native_tools_edit.py`, `native_tools_shell.py` | Search, edit and shell tools |
 | `aider/models.py`, `aider/coders/base_coder.py`, `aider/args.py`, `aider/main.py` | Small hooks into upstream Aider |
+| `aider/native_tool_ledger.py`, `native_working_state.py` | Operation ledger and the working state built from it |
+| `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
+| `evals/` | Evaluation tasks, metrics and runner |
 | `tests/` | Unit and mocked end-to-end tests |
 
 ## Tests
@@ -80,6 +86,15 @@ Run from the repo root so the patched package is imported:
 ```
 ~/.local/share/uv/tools/aider-chat/bin/python -m unittest discover -s tests
 ```
+
+## Evaluation
+
+```
+~/.local/share/uv/tools/aider-chat/bin/python -m evals.run_evals [--tasks fix-discount,find-the-bug] [--model M]
+```
+
+Runs the tasks in `evals/tasks.py` in temporary repos with `--agent --yes-always` (edits approved, commands not) and
+writes one JSON line per task to `evals/results/`, plus a summary: success rate, rounds, calls, time, tokens.
 
 ## License
 

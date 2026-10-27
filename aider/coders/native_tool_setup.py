@@ -9,6 +9,7 @@ from typing import Any
 
 from aider.io import ConfirmGroup
 from aider.native_tool_context import ToolContext, ToolPermission
+from aider.native_tool_ledger import OperationLedger, OperationStatus
 from aider.native_toolcalling import NativeToolRegistry
 from aider.native_tools_builtin import register_read_tools
 from aider.native_tools_edit import register_edit_tools
@@ -55,12 +56,20 @@ def symbol_tags(coder: Any, abs_path: str, rel_path: str) -> list[Any]:
         return []
 
 
-def approve(coder: Any, permission: ToolPermission, title: str, details: str) -> bool:
-    if permission is ToolPermission.READ:
-        return True
+def ask_user(coder: Any, permission: ToolPermission, title: str, details: str) -> bool:
     if permission is ToolPermission.WRITE:
         return coder.io.confirm_ask(title, subject=details, group=coder.native_write_group)
     return coder.io.confirm_ask(title, subject=details, explicit_yes_required=True)
+
+
+def approve(coder: Any, permission: ToolPermission, title: str, details: str) -> bool:
+    """Ask when the permission needs it, and record the approval steps in the operation ledger."""
+    if permission is ToolPermission.READ:
+        return True
+    coder.native_ledger.mark(OperationStatus.AWAITING_APPROVAL)
+    approved = ask_user(coder, permission, title, details)
+    coder.native_ledger.mark(OperationStatus.APPROVED if approved else OperationStatus.DENIED)
+    return approved
 
 
 def record_edit(coder: Any, abs_path: str) -> None:
@@ -86,6 +95,9 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     coder.native_pending_edits = set()
     coder.native_write_group = ConfirmGroup()
     coder.native_symbol_map = None
+    coder.native_ledger = OperationLedger()
+    coder.native_round_serial = 0
+    coder.native_log_failed = False
     ctx = make_tool_context(coder)
     registry = NativeToolRegistry()
     register_read_tools(registry, ctx.root)
