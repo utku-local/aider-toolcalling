@@ -11,6 +11,8 @@ from aider.native_toolcalling import NativeToolRegistry
 
 from .agent_prompts import AgentPrompts
 from .base_coder import Coder
+from .native_agent_config import instruction_files
+from .native_session import save_session
 from .native_tool_setup import build_native_tools
 
 
@@ -23,13 +25,17 @@ class AgentCoder(Coder):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs["native_tools"] = True
         super().__init__(*args, **kwargs)
+        # Project instructions (AGENTS.md, CLAUDE.md) are always in view, like a coding agent's memory file.
+        self.abs_read_only_fnames.update(instruction_files(self.root))
 
     def build_native_tools(self) -> NativeToolRegistry:
         return build_native_tools(self, include_actions=True)
 
     def send_message(self, inp: str) -> Iterator[str]:
         self.native_write_group = ConfirmGroup()
-        return super().send_message(inp)
+        self.native_ledger.start_request()
+        yield from super().send_message(inp)
+        save_session(self)
 
     def check_for_file_mentions(self, content: str) -> None:
         """The agent reads files through tools, so mentions never prompt to add files."""

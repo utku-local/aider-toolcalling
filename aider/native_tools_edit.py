@@ -74,6 +74,7 @@ def apply_change(ctx: ToolContext, target: Path, rel_path: str, before: str, aft
     if not ctx.approve(ToolPermission.WRITE, f"Edit {rel_path}?", make_diff(rel_path, before, after)):
         return False
     if not ctx.dry_run:
+        ctx.before_write(str(target))
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(after, encoding=FILE_ENCODING)
         ctx.on_edit(str(target))

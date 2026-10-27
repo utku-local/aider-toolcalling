@@ -37,7 +37,7 @@ from aider.io import ConfirmGroup, InputOutput
 from aider.linter import Linter
 from aider.llm import litellm
 from aider.models import RETRY_TIMEOUT
-from aider.native_tool_loop import drop_orphan_tool_messages, get_tool_calls
+from aider.native_tool_loop import DEFAULT_MAX_TOOL_ROUNDS, get_tool_calls
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_toolcalling import NativeToolRegistry
 from aider.reasoning_tags import (
@@ -54,7 +54,7 @@ from aider.waiting import WaitingSpinner
 
 from ..dump import dump  # noqa: F401
 from .chat_chunks import ChatChunks
-from .native_tool_rounds import run_native_tool_rounds
+from .native_tool_rounds import prepare_request_messages, run_native_tool_rounds
 from .native_tool_setup import build_native_tools
 
 
@@ -345,6 +345,7 @@ class Coder:
         auto_copy_context=False,
         auto_accept_architect=True,
         native_tools=False,
+        max_tool_rounds=DEFAULT_MAX_TOOL_ROUNDS,
     ):
         # Fill in a dummy Analytics if needed, but it is never .enable()'d
         self.analytics = analytics if analytics is not None else Analytics()
@@ -530,6 +531,7 @@ class Coder:
                 self.summarize_start()
 
         # Native OpenAI-compatible tools the model may call (--native-tools)
+        self.max_tool_rounds = max_tool_rounds
         self.native_tools = self.build_native_tools() if native_tools else None
 
         # Linting and testing
@@ -1806,14 +1808,12 @@ class Coder:
         self.partial_response_function_call = dict()
         self.native_stream_calls = ToolCallAccumulator()
 
-        if self.native_tools:
-            messages = drop_orphan_tool_messages(messages)
         self.io.log_llm_history("TO LLM", format_messages(messages))
 
         completion = None
         try:
             hash_object, completion = model.send_completion(
-                messages,
+                prepare_request_messages(self, messages),
                 functions,
                 self.stream,
                 self.temperature,

@@ -183,6 +183,19 @@ def get_parser(default_config_files, git_root):
         help="Use agent mode: the model explores, edits and runs commands through native tools",
     )
     group.add_argument(
+        "--resume",
+        action="store_true",
+        default=False,
+        help="Resume the saved agent session of this project, with its tool history (default: False)",
+    )
+    group.add_argument(
+        "--max-tool-rounds",
+        type=int,
+        default=25,
+        metavar="N",
+        help="Tool rounds per message before asking to continue, with native tools (default: 25)",
+    )
+    group.add_argument(
         "--auto-accept-architect",
         action=argparse.BooleanOptionalAction,
         default=True,

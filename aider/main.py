@@ -22,6 +22,7 @@ from aider import __version__, models, urls, utils
 from aider.analytics import Analytics
 from aider.args import get_parser
 from aider.coders import Coder
+from aider.coders.native_session import resume_session
 from aider.coders.base_coder import UnknownEditFormat
 from aider.commands import Commands, SwitchCoder
 from aider.copypaste import ClipboardWatcher
@@ -1004,6 +1005,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             auto_copy_context=args.copy_paste,
             auto_accept_architect=args.auto_accept_architect,
             native_tools=args.native_tools,
+            max_tool_rounds=args.max_tool_rounds,
             add_gitignore_files=args.add_gitignore_files,
         )
     except UnknownEditFormat as err:
@@ -1015,6 +1017,9 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         io.tool_error(str(err))
         analytics.event("exit", reason="ValueError during coder creation")
         return 1
+
+    if args.resume:
+        resume_session(coder)
 
     if return_coder:
         analytics.event("exit", reason="Returning coder object")

@@ -5,6 +5,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-27
+
+### Added
+
+- macOS sandbox for agent commands (`"sandbox": true` in `.aider-agent.json`): `run_command` and background commands run under `sandbox-exec` with writes limited to the project and temp directories and no network. With the sandbox on, allow rules auto-approve without `trust_unsandboxed`; risky and compound commands are still asked.
+- Background commands: `start_background`, `read_background` (incremental output) and `stop_background`, with the same policy, approval and sandbox as `run_command`; at most 4 at once, all stopped on exit.
+- `fetch_url` tool: one http(s) page as text; every fetch is asked and `--yes-always` does not approve it.
+- Agent sessions are saved after every request to `.aider.agent-session.json` (history with tool messages, operation ledger, task list); `--resume` restores them.
+- Packaging: `pyproject.toml` with the dependencies of aider-chat 0.86.2 and an `aider-agent` command, so the patched Aider installs without `PYTHONPATH` (`uv tool install`).
+
+### Fixed
+
+- In plain streaming output the tool summary line was appended to the last line of the reply.
+
+### Added
+
+- Command policy for `run_command`: commands are parsed into argv (program, subcommand, arguments), not matched as text. Compound commands, path arguments outside the project, network access, deletion, git remote operations and package installs are labelled risks and always asked; `sudo`, force pushes and recursive deletion of the project root or outside it are refused.
+- `.aider-agent.json` project config with command `allow` and `deny` rules (program plus optional subcommands). Allow rules auto-approve only for `trust_unsandboxed` rules until a sandbox exists.
+- Read-only `git` tool (status, diff, log, show, blame) without approval: no shell, allow-listed flags, paths inside the project, no pager, external diff, textconv, global or system git config.
+- `todo_write` tool in agent mode; open tasks are part of the working state sent with every request.
+- `/undo-agent` restores files changed by the agent's tools in its latest request (originals are captured before each write; created files are removed). Works without git or auto-commits.
+- Agent mode adds `AGENTS.md` and `CLAUDE.md` from the project root to the chat as read-only files.
+
+### Added
+
+- Operation ledger: every tool call is recorded with its id, arguments, request, status (started, awaiting approval, approved, denied, executed, failed) and result, separately from the chat history. A call id that already finished in the current request is not run again.
+- Structured working state (files read and changed, commands with exit codes, declined operations, recent tool errors), built from the ledger and attached to every request.
+- Tool results older than the last two rounds are sent as one-line summaries; the stored history keeps them in full. A single tool result is capped at 30,000 characters.
+- `--max-tool-rounds N` (default 25); at the limit Aider asks whether to allow another N rounds, at most three times.
+- Each tool result is summarized in the terminal (`-> 42 lines`, `-> exit 1: ...`); `--verbose` prints it in full.
+- `.aider.tools.jsonl` audit log of finished operations in the project root.
+- Evaluation set: 10 tasks with automatic checks and `python -m evals.run_evals`, recording success, rounds, calls, time and tokens.
+
+### Fixed
+
+- An API retry during tool rounds restarted from the message list before those rounds, so the model could repeat edits that had already been applied. Rounds are now appended to the request's own message list and a retry resumes after them.
+
 ## [0.2.0] - 2026-10-27
 
 ### Added

@@ -95,6 +95,32 @@ class AgentCoderTest(unittest.TestCase):
         self.assertIn("return a - b", tool_messages[0]["content"])
 
 
+    def test_instruction_files_are_read_only_context(self) -> None:
+        with open("AGENTS.md", "w") as handle:
+            handle.write("Always use type hints.")
+        coder = self.make_coder()
+        self.assertIn(os.path.realpath("AGENTS.md"), {os.path.realpath(p) for p in coder.abs_read_only_fnames})
+
+    def test_undo_agent_restores_tool_edits(self) -> None:
+        coder = self.make_coder()
+        fix = {"path": "calc.py", "old_string": "a - b", "new_string": "a + b"}
+        create = {"path": "notes.txt", "content": "todo"}
+        scripted = ScriptedModel(
+            [
+                make_completion(tool_calls=tool_call("e1", "edit_file", fix) + tool_call("w1", "write_file", create)),
+                make_completion(FINAL_TEXT),
+            ]
+        )
+        with patch("aider.models.litellm.completion", side_effect=scripted):
+            coder.run(with_message="Fix add() and take notes.")
+        self.assertTrue(os.path.exists("notes.txt"))
+
+        coder.commands.cmd_undo_agent("")
+        with open("calc.py") as handle:
+            self.assertIn("return a - b", handle.read())
+        self.assertFalse(os.path.exists("notes.txt"))
+
+
 class DropOrphanToolMessagesTest(unittest.TestCase):
     def test_valid_history_is_unchanged(self) -> None:
         history = [

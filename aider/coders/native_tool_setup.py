@@ -8,13 +8,23 @@ from pathlib import Path
 from typing import Any
 
 from aider.io import ConfirmGroup
+from aider.native_command_policy import PolicyDecision, decide
+from aider.native_sandbox import sandbox_available, sandboxed_argv, shell_argv
+from aider.native_snapshots import SnapshotStore
+from aider.native_todo import TodoList, register_todo_tool
 from aider.native_tool_context import ToolContext, ToolPermission
+from aider.native_tool_ledger import OperationLedger, OperationStatus
 from aider.native_toolcalling import NativeToolRegistry
 from aider.native_tools_builtin import register_read_tools
+from aider.native_tools_background import ProcessManager, register_background_tools
 from aider.native_tools_edit import register_edit_tools
+from aider.native_tools_fetch import register_fetch_tool
+from aider.native_tools_git import register_git_tool
 from aider.native_tools_search import register_search_tools
 from aider.native_tools_shell import register_shell_tools
 from aider.repomap import RepoMap
+
+from .native_agent_config import load_agent_config
 
 SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache"})
 HIDDEN_PREFIX = "."
@@ -55,12 +65,21 @@ def symbol_tags(coder: Any, abs_path: str, rel_path: str) -> list[Any]:
         return []
 
 
-def approve(coder: Any, permission: ToolPermission, title: str, details: str) -> bool:
-    if permission is ToolPermission.READ:
-        return True
+def ask_user(coder: Any, permission: ToolPermission, title: str, details: str) -> bool:
+    """Writes share the request's confirm group; commands and network access are asked every time."""
     if permission is ToolPermission.WRITE:
         return coder.io.confirm_ask(title, subject=details, group=coder.native_write_group)
     return coder.io.confirm_ask(title, subject=details, explicit_yes_required=True)
+
+
+def approve(coder: Any, permission: ToolPermission, title: str, details: str) -> bool:
+    """Ask when the permission needs it, and record the approval steps in the operation ledger."""
+    if permission is ToolPermission.READ:
+        return True
+    coder.native_ledger.mark(OperationStatus.AWAITING_APPROVAL)
+    approved = ask_user(coder, permission, title, details)
+    coder.native_ledger.mark(OperationStatus.APPROVED if approved else OperationStatus.DENIED)
+    return approved
 
 
 def record_edit(coder: Any, abs_path: str) -> None:
@@ -69,28 +88,67 @@ def record_edit(coder: Any, abs_path: str) -> None:
     coder.native_pending_edits.add(abs_path)
 
 
+def check_command(coder: Any, root: Path, command: str) -> PolicyDecision:
+    return decide(command, root, coder.native_agent_config.rules, coder.native_sandboxed)
+
+
+def use_sandbox(coder: Any) -> bool:
+    """True when the project asks for the sandbox and this machine has it; warns when it cannot be used."""
+    if not coder.native_agent_config.sandbox:
+        return False
+    if sandbox_available():
+        return True
+    coder.io.tool_warning("Sandbox requested in .aider-agent.json, but sandbox-exec is not available.")
+    return False
+
+
+def wrap_command(coder: Any, root: Path, command: str) -> list[str]:
+    return sandboxed_argv(root, command) if coder.native_sandboxed else shell_argv(command)
+
+
+def before_write(coder: Any, abs_path: str) -> None:
+    coder.native_snapshots.capture(coder.native_ledger.request, abs_path)
+
+
 def make_tool_context(coder: Any) -> ToolContext:
+    root = Path(coder.root).resolve()
     return ToolContext(
-        root=Path(coder.root).resolve(),
+        root=root,
         list_files=lambda: project_files(coder),
         find_tags=lambda abs_path, rel_path: symbol_tags(coder, abs_path, rel_path),
         approve=lambda permission, title, details: approve(coder, permission, title, details),
         on_edit=lambda path: record_edit(coder, path),
         dry_run=bool(coder.dry_run),
+        check_command=lambda command: check_command(coder, root, command),
+        before_write=lambda path: before_write(coder, path),
+        todos=coder.native_todos,
+        wrap_command=lambda command: wrap_command(coder, root, command),
     )
 
 
 def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
-    """Registry for `coder`; `include_actions` adds edit_file, write_file and run_command."""
+    """Registry for `coder`; `include_actions` adds the task list, edit, command, background and fetch tools."""
     coder.native_tool_edits = set()
     coder.native_pending_edits = set()
     coder.native_write_group = ConfirmGroup()
     coder.native_symbol_map = None
+    coder.native_ledger = OperationLedger()
+    coder.native_round_serial = 0
+    coder.native_log_failed = False
+    coder.native_todos = TodoList()
+    coder.native_snapshots = SnapshotStore()
+    coder.native_agent_config = load_agent_config(coder.root, coder.io)
+    coder.native_sandboxed = use_sandbox(coder)
+    coder.native_processes = ProcessManager()
     ctx = make_tool_context(coder)
     registry = NativeToolRegistry()
     register_read_tools(registry, ctx.root)
     register_search_tools(registry, ctx)
+    register_git_tool(registry, ctx)
     if include_actions:
+        register_todo_tool(registry, ctx.todos)
         register_edit_tools(registry, ctx)
         register_shell_tools(registry, ctx)
+        register_background_tools(registry, ctx, coder.native_processes)
+        register_fetch_tool(registry, ctx)
     return registry
