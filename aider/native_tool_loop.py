@@ -60,3 +60,38 @@ def build_tool_round_messages(
     return [assistant_tool_call_message(content, calls)] + [
         make_tool_result_message(result) for result in results
     ]
+
+
+def answered_ids(messages: list[dict[str, Any]], start: int) -> set[str]:
+    """tool_call_ids of the tool messages directly after index `start`."""
+    ids = set()
+    for message in messages[start + 1 :]:
+        if message.get("role") != "tool":
+            break
+        ids.add(message.get("tool_call_id"))
+    return ids
+
+
+def drop_orphan_tool_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Make history valid for strict servers after truncation, summaries or interruptions.
+
+    Tool messages must answer a tool call of the assistant message right before them, and every kept tool call
+    must have an answer; unanswered calls are removed from their assistant message.
+    """
+    cleaned: list[dict[str, Any]] = []
+    open_ids: set[str] = set()
+    for index, message in enumerate(messages):
+        if message.get("role") == "tool":
+            if message.get("tool_call_id") in open_ids:
+                cleaned.append(message)
+            continue
+        open_ids = set()
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            answered = answered_ids(messages, index)
+            calls = [c for c in message["tool_calls"] if c.get("id") in answered]
+            open_ids = {c["id"] for c in calls}
+            message = {k: v for k, v in message.items() if k != "tool_calls"}
+            if calls:
+                message["tool_calls"] = calls
+        cleaned.append(message)
+    return cleaned

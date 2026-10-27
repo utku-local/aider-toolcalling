@@ -7,6 +7,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Agent mode (`--agent`, `--edit-format agent`, `/chat-mode agent`): the model explores, edits and verifies the project only through tools, with its own system prompt instead of an edit format.
+- Search tools `find_files` (glob), `search_code` (regex) and `find_symbol` (tree-sitter definitions); `read_file` takes an optional line range. They are also available with `--native-tools` in the other modes.
+- Action tools for agent mode: `edit_file` (exact string replacement, must be unique unless `replace_all`), `write_file`, and `run_command` (timeout, output tail).
+- Approvals: every file change shows a diff and asks (Yes/No/All/Skip all per request; `--yes-always` approves edits); every shell command asks each time and is never approved by `--yes-always`.
+- Files changed by tools go through Aider's post-edit flow (lint, auto-commit, tests).
+- Tool calls and results stay in the chat history; orphaned tool messages are cleaned up before each request.
+- The terminal shows each tool call with its arguments.
+
+### Added
+
 - Tool calls are accepted in every common response shape: objects or dicts, string or dict arguments, and Qwen-style `<tool_call>{...}</tool_call>` blocks in the message text. Calls without an id get a synthetic id that matches between the assistant and tool messages.
 - Tool arguments are validated against the tool's JSON schema (required, unknown and wrongly typed arguments); the model receives a precise error message and can retry.
 

@@ -37,8 +37,8 @@ from aider.io import ConfirmGroup, InputOutput
 from aider.linter import Linter
 from aider.llm import litellm
 from aider.models import RETRY_TIMEOUT
-from aider.native_tool_loop import get_tool_calls
-from aider.native_tools_builtin import build_builtin_registry
+from aider.native_tool_loop import drop_orphan_tool_messages, get_tool_calls
+from aider.native_toolcalling import NativeToolRegistry
 from aider.reasoning_tags import (
     REASONING_TAG,
     format_reasoning_content,
@@ -54,6 +54,7 @@ from aider.waiting import WaitingSpinner
 from ..dump import dump  # noqa: F401
 from .chat_chunks import ChatChunks
 from .native_tool_rounds import run_native_tool_rounds
+from .native_tool_setup import build_native_tools
 
 
 class UnknownEditFormat(ValueError):
@@ -528,7 +529,7 @@ class Coder:
                 self.summarize_start()
 
         # Native OpenAI-compatible tools the model may call (--native-tools)
-        self.native_tools = build_builtin_registry(self.root) if native_tools else None
+        self.native_tools = self.build_native_tools() if native_tools else None
 
         # Linting and testing
         self.linter = Linter(root=self.root, encoding=io.encoding)
@@ -1803,6 +1804,8 @@ class Coder:
         self.partial_response_content = ""
         self.partial_response_function_call = dict()
 
+        if self.native_tools:
+            messages = drop_orphan_tool_messages(messages)
         self.io.log_llm_history("TO LLM", format_messages(messages))
 
         completion = None
@@ -1848,6 +1851,10 @@ class Coder:
                 args = self.parse_partial_args()
                 if args:
                     self.io.ai_output(json.dumps(args, indent=4))
+
+    def build_native_tools(self) -> NativeToolRegistry:
+        """Read and search tools for --native-tools; AgentCoder adds edit and shell tools."""
+        return build_native_tools(self, include_actions=False)
 
     def show_send_output(self, completion: Any) -> None:
         # Stop spinner once we have a response

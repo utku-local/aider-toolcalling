@@ -30,10 +30,24 @@ Run the patched package from any project directory:
 PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python -m aider --native-tools
 ```
 
+Agent mode, the closest to a local coding agent like Claude Code:
+
+```
+PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python -m aider --agent
+```
+
+| Tool | Modes | Approval |
+|---|---|---|
+| `read_file`, `list_files`, `find_files`, `search_code`, `find_symbol` | `--agent`, `--native-tools` | none (read-only, confined to the project root) |
+| `edit_file`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
+| `run_command` | `--agent` | asked for every command; `--yes-always` never approves it |
+
+Files changed by tools are linted, auto-committed and tested like any Aider edit, following your settings.
+
 `PYTHONPATH` is required: launching the `aider` command or running a script from elsewhere imports the unpatched
 installed copy instead.
 
-- `--native-tools` (default off) exposes `read_file` and `list_files`, both confined to the project root.
+- `--native-tools` (default off) exposes the read-only and search tools in any chat mode.
 - It implies `--no-stream`; streaming tool calls are not supported yet.
 - At most 8 model/tool round trips per message; after that the model is asked to answer without tools.
 - Tool errors (unknown tool, invalid JSON, arguments that do not match the tool schema) are returned to the model,
@@ -50,6 +64,10 @@ installed copy instead.
 | `aider/native_tool_schema.py` | Validates tool arguments against their JSON schema |
 | `aider/native_tools_builtin.py` | Read-only `read_file` / `list_files` tools |
 | `aider/coders/native_tool_rounds.py` | Drives the tool loop for a Coder |
+| `aider/coders/agent_coder.py`, `agent_prompts.py` | Agent chat mode |
+| `aider/coders/native_tool_setup.py` | Builds the tool registry and approvals for a Coder |
+| `aider/native_tool_context.py` | Context and permission levels shared by the tools |
+| `aider/native_tools_search.py`, `native_tools_edit.py`, `native_tools_shell.py` | Search, edit and shell tools |
 | `aider/models.py`, `aider/coders/base_coder.py`, `aider/args.py`, `aider/main.py` | Small hooks into upstream Aider |
 | `tests/` | Unit and mocked end-to-end tests |
 
