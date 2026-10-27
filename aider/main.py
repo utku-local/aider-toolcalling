@@ -961,6 +961,10 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             )
         args.stream = False
 
+    if args.native_tools and args.stream:
+        io.tool_warning("Native tool calling does not support streaming yet. Disabling streaming.")
+        args.stream = False
+
     if args.map_tokens is None:
         map_tokens = main_model.get_repo_map_tokens()
     else:
@@ -1003,6 +1007,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             detect_urls=args.detect_urls,
             auto_copy_context=args.copy_paste,
             auto_accept_architect=args.auto_accept_architect,
+            native_tools=args.native_tools,
             add_gitignore_files=args.add_gitignore_files,
         )
     except UnknownEditFormat as err:

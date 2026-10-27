@@ -182,6 +182,15 @@ def get_parser(default_config_files, git_root):
         help="Enable/disable automatic acceptance of architect changes (default: True)",
     )
     group.add_argument(
+        "--native-tools",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Let the model call read-only project tools via native tool calling;"
+            " implies --no-stream (default: False)"
+        ),
+    )
+    group.add_argument(
         "--weak-model",
         metavar="WEAK_MODEL",
         default=None,

@@ -1,0 +1,9 @@
+{
+  "commands": [
+    {
+      "name": "unittest",
+      "run": "~/.local/share/uv/tools/aider-chat/bin/python -m unittest discover -s tests",
+      "timeout_s": 300
+    }
+  ]
+}
