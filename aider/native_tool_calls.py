@@ -13,6 +13,7 @@ TEXT_TOOL_CALL = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>", re.DOTALL)
 SYNTHETIC_ID_FORMAT = "call_{round}_{index}"
 EMPTY_ARGUMENTS = "{}"
 UNKNOWN_TOOL_NAME = "unknown"
+MAX_DESCRIPTION_CHARS = 160
 
 
 @dataclass(frozen=True)
@@ -79,3 +80,9 @@ def normalize_tool_calls(message: Any, round_index: int) -> list[ToolCall]:
 def visible_content(message: Any) -> str:
     """Message text with any <tool_call> blocks removed."""
     return strip_text_calls(field(message, "content"))
+
+
+def describe_call(call: ToolCall) -> str:
+    """One-line summary for the terminal, e.g. `read_file {"path": "a.py"}`."""
+    text = f"{call.name} {call.arguments}"
+    return text if len(text) <= MAX_DESCRIPTION_CHARS else text[: MAX_DESCRIPTION_CHARS - 3] + "..."

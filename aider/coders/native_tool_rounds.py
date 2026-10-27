@@ -5,7 +5,7 @@ After MAX_TOOL_ROUNDS it asks once more with tool_choice "none" so the turn stil
 
 from typing import Any, Optional
 
-from aider.native_tool_calls import normalize_tool_calls, visible_content
+from aider.native_tool_calls import describe_call, normalize_tool_calls, visible_content
 from aider.native_tool_loop import (
     FINAL_ANSWER_CHOICE,
     MAX_TOOL_ROUNDS,
@@ -52,8 +52,11 @@ def run_tool_round(
     # Native tool calls are not legacy edit-format function calls.
     coder.partial_response_function_call = dict()
     for call in calls:
-        coder.io.tool_output(f"Running tool: {call.name}")
-    messages.extend(build_tool_round_messages(coder.native_tools, visible_content(message), calls))
+        coder.io.tool_output(f"Running tool: {describe_call(call)}")
+    round_messages = build_tool_round_messages(coder.native_tools, visible_content(message), calls)
+    messages.extend(round_messages)
+    # Keep the exchange in the chat history so later turns remember what the tools returned.
+    coder.cur_messages += round_messages
     coder.calculate_and_show_tokens_and_cost(messages, completion)
     return True
 

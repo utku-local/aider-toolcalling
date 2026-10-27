@@ -176,6 +176,13 @@ def get_parser(default_config_files, git_root):
         help="Use architect edit format for the main chat",
     )
     group.add_argument(
+        "--agent",
+        action="store_const",
+        dest="edit_format",
+        const="agent",
+        help="Use agent mode: the model explores, edits and runs commands through native tools",
+    )
+    group.add_argument(
         "--auto-accept-architect",
         action=argparse.BooleanOptionalAction,
         default=True,
