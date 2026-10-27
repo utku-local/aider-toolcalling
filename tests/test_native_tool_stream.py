@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from typing import Any, Iterator, Optional
 from unittest.mock import patch
 
-from test_coder_native_tools import FINAL_TEXT, MODEL_NAME, ScriptedModel
+from test_coder_native_tools import FINAL_TEXT, MODEL_NAME, ScriptedModel, tool_exchange
 
 from aider.coders import Coder
 from aider.io import InputOutput
@@ -94,7 +94,7 @@ class StreamingCoderTest(unittest.TestCase):
 
         self.assertEqual(len(scripted.requests), 2)
         self.assertTrue(all(request["stream"] for request in scripted.requests))
-        assistant, tool = scripted.requests[1]["messages"][-2:]
+        assistant, tool = tool_exchange(scripted.requests[1]["messages"])
         self.assertEqual(assistant["content"], "Let me check.")
         self.assertEqual(assistant["tool_calls"][0]["function"]["arguments"], '{"path": "hello.txt"}')
         self.assertEqual((tool["tool_call_id"], tool["content"]), ("s1", "hello\n"))
