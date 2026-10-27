@@ -2,6 +2,8 @@
 Each task gets a fresh temporary git repo; the patched Aider runs with --agent --yes-always, so edits are approved
 and shell commands are not, then the task's check script decides pass or fail.
 Run it with the aider-chat interpreter from the repo root: python -m evals.run_evals [--tasks a,b] [--model M].
+With --sandbox each project gets a .aider-agent.json that sandboxes commands and allows python and pytest, so the
+agent can verify its work without approval inside the sandbox.
 """
 
 import argparse
@@ -34,9 +36,16 @@ AIDER_FLAGS = (
     "--no-pretty",
 )
 CHECK_FILE = "_eval_check.py"
+AGENT_CONFIG_FILE = ".aider-agent.json"
+SANDBOX_CONFIG = {
+    "sandbox": True,
+    "commands": {"allow": [{"program": "python"}, {"program": "python3"}, {"program": "pytest"}]},
+}
 
 
-def setup_project(task: EvalTask, root: Path) -> None:
+def setup_project(task: EvalTask, root: Path, sandbox: bool) -> None:
+    if sandbox:
+        (root / AGENT_CONFIG_FILE).write_text(json.dumps(SANDBOX_CONFIG))
     for rel, text in task.files.items():
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,10 +82,10 @@ def run_check(task: EvalTask, root: Path) -> bool:
     return done.returncode == 0
 
 
-def run_task(task: EvalTask, model: str, timeout: int) -> TaskResult:
+def run_task(task: EvalTask, model: str, timeout: int, sandbox: bool) -> TaskResult:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        setup_project(task, root)
+        setup_project(task, root, sandbox)
         output, seconds = run_agent(task, root, model, timeout)
         return TaskResult(task.name, run_check(task, root), round(seconds, 1), parse_metrics(output))
 
@@ -86,6 +95,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tasks", default="", help="Comma-separated task names (default: all)")
     parser.add_argument("--model", default="", help="Model name passed to aider (default: aider config)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS, help="Seconds per task")
+    parser.add_argument(
+        "--sandbox", action="store_true", default=False,
+        help="Sandbox commands and allow python/pytest without approval (default: False)",
+    )
     return parser.parse_args()
 
 
@@ -95,11 +108,11 @@ def main() -> None:
     tasks = [t for t in TASKS if not wanted or t.name in wanted]
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = RESULTS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}.jsonl"
-    print(f"Repo root: {REPO_ROOT}\nResults: {out_path}")
+    print(f"Repo root: {REPO_ROOT}\nResults: {out_path}\nSandbox: {args.sandbox}")
     results = []
     with open(out_path, "w") as handle:
         for task in tasks:
-            result = run_task(task, args.model, args.timeout)
+            result = run_task(task, args.model, args.timeout, args.sandbox)
             results.append(result)
             handle.write(json.dumps(result.as_dict()) + "\n")
             handle.flush()

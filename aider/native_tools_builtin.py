@@ -6,6 +6,8 @@ This is the filesystem adapter of the tool loop; paths that escape the root rais
 from pathlib import Path
 from typing import Optional
 
+from aider.native_sensitive import is_sensitive
+from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolError, NativeToolRegistry
 
 MAX_READ_CHARS = 100_000
@@ -89,24 +91,43 @@ def list_files(root: Path, path: str = DEFAULT_LIST_PATH) -> str:
     return listing
 
 
-def register_read_tools(registry: NativeToolRegistry, root: Path) -> None:
-    """Add read_file and list_files, bound to `root`, to `registry`."""
+def guarded_read(
+    ctx: ToolContext, path: str, start_line: Optional[int] = None, end_line: Optional[int] = None
+) -> str:
+    """read_file that asks before reading a file that usually holds secrets."""
+    if is_sensitive(path) and not ctx.approve(
+        ToolPermission.SENSITIVE, f"Read {path}? It may contain secrets.", path
+    ):
+        return DENIED_ACTION
+    return read_file(ctx.root, path, start_line, end_line)
+
+
+def register_read_tools(registry: NativeToolRegistry, ctx: ToolContext) -> None:
+    """Add read_file and list_files, bound to `ctx`, to `registry`."""
     registry.register(
         "read_file",
         "Read a text file from the project, optionally only a range of lines.",
         READ_PARAMETERS,
-        lambda path, start_line=None, end_line=None: read_file(root, path, start_line, end_line),
+        lambda path, start_line=None, end_line=None: guarded_read(ctx, path, start_line, end_line),
     )
     registry.register(
         "list_files",
         "List the entries of a project directory; directories end with '/'.",
         LIST_PARAMETERS,
-        lambda path=DEFAULT_LIST_PATH: list_files(root, path),
+        lambda path=DEFAULT_LIST_PATH: list_files(ctx.root, path),
     )
 
 
+def never_approve(permission: ToolPermission, title: str, details: str) -> bool:
+    return False
+
+
 def build_builtin_registry(root: str) -> NativeToolRegistry:
-    """Registry with the read-only tools bound to the given project root."""
+    """Registry with the read-only tools bound to `root`; reading secret files is always declined."""
+    ctx = ToolContext(
+        root=Path(root).resolve(), list_files=list, find_tags=lambda abs_path, rel_path: [],
+        approve=never_approve, on_edit=lambda path: None, dry_run=False,
+    )
     registry = NativeToolRegistry()
-    register_read_tools(registry, Path(root).resolve())
+    register_read_tools(registry, ctx)
     return registry

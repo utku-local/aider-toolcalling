@@ -15,12 +15,17 @@ from aider.native_todo import TodoList
 
 
 class ToolPermission(str, Enum):
-    """READ runs without asking; WRITE, EXECUTE and NETWORK need the user's approval."""
+    """READ runs without asking; WRITE, EXECUTE, NETWORK and SENSITIVE (reading secrets) need approval."""
 
     READ = "read"
     WRITE = "write"
     EXECUTE = "execute"
     NETWORK = "network"
+    SENSITIVE = "sensitive"
+
+
+DENIED_CHANGE = "The user declined this change. Ask them how to proceed or try a different approach."
+DENIED_ACTION = "The user declined this action. Ask them how to proceed or try a different approach."
 
 
 def ask_for_every_command(command: str) -> PolicyDecision:
