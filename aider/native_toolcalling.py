@@ -10,6 +10,10 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 
+class NativeToolError(ValueError):
+    """Raised when a tool call cannot be executed as requested."""
+
+
 @dataclass
 class ToolResult:
     tool_call_id: str
@@ -31,7 +35,7 @@ class NativeToolRegistry:
         handler: Callable[..., Any],
     ) -> None:
         if not name or name in self._tools:
-            raise ValueError(f"Invalid or duplicate tool name: {name!r}")
+            raise NativeToolError(f"Invalid or duplicate tool name: {name!r}")
 
         schema = {
             "type": "function",
@@ -51,13 +55,13 @@ class NativeToolRegistry:
         function = getattr(tool_call, "function", None)
         call_id = getattr(tool_call, "id", None)
         if not function or not call_id:
-            raise ValueError("Tool call is missing its function or call ID")
+            raise NativeToolError("Tool call is missing its function or call ID")
 
         name = getattr(function, "name", None)
         raw_arguments = getattr(function, "arguments", "{}")
 
         if name not in self._tools:
-            raise ValueError(f"Tool is not registered: {name!r}")
+            raise NativeToolError(f"Tool is not registered: {name!r}")
 
         try:
             arguments = (
@@ -66,10 +70,10 @@ class NativeToolRegistry:
                 else raw_arguments
             )
         except (TypeError, json.JSONDecodeError) as exc:
-            raise ValueError(f"Invalid JSON arguments for tool {name!r}") from exc
+            raise NativeToolError(f"Invalid JSON arguments for tool {name!r}") from exc
 
         if not isinstance(arguments, dict):
-            raise ValueError("Tool arguments must be a JSON object")
+            raise NativeToolError("Tool arguments must be a JSON object")
 
         _, handler = self._tools[name]
         result = handler(**arguments)
