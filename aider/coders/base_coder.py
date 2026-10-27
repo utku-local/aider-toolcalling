@@ -24,7 +24,7 @@ except ImportError:  # Babel not installed – we will fall back to a small mapp
     Locale = None
 from json.decoder import JSONDecodeError
 from pathlib import Path
-from typing import List
+from typing import Any, Iterator, List, Optional
 
 from rich.console import Console
 
@@ -37,6 +37,8 @@ from aider.io import ConfirmGroup, InputOutput
 from aider.linter import Linter
 from aider.llm import litellm
 from aider.models import RETRY_TIMEOUT
+from aider.native_tool_loop import get_tool_calls
+from aider.native_tools_builtin import build_builtin_registry
 from aider.reasoning_tags import (
     REASONING_TAG,
     format_reasoning_content,
@@ -51,6 +53,7 @@ from aider.waiting import WaitingSpinner
 
 from ..dump import dump  # noqa: F401
 from .chat_chunks import ChatChunks
+from .native_tool_rounds import run_native_tool_rounds
 
 
 class UnknownEditFormat(ValueError):
@@ -94,6 +97,7 @@ class Coder:
     last_asked_for_commit_time = 0
     repo_map = None
     functions = None
+    native_tools = None
     num_exhausted_context_windows = 0
     num_malformed_responses = 0
     last_keyboard_interrupt = None
@@ -338,6 +342,7 @@ class Coder:
         file_watcher=None,
         auto_copy_context=False,
         auto_accept_architect=True,
+        native_tools=False,
     ):
         # Fill in a dummy Analytics if needed, but it is never .enable()'d
         self.analytics = analytics if analytics is not None else Analytics()
@@ -521,6 +526,9 @@ class Coder:
             if history_md:
                 self.done_messages = utils.split_chat_history_markdown(history_md)
                 self.summarize_start()
+
+        # Native OpenAI-compatible tools the model may call (--native-tools)
+        self.native_tools = build_builtin_registry(self.root) if native_tools else None
 
         # Linting and testing
         self.linter = Linter(root=self.root, encoding=io.encoding)
@@ -1780,7 +1788,12 @@ class Coder:
         if added_fnames:
             return prompts.added_files.format(fnames=", ".join(added_fnames))
 
-    def send(self, messages, model=None, functions=None):
+    def send(
+        self,
+        messages: list[dict[str, Any]],
+        model: Optional[models.Model] = None,
+        functions: Optional[list[dict[str, Any]]] = None,
+    ) -> Iterator[str]:
         self.got_reasoning_content = False
         self.ended_reasoning_content = False
 
@@ -1799,6 +1812,7 @@ class Coder:
                 functions,
                 self.stream,
                 self.temperature,
+                tools=self.native_tools.schemas() if self.native_tools else None,
             )
             self.chat_completion_call_hashes.append(hash_object.hexdigest())
 
@@ -1806,6 +1820,8 @@ class Coder:
                 yield from self.show_send_output_stream(completion)
             else:
                 self.show_send_output(completion)
+                if self.native_tools:
+                    completion = run_native_tool_rounds(self, model, messages, functions, completion)
 
             # Calculate costs for successful responses
             self.calculate_and_show_tokens_and_cost(messages, completion)
@@ -1833,7 +1849,7 @@ class Coder:
                 if args:
                     self.io.ai_output(json.dumps(args, indent=4))
 
-    def show_send_output(self, completion):
+    def show_send_output(self, completion: Any) -> None:
         # Stop spinner once we have a response
         self._stop_waiting_spinner()
 
@@ -1889,7 +1905,10 @@ class Coder:
 
         show_resp = replace_reasoning_tags(show_resp, self.reasoning_tag_name)
 
-        self.io.assistant_output(show_resp, pretty=self.show_pretty())
+        # A native tool-calling turn may carry no text; "Running tool" lines report it instead.
+        native_tool_turn = self.native_tools and get_tool_calls(completion.choices[0].message)
+        if show_resp or not native_tool_turn:
+            self.io.assistant_output(show_resp, pretty=self.show_pretty())
 
         if (
             hasattr(completion.choices[0], "finish_reason")
