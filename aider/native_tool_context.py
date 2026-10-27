@@ -4,10 +4,13 @@ that can be tested with plain functions.
 ToolPermission names the approval level a tool needs before it may act.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
+
+from aider.native_command_policy import PolicyAction, PolicyDecision
+from aider.native_todo import TodoList
 
 
 class ToolPermission(str, Enum):
@@ -18,9 +21,21 @@ class ToolPermission(str, Enum):
     EXECUTE = "execute"
 
 
+def ask_for_every_command(command: str) -> PolicyDecision:
+    """Default policy when none is configured: every command needs approval."""
+    return PolicyDecision(PolicyAction.ASK)
+
+
+def ignore_path(path: str) -> None:
+    """Default before-write hook: no snapshot."""
+
+
 @dataclass(frozen=True)
 class ToolContext:
-    """Everything a tool may touch. `approve(permission, title, details)` returns True to proceed."""
+    """Everything a tool may touch. `approve(permission, title, details)` returns True to proceed.
+
+    Defaults: `check_command` asks for every command, `before_write` keeps no snapshot, `todos` starts empty.
+    """
 
     root: Path
     list_files: Callable[[], list[str]]
@@ -28,3 +43,6 @@ class ToolContext:
     approve: Callable[[ToolPermission, str, str], bool]
     on_edit: Callable[[str], None]
     dry_run: bool
+    check_command: Callable[[str], PolicyDecision] = ask_for_every_command
+    before_write: Callable[[str], None] = ignore_path
+    todos: TodoList = field(default_factory=TodoList)

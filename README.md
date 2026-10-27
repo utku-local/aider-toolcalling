@@ -40,9 +40,24 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 |---|---|---|
 | `read_file`, `list_files`, `find_files`, `search_code`, `find_symbol` | `--agent`, `--native-tools` | none (read-only, confined to the project root) |
 | `edit_file`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
-| `run_command` | `--agent` | asked for every command; `--yes-always` never approves it |
+| `git` (status, diff, log, show, blame) | `--agent`, `--native-tools` | none (read-only, allow-listed flags) |
+| `todo_write` | `--agent` | none (the agent's task list) |
+| `run_command` | `--agent` | command policy: refused, asked with risk labels, or allowed by a trusted rule; `--yes-always` never approves it |
 
 Files changed by tools are linted, auto-committed and tested like any Aider edit, following your settings.
+`/undo-agent` restores the files the agent changed in its latest request, also without git.
+Agent mode adds `AGENTS.md` / `CLAUDE.md` from the project root to the chat as read-only instructions.
+
+Command rules live in `.aider-agent.json` in the project root:
+
+```json
+{"commands": {"allow": [{"program": "pytest", "trust_unsandboxed": true}],
+              "deny": [{"program": "docker"}]}}
+```
+
+A rule matches the parsed program (`python -m pytest` counts as `pytest`) and optional `subcommands`. Compound
+commands, paths outside the project and risky programs are asked even when a rule matches. Without
+`trust_unsandboxed`, an allow rule does not auto-approve, because the agent can change the code the command runs.
 
 `PYTHONPATH` is required: launching the `aider` command or running a script from elsewhere imports the unpatched
 installed copy instead.
@@ -75,6 +90,8 @@ installed copy instead.
 | `aider/native_tools_search.py`, `native_tools_edit.py`, `native_tools_shell.py` | Search, edit and shell tools |
 | `aider/models.py`, `aider/coders/base_coder.py`, `aider/args.py`, `aider/main.py` | Small hooks into upstream Aider |
 | `aider/native_tool_ledger.py`, `native_working_state.py` | Operation ledger and the working state built from it |
+| `aider/native_command_policy.py`, `coders/native_agent_config.py` | Command policy and `.aider-agent.json` |
+| `aider/native_tools_git.py`, `native_todo.py`, `native_snapshots.py`, `native_undo.py` | Git tool, task list, snapshots and `/undo-agent` |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
 | `evals/` | Evaluation tasks, metrics and runner |
 | `tests/` | Unit and mocked end-to-end tests |

@@ -18,6 +18,7 @@ MAX_LISTED_COMMANDS = 5
 MAX_LISTED_FAILURES = 3
 STATE_HEADING = "## Working state (from the operation log; authoritative)"
 EMPTY_STATE = ""
+NO_TASKS = ""
 
 
 def argument(record: OperationRecord, name: str) -> Any:
@@ -43,8 +44,8 @@ def command_lines(records: list[OperationRecord]) -> list[str]:
     ]
 
 
-def render_working_state(records: list[OperationRecord]) -> str:
-    """Markdown block for the system prompt; empty when nothing has run yet."""
+def render_working_state(records: list[OperationRecord], open_tasks: str = NO_TASKS) -> str:
+    """Markdown block for the system prompt; empty when nothing has run and no task is open."""
     executed = [r for r in records if r.status is OperationStatus.EXECUTED]
     read = unique_recent([argument(r, "path") for r in executed if r.tool in READ_TOOLS], MAX_LISTED_FILES)
     changed = unique_recent(
@@ -54,6 +55,8 @@ def render_working_state(records: list[OperationRecord]) -> str:
     failed = [r for r in records if r.status is OperationStatus.FAILED][-MAX_LISTED_FAILURES:]
 
     sections = []
+    if open_tasks:
+        sections.append("Task list:\n" + open_tasks)
     if changed:
         sections.append("Files changed: " + ", ".join(changed))
     if read:

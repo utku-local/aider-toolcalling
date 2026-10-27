@@ -7,6 +7,7 @@ The user must approve every command; Aider's --yes-always does not approve comma
 import subprocess
 from typing import Union
 
+from aider.native_command_policy import PolicyAction, Risk
 from aider.native_tool_context import ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolRegistry
 from aider.native_tools_edit import DENIED_MESSAGE
@@ -16,6 +17,7 @@ MAX_TIMEOUT_SECONDS = 600
 MAX_OUTPUT_CHARS = 20_000
 OUTPUT_TRUNCATED = "[output truncated; showing the last part]\n"
 NO_OUTPUT = "(no output)"
+POLICY_REFUSAL = "Refused by the command policy: "
 
 RUN_PARAMETERS = {
     "type": "object",
@@ -48,8 +50,19 @@ def clamp_timeout(timeout_seconds: int) -> int:
     return max(1, min(timeout_seconds, MAX_TIMEOUT_SECONDS))
 
 
+def approval_title(risks: frozenset[Risk]) -> str:
+    if not risks:
+        return "Run this command?"
+    return "Run this command? Risks: " + "; ".join(sorted(risk.value for risk in risks))
+
+
 def run_command(ctx: ToolContext, command: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> str:
-    if not ctx.approve(ToolPermission.EXECUTE, "Run this command?", command):
+    decision = ctx.check_command(command)
+    if decision.action is PolicyAction.DENY:
+        return f"{POLICY_REFUSAL}{decision.reason}"
+    if decision.action is PolicyAction.ASK and not ctx.approve(
+        ToolPermission.EXECUTE, approval_title(decision.risks), command
+    ):
         return DENIED_MESSAGE
     timeout = clamp_timeout(timeout_seconds)
     try:
@@ -74,7 +87,7 @@ def register_shell_tools(registry: NativeToolRegistry, ctx: ToolContext) -> None
     registry.register(
         "run_command",
         "Run a shell command (tests, linters, git status, builds) in the project root. "
-        "The user approves each command.",
+        "Commands are checked by a policy; most need the user's approval.",
         RUN_PARAMETERS,
         lambda command, timeout_seconds=DEFAULT_TIMEOUT_SECONDS: run_command(
             ctx, command, timeout_seconds

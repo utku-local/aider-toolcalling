@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Command policy for `run_command`: commands are parsed into argv (program, subcommand, arguments), not matched as text. Compound commands, path arguments outside the project, network access, deletion, git remote operations and package installs are labelled risks and always asked; `sudo`, force pushes and recursive deletion of the project root or outside it are refused.
+- `.aider-agent.json` project config with command `allow` and `deny` rules (program plus optional subcommands). Allow rules auto-approve only for `trust_unsandboxed` rules until a sandbox exists.
+- Read-only `git` tool (status, diff, log, show, blame) without approval: no shell, allow-listed flags, paths inside the project, no pager, external diff, textconv, global or system git config.
+- `todo_write` tool in agent mode; open tasks are part of the working state sent with every request.
+- `/undo-agent` restores files changed by the agent's tools in its latest request (originals are captured before each write; created files are removed). Works without git or auto-commits.
+- Agent mode adds `AGENTS.md` and `CLAUDE.md` from the project root to the chat as read-only files.
+
+### Added
+
 - Operation ledger: every tool call is recorded with its id, arguments, request, status (started, awaiting approval, approved, denied, executed, failed) and result, separately from the chat history. A call id that already finished in the current request is not run again.
 - Structured working state (files read and changed, commands with exit codes, declined operations, recent tool errors), built from the ledger and attached to every request.
 - Tool results older than the last two rounds are sent as one-line summaries; the stored history keeps them in full. A single tool result is capped at 30,000 characters.

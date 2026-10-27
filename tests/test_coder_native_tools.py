@@ -88,7 +88,7 @@ class CoderNativeToolsTest(unittest.TestCase):
         first, second = scripted.requests
         tool_names = [tool["function"]["name"] for tool in first["tools"]]
         self.assertEqual(
-            tool_names, ["read_file", "list_files", "find_files", "search_code", "find_symbol"]
+            tool_names, ["read_file", "list_files", "find_files", "search_code", "find_symbol", "git"]
         )
         self.assertEqual(first["tool_choice"], "auto")
 
