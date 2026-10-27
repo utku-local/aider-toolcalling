@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- Requests keep a stable prefix for server-side prefix caching: the working state is sent as a final message instead of inside the system message, and old tool results are summarized only once the history passes about 12K tokens (48,000 characters). Measured on the local 27B model, prefill was 86% of the agent's time and no request reused a cached prefix.
+
 ### Added
 
 - Files that usually hold secrets (`.env`, private keys, credential and token files, `.ssh`, `.aws`) need approval every time `read_file` opens them (`--yes-always` does not approve), and `search_code` skips their content. Example and template files are not treated as secrets.

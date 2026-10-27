@@ -98,17 +98,53 @@ class CompactionTest(unittest.TestCase):
 
     def test_old_rounds_are_summarized_recent_kept(self) -> None:
         original = self.history(4)
-        compacted = compact_tool_history(original, keep_rounds=2)
+        compacted = compact_tool_history(original, keep_rounds=2, min_chars=0)
         tools = [m["content"] for m in compacted if m["role"] == "tool"]
         self.assertEqual(tools[:2], [COMPACTED_PREFIX + "2 lines"] * 2)
         self.assertEqual(tools[2:], ["a\nb\n"] * 2)
         self.assertEqual(original, self.history(4))
 
-    def test_working_state_joins_the_system_message(self) -> None:
-        messages = self.history(0)
-        self.assertEqual(with_working_state(messages, "STATE")[0]["content"], "sys\n\nSTATE")
-        self.assertEqual(with_working_state(messages[1:], "STATE")[0], {"role": "system", "content": "STATE"})
-        self.assertEqual(messages[0]["content"], "sys")
+    def test_small_histories_are_not_compacted(self) -> None:
+        original = self.history(4)
+        self.assertEqual(compact_tool_history(original, keep_rounds=2), original)
+
+    def test_working_state_is_appended_and_the_prefix_is_unchanged(self) -> None:
+        messages = self.history(3)
+        with_state = with_working_state(messages, "STATE")
+        self.assertEqual(with_state[: len(messages)], messages)
+        self.assertEqual(with_state[-1], {"role": "user", "content": "STATE"})
+        self.assertEqual(with_working_state(messages, ""), messages)
+
+
+class PrefixStabilityTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        with open(os.path.join(self.tmp.name, "calc.py"), "w") as handle:
+            handle.write("def add(a, b):\n    return a - b\n")
+        self.cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+
+    def tearDown(self) -> None:
+        os.chdir(self.cwd)
+        self.tmp.cleanup()
+
+    def test_each_round_extends_the_previous_request(self) -> None:
+        coder = Coder.create(
+            main_model=Model(MODEL_NAME), edit_format="agent", io=InputOutput(yes=True, pretty=False),
+            fnames=[], use_git=False, map_tokens=0, auto_lint=False, stream=False,
+        )
+        read = tool_call("r1", "read_file", {"path": "calc.py"})
+        fix = tool_call("e1", "edit_file", {"path": "calc.py", "old_string": "a - b", "new_string": "a + b"})
+        scripted = ScriptedModel([make_completion(tool_calls=read), make_completion(tool_calls=fix),
+                                  make_completion(FINAL_TEXT)])
+        with patch("aider.models.litellm.completion", side_effect=scripted):
+            coder.run(with_message="Fix add().")
+
+        requests = [r["messages"] for r in scripted.requests]
+        for earlier, later in zip(requests, requests[1:]):
+            prefix = earlier[:-1] if earlier[-1]["role"] == "user" and "Working state" in earlier[-1]["content"] \
+                else earlier
+            self.assertEqual(later[: len(prefix)], prefix)
 
 
 class RetryResumeTest(unittest.TestCase):
@@ -148,7 +184,7 @@ class RetryResumeTest(unittest.TestCase):
         self.assertEqual([m["tool_call_id"] for m in retry_tools], ["e1"])
         with open("calc.py") as handle:
             self.assertIn("return a + b", handle.read())
-        self.assertIn("Files changed: calc.py", scripted.requests[-1]["messages"][0]["content"])
+        self.assertIn("Files changed: calc.py", scripted.requests[-1]["messages"][-1]["content"])
 
 
 if __name__ == "__main__":
