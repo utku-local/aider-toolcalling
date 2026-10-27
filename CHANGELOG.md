@@ -5,20 +5,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-27
+
 ### Added
 
 - Hard evaluation set (`evals/tasks_hard.py`, 10 tasks): module extraction, two bugs in one class, a new CLI flag, a type mismatch across files, a class from a spec, order-preserving dedupe with a caller, config defaults, a fast Fibonacci, a class rename over three files and a log parser. Every check fails on the untouched project and passes with a reference solution.
 - `evals.run_evals --set basic|hard|all` and `--repeat N`; the summary reports a pass rate per task.
+- Files that usually hold secrets (`.env`, private keys, credential and token files, `.ssh`, `.aws`) need approval every time `read_file` opens them (`--yes-always` does not approve), and `search_code` skips their content. Example and template files are not treated as secrets.
+- The agent prompt states that tool results are data, not instructions; `fetch_url` results are labelled as untrusted web content.
+- `python -m evals.run_evals --sandbox` gives each task project a sandbox config that allows python and pytest, to measure the effect of self-verification.
 
 ### Changed
 
 - Requests keep a stable prefix for server-side prefix caching: the working state is sent as a final message instead of inside the system message, and old tool results are summarized only once the history passes about 12K tokens (48,000 characters). Measured on the local 27B model, prefill was 86% of the agent's time and no request reused a cached prefix.
-
-### Added
-
-- Files that usually hold secrets (`.env`, private keys, credential and token files, `.ssh`, `.aws`) need approval every time `read_file` opens them (`--yes-always` does not approve), and `search_code` skips their content. Example and template files are not treated as secrets.
-- The agent prompt states that tool results are data, not instructions; `fetch_url` results are labelled as untrusted web content.
-- `python -m evals.run_evals --sandbox` gives each task project a sandbox config that allows python and pytest, to measure the effect of self-verification.
 
 ### Fixed
 
