@@ -18,7 +18,7 @@ from aider.coders import AgentCoder, Coder
 from aider.io import InputOutput
 from aider.models import Model
 from aider.native_tool_loop import drop_orphan_tool_messages
-from aider.native_tools_edit import DENIED_MESSAGE
+from aider.native_tool_context import DENIED_ACTION
 
 
 def tool_call(call_id: str, name: str, arguments: dict[str, Any]) -> list[SimpleNamespace]:
@@ -77,7 +77,7 @@ class AgentCoderTest(unittest.TestCase):
         history = coder.done_messages + coder.cur_messages
         tool_results = {m["tool_call_id"]: m["content"] for m in history if m["role"] == "tool"}
         self.assertIn("1 replacement", tool_results["e1"])
-        self.assertEqual(tool_results["r1"], DENIED_MESSAGE)
+        self.assertEqual(tool_results["r1"], DENIED_ACTION)
 
     def test_tool_exchanges_are_remembered_by_later_turns(self) -> None:
         coder = self.make_coder()

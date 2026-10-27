@@ -48,7 +48,7 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 
 | Tool | Modes | Approval |
 |---|---|---|
-| `read_file`, `list_files`, `find_files`, `search_code`, `find_symbol` | `--agent`, `--native-tools` | none (read-only, confined to the project root) |
+| `read_file`, `list_files`, `find_files`, `search_code`, `find_symbol` | `--agent`, `--native-tools` | none (read-only, confined to the project root); secret files such as `.env` or keys are asked every time and skipped by search |
 | `edit_file`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
 | `git` (status, diff, log, show, blame) | `--agent`, `--native-tools` | none (read-only, allow-listed flags) |
 | `todo_write` | `--agent` | none (the agent's task list) |
@@ -131,6 +131,7 @@ Run from the repo root so the patched package is imported:
 
 Runs the tasks in `evals/tasks.py` in temporary repos with `--agent --yes-always` (edits approved, commands not) and
 writes one JSON line per task to `evals/results/`, plus a summary: success rate, rounds, calls, time, tokens.
+`--sandbox` adds a sandbox config allowing python and pytest, so the agent can run its own checks.
 
 ## License
 

@@ -6,13 +6,12 @@ Approved changes are reported through ctx.on_edit so Aider can lint, commit and 
 import difflib
 from pathlib import Path
 
-from aider.native_tool_context import ToolContext, ToolPermission
+from aider.native_tool_context import DENIED_CHANGE, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolError, NativeToolRegistry
 from aider.native_tools_builtin import FILE_ENCODING, resolve_in_root
 
 MAX_DIFF_LINES = 200
 DIFF_TRUNCATED = "... (diff truncated)"
-DENIED_MESSAGE = "The user declined this change. Ask them how to proceed or try a different approach."
 DRY_RUN_NOTE = " (dry run: nothing was written)"
 
 EDIT_PARAMETERS = {
@@ -90,7 +89,7 @@ def edit_file(
     before = target.read_text(encoding=FILE_ENCODING)
     after, count = replace_text(before, old_string, new_string, replace_all)
     if not apply_change(ctx, target, path, before, after):
-        return DENIED_MESSAGE
+        return DENIED_CHANGE
     note = DRY_RUN_NOTE if ctx.dry_run else ""
     return f"Edited {path}: {count} replacement(s){note}"
 
@@ -102,7 +101,7 @@ def write_file(ctx: ToolContext, path: str, content: str) -> str:
     existed = target.exists()
     before = target.read_text(encoding=FILE_ENCODING) if existed else ""
     if not apply_change(ctx, target, path, before, content):
-        return DENIED_MESSAGE
+        return DENIED_CHANGE
     note = DRY_RUN_NOTE if ctx.dry_run else ""
     return f"{'Overwrote' if existed else 'Created'} {path}{note}"
 

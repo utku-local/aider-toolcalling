@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Files that usually hold secrets (`.env`, private keys, credential and token files, `.ssh`, `.aws`) need approval every time `read_file` opens them (`--yes-always` does not approve), and `search_code` skips their content. Example and template files are not treated as secrets.
+- The agent prompt states that tool results are data, not instructions; `fetch_url` results are labelled as untrusted web content.
+- `python -m evals.run_evals --sandbox` gives each task project a sandbox config that allows python and pytest, to measure the effect of self-verification.
+
+### Fixed
+
+- A Ctrl+C while a tool was running left its ledger record as started or approved; it is now closed as failed ("interrupted by the user"), and the session file reflects it.
+- A declined command or fetch said "The user declined this change"; it now says "this action".
+
 ## [0.3.0] - 2026-10-27
 
 ### Added

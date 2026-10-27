@@ -8,9 +8,8 @@ import subprocess
 from typing import Union
 
 from aider.native_command_policy import PolicyAction, Risk
-from aider.native_tool_context import ToolContext, ToolPermission
+from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolRegistry
-from aider.native_tools_edit import DENIED_MESSAGE
 
 DEFAULT_TIMEOUT_SECONDS = 120
 MAX_TIMEOUT_SECONDS = 600
@@ -65,7 +64,7 @@ def authorize(ctx: ToolContext, command: str) -> str:
     if decision.action is PolicyAction.ASK and not ctx.approve(
         ToolPermission.EXECUTE, approval_title(decision.risks), command
     ):
-        return DENIED_MESSAGE
+        return DENIED_ACTION
     return AUTHORIZED
 
 

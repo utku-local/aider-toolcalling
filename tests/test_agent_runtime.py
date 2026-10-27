@@ -24,7 +24,7 @@ from aider.models import Model
 from aider.native_sandbox import sandbox_available, sandbox_profile, sandboxed_argv, shell_argv
 from aider.native_tool_context import ToolContext, ToolPermission
 from aider.native_tools_background import BackgroundError, ProcessManager
-from aider.native_tools_edit import DENIED_MESSAGE
+from aider.native_tool_context import DENIED_ACTION
 from aider.native_tools_fetch import FetchError, fetch_url, html_to_text
 from aider.native_tools_shell import run_command
 
@@ -93,7 +93,7 @@ class FetchTest(unittest.TestCase):
         with self.assertRaises(FetchError):
             fetch_url(ctx, "file:///etc/passwd")
         with patch("aider.native_tools_fetch.download") as download:
-            self.assertEqual(fetch_url(ctx, "https://example.com"), DENIED_MESSAGE)
+            self.assertEqual(fetch_url(ctx, "https://example.com"), DENIED_ACTION)
             download.assert_not_called()
         self.assertEqual(asked, [ToolPermission.NETWORK])
 

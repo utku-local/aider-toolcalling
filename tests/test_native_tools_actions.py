@@ -9,9 +9,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from aider.native_tool_context import ToolContext, ToolPermission
+from aider.native_tool_context import DENIED_ACTION, DENIED_CHANGE, ToolContext, ToolPermission
 from aider.native_tools_builtin import read_file
-from aider.native_tools_edit import DENIED_MESSAGE, EditError, edit_file, replace_text, write_file
+from aider.native_tools_edit import EditError, edit_file, replace_text, write_file
 from aider.native_tools_search import NO_RESULTS, SearchError, find_files, find_symbol, search_code
 from aider.native_tools_shell import run_command
 
@@ -114,7 +114,7 @@ class ActionToolsTest(unittest.TestCase):
             self.assertEqual((self.root / "src/util.py").read_text(), FILES["src/util.py"])
             self.assertEqual(recorder.edited, [])
             if not answer:
-                self.assertEqual(result, DENIED_MESSAGE)
+                self.assertEqual(result, DENIED_CHANGE)
 
     def test_write_file_creates_and_overwrites_inside_root(self) -> None:
         ctx, recorder = self.ctx()
@@ -136,7 +136,7 @@ class ActionToolsTest(unittest.TestCase):
 
     def test_declined_command_does_not_run(self) -> None:
         ctx, _ = self.ctx(answer=False)
-        self.assertEqual(run_command(ctx, "touch ran.txt"), DENIED_MESSAGE)
+        self.assertEqual(run_command(ctx, "touch ran.txt"), DENIED_ACTION)
         self.assertFalse((self.root / "ran.txt").exists())
 
 

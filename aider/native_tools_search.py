@@ -7,6 +7,7 @@ import fnmatch
 import re
 from typing import Optional
 
+from aider.native_sensitive import is_sensitive
 from aider.native_tool_context import ToolContext
 from aider.native_toolcalling import NativeToolError, NativeToolRegistry
 from aider.native_tools_builtin import FILE_ENCODING, TRUNCATED_NOTE
@@ -83,7 +84,7 @@ def search_code(
         raise SearchError(f"Invalid regular expression {pattern!r}: {err}") from err
     matches = []
     for rel_path in ctx.list_files():
-        if file_glob and not fnmatch.fnmatch(rel_path, file_glob):
+        if (file_glob and not fnmatch.fnmatch(rel_path, file_glob)) or is_sensitive(rel_path):
             continue
         for number, line in enumerate(file_lines(ctx, rel_path), start=1):
             if regex.search(line):
