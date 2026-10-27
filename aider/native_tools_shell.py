@@ -18,6 +18,7 @@ MAX_OUTPUT_CHARS = 20_000
 OUTPUT_TRUNCATED = "[output truncated; showing the last part]\n"
 NO_OUTPUT = "(no output)"
 POLICY_REFUSAL = "Refused by the command policy: "
+AUTHORIZED = ""
 
 RUN_PARAMETERS = {
     "type": "object",
@@ -56,7 +57,8 @@ def approval_title(risks: frozenset[Risk]) -> str:
     return "Run this command? Risks: " + "; ".join(sorted(risk.value for risk in risks))
 
 
-def run_command(ctx: ToolContext, command: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> str:
+def authorize(ctx: ToolContext, command: str) -> str:
+    """Apply the command policy and, when needed, ask; returns a refusal message, or "" to proceed."""
     decision = ctx.check_command(command)
     if decision.action is PolicyAction.DENY:
         return f"{POLICY_REFUSAL}{decision.reason}"
@@ -64,11 +66,17 @@ def run_command(ctx: ToolContext, command: str, timeout_seconds: int = DEFAULT_T
         ToolPermission.EXECUTE, approval_title(decision.risks), command
     ):
         return DENIED_MESSAGE
+    return AUTHORIZED
+
+
+def run_command(ctx: ToolContext, command: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> str:
+    refusal = authorize(ctx, command)
+    if refusal:
+        return refusal
     timeout = clamp_timeout(timeout_seconds)
     try:
         completed = subprocess.run(
-            command,
-            shell=True,
+            ctx.wrap_command(command),
             cwd=ctx.root,
             capture_output=True,
             text=True,

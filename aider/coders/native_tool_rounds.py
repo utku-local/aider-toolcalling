@@ -110,6 +110,9 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
 
 def report(coder: Any, rounds: int, calls: int, started: float) -> None:
     if rounds:
+        if coder.stream and not coder.mdstream:
+            # plain streamed text ends without a newline; keep the summary on its own line
+            coder.io.tool_output()
         elapsed = time.monotonic() - started
         coder.io.tool_output(f"Native tools: {rounds} round(s), {calls} call(s), {elapsed:.1f}s")
 

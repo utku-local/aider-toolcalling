@@ -7,7 +7,7 @@ normal edit pipeline.
 
 ## Status
 
-Working prototype: read, search, edit and shell tools, agent mode, streaming. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
+Working agent: read, search, git, edit, shell, background and fetch tools; command policy and sandbox; operation ledger, working state, sessions; streaming. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
 all dependencies.
 
 ## Setup
@@ -21,6 +21,16 @@ all dependencies.
 2. Clone this repo, for example to `~/aider-toolcalling-dev`.
 3. Point Aider at the local model server in `~/.aider.conf.yml` (`model: openai/<model-id>`,
    `openai-api-base: http://127.0.0.1:<port>/v1`).
+
+## Install as a command
+
+```
+uv tool install --python 3.12 git+https://github.com/UttyWotty/aider-toolcalling.git@main
+aider-agent            # agent mode; any aider option works, e.g. --model, --resume, --chat-mode ask
+```
+
+`aider-agent` does not replace an existing `aider` command. From a clone, `uv tool install --python 3.12 .` installs
+the working copy.
 
 ## Usage
 
@@ -42,7 +52,8 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 | `edit_file`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
 | `git` (status, diff, log, show, blame) | `--agent`, `--native-tools` | none (read-only, allow-listed flags) |
 | `todo_write` | `--agent` | none (the agent's task list) |
-| `run_command` | `--agent` | command policy: refused, asked with risk labels, or allowed by a trusted rule; `--yes-always` never approves it |
+| `run_command`, `start_background`, `read_background`, `stop_background` | `--agent` | command policy: refused, asked with risk labels, or allowed by a rule (trusted, or any rule inside the sandbox); `--yes-always` never approves a command |
+| `fetch_url` | `--agent` | asked for every URL; `--yes-always` never approves it |
 
 Files changed by tools are linted, auto-committed and tested like any Aider edit, following your settings.
 `/undo-agent` restores the files the agent changed in its latest request, also without git.
@@ -54,6 +65,12 @@ Command rules live in `.aider-agent.json` in the project root:
 {"commands": {"allow": [{"program": "pytest", "trust_unsandboxed": true}],
               "deny": [{"program": "docker"}]}}
 ```
+
+`"sandbox": true` runs commands under macOS `sandbox-exec`: writes only inside the project and temp directories, no
+network. Inside the sandbox every allow rule auto-approves; compound commands and risky programs are still asked.
+
+Agent sessions are saved to `.aider.agent-session.json` after each request; `--resume` continues one with its tool
+history, operation log and task list.
 
 A rule matches the parsed program (`python -m pytest` counts as `pytest`) and optional `subcommands`. Compound
 commands, paths outside the project and risky programs are asked even when a rule matches. Without
@@ -92,6 +109,8 @@ installed copy instead.
 | `aider/native_tool_ledger.py`, `native_working_state.py` | Operation ledger and the working state built from it |
 | `aider/native_command_policy.py`, `coders/native_agent_config.py` | Command policy and `.aider-agent.json` |
 | `aider/native_tools_git.py`, `native_todo.py`, `native_snapshots.py`, `native_undo.py` | Git tool, task list, snapshots and `/undo-agent` |
+| `aider/native_sandbox.py`, `native_tools_background.py`, `native_tools_fetch.py` | Sandbox, background commands, `fetch_url` |
+| `aider/coders/native_session.py`, `aider/agent_main.py`, `pyproject.toml` | Session save and `--resume`, the `aider-agent` command, packaging |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
 | `evals/` | Evaluation tasks, metrics and runner |
 | `tests/` | Unit and mocked end-to-end tests |
