@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-27
+
 ### Added
 
 - macOS sandbox for agent commands (`"sandbox": true` in `.aider-agent.json`): `run_command` and background commands run under `sandbox-exec` with writes limited to the project and temp directories and no network. With the sandbox on, allow rules auto-approve without `trust_unsandboxed`; risky and compound commands are still asked.
