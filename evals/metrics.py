@@ -63,6 +63,15 @@ def mean(values: list[Optional[float]]) -> Optional[float]:
     return sum(known) / len(known) if known else None
 
 
+def pass_rates(results: list[TaskResult]) -> dict[str, str]:
+    """Per task, "passed/runs" over repeated runs, in first-seen task order."""
+    counts: dict[str, list[int]] = {}
+    for result in results:
+        passed, runs = counts.setdefault(result.task, [0, 0])
+        counts[result.task] = [passed + result.passed, runs + 1]
+    return {task: f"{passed}/{runs}" for task, (passed, runs) in counts.items()}
+
+
 def summarize(results: list[TaskResult]) -> dict[str, Any]:
     """Success rate and per-run averages over `results`."""
     return {
@@ -74,4 +83,5 @@ def summarize(results: list[TaskResult]) -> dict[str, Any]:
         "mean_calls": mean([r.metrics.calls for r in results]),
         "mean_tokens_sent": mean([r.metrics.tokens_sent for r in results]),
         "tool_errors": sum(r.metrics.tool_errors for r in results),
+        "per_task": pass_rates(results),
     }

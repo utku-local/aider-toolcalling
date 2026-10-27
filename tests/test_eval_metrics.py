@@ -9,8 +9,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from evals.metrics import RunMetrics, TaskResult, parse_metrics, summarize
+from evals.metrics import RunMetrics, TaskResult, parse_metrics, pass_rates, summarize
 from evals.tasks import TASKS
+from evals.tasks_hard import HARD_TASKS
 
 SAMPLE_OUTPUT = """Running tool: read_file {"path": "a.py"}
   -> 3 lines
@@ -45,11 +46,17 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual((summary["passed"], summary["success_rate"]), (1, 0.5))
         self.assertEqual((summary["mean_seconds"], summary["mean_rounds"]), (15.0, 2))
 
+    def test_pass_rates_over_repeats(self) -> None:
+        empty = RunMetrics(None, None, None, None, None, 0)
+        results = [TaskResult(name, passed, 1.0, empty) for name, passed in (("a", True), ("b", False), ("a", False))]
+        self.assertEqual(pass_rates(results), {"a": "1/2", "b": "0/1"})
+
 
 class TaskChecksTest(unittest.TestCase):
     def test_every_check_fails_before_the_agent_runs(self) -> None:
-        self.assertEqual(len({t.name for t in TASKS}), len(TASKS))
-        for task in TASKS:
+        tasks = TASKS + HARD_TASKS
+        self.assertEqual(len({t.name for t in tasks}), len(tasks))
+        for task in tasks:
             with self.subTest(task=task.name), tempfile.TemporaryDirectory() as tmp:
                 for rel, text in task.files.items():
                     (Path(tmp) / rel).parent.mkdir(parents=True, exist_ok=True)

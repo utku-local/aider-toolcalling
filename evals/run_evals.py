@@ -18,10 +18,14 @@ from pathlib import Path
 
 from evals.metrics import TaskResult, parse_metrics, summarize
 from evals.tasks import TASKS, EvalTask
+from evals.tasks_hard import HARD_TASKS
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = REPO_ROOT / "evals" / "results"
 DEFAULT_TIMEOUT_SECONDS = 900
+TASK_SETS = {"basic": TASKS, "hard": HARD_TASKS, "all": TASKS + HARD_TASKS}
+DEFAULT_SET = "basic"
+DEFAULT_REPEAT = 1
 CHECK_TIMEOUT_SECONDS = 60
 GIT_IDENTITY = ("-c", "user.email=eval@localhost", "-c", "user.name=eval")
 AIDER_FLAGS = (
@@ -92,7 +96,9 @@ def run_task(task: EvalTask, model: str, timeout: int, sandbox: bool) -> TaskRes
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the agent evaluation set.")
-    parser.add_argument("--tasks", default="", help="Comma-separated task names (default: all)")
+    parser.add_argument("--tasks", default="", help="Comma-separated task names (default: the whole set)")
+    parser.add_argument("--set", default=DEFAULT_SET, choices=sorted(TASK_SETS), help="Task set (default: basic)")
+    parser.add_argument("--repeat", type=int, default=DEFAULT_REPEAT, help="Runs per task (default: 1)")
     parser.add_argument("--model", default="", help="Model name passed to aider (default: aider config)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS, help="Seconds per task")
     parser.add_argument(
@@ -105,18 +111,19 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     wanted = {name for name in args.tasks.split(",") if name}
-    tasks = [t for t in TASKS if not wanted or t.name in wanted]
+    tasks = [t for t in TASK_SETS[args.set] if not wanted or t.name in wanted]
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = RESULTS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}.jsonl"
     print(f"Repo root: {REPO_ROOT}\nResults: {out_path}\nSandbox: {args.sandbox}")
     results = []
     with open(out_path, "w") as handle:
-        for task in tasks:
-            result = run_task(task, args.model, args.timeout, args.sandbox)
-            results.append(result)
-            handle.write(json.dumps(result.as_dict()) + "\n")
-            handle.flush()
-            print(f"{'PASS' if result.passed else 'FAIL'} {task.name} ({result.seconds}s)")
+        for run in range(1, args.repeat + 1):
+            for task in tasks:
+                result = run_task(task, args.model, args.timeout, args.sandbox)
+                results.append(result)
+                handle.write(json.dumps({**result.as_dict(), "run": run}) + "\n")
+                handle.flush()
+                print(f"{'PASS' if result.passed else 'FAIL'} {task.name} run {run} ({result.seconds}s)")
     print(json.dumps(summarize(results), indent=2))
 
 
