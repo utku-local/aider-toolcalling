@@ -38,6 +38,7 @@ from aider.linter import Linter
 from aider.llm import litellm
 from aider.models import RETRY_TIMEOUT
 from aider.native_tool_loop import drop_orphan_tool_messages, get_tool_calls
+from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_toolcalling import NativeToolRegistry
 from aider.reasoning_tags import (
     REASONING_TAG,
@@ -1803,6 +1804,7 @@ class Coder:
 
         self.partial_response_content = ""
         self.partial_response_function_call = dict()
+        self.native_stream_calls = ToolCallAccumulator()
 
         if self.native_tools:
             messages = drop_orphan_tool_messages(messages)
@@ -1823,8 +1825,10 @@ class Coder:
                 yield from self.show_send_output_stream(completion)
             else:
                 self.show_send_output(completion)
-                if self.native_tools:
-                    completion = run_native_tool_rounds(self, model, messages, functions, completion)
+            if self.native_tools:
+                completion = yield from run_native_tool_rounds(
+                    self, model, messages, functions, completion
+                )
 
             # Calculate costs for successful responses
             self.calculate_and_show_tokens_and_cost(messages, completion)
@@ -1947,6 +1951,9 @@ class Coder:
                 received_content = True
             except AttributeError:
                 pass
+
+            if self.native_tools and self.native_stream_calls.add(chunk.choices[0].delta):
+                received_content = True
 
             text = ""
 

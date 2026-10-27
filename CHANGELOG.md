@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Streaming with native tools: tool-call fragments from stream chunks are assembled per index, and every tool round is streamed. `--native-tools` and agent mode no longer force `--no-stream`.
+- After each request with tool calls, a summary line shows the rounds, tool calls and elapsed time.
+
+### Fixed
+
+- `find_symbol` listed a definition twice when tree-sitter reported it twice.
+
+### Added
+
 - Agent mode (`--agent`, `--edit-format agent`, `/chat-mode agent`): the model explores, edits and verifies the project only through tools, with its own system prompt instead of an edit format.
 - Search tools `find_files` (glob), `search_code` (regex) and `find_symbol` (tree-sitter definitions); `read_file` takes an optional line range. They are also available with `--native-tools` in the other modes.
 - Action tools for agent mode: `edit_file` (exact string replacement, must be unique unless `replace_all`), `write_file`, and `run_command` (timeout, output tail).

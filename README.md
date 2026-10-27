@@ -7,7 +7,7 @@ normal edit pipeline.
 
 ## Status
 
-Prototype. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
+Working prototype: read, search, edit and shell tools, agent mode, streaming. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
 all dependencies.
 
 ## Setup
@@ -48,7 +48,8 @@ Files changed by tools are linted, auto-committed and tested like any Aider edit
 installed copy instead.
 
 - `--native-tools` (default off) exposes the read-only and search tools in any chat mode.
-- It implies `--no-stream`; streaming tool calls are not supported yet.
+- Works with and without streaming; tool calls are assembled from stream chunks.
+- After a request with tool calls, Aider prints the number of rounds, calls and the elapsed time.
 - At most 8 model/tool round trips per message; after that the model is asked to answer without tools.
 - Tool errors (unknown tool, invalid JSON, arguments that do not match the tool schema) are returned to the model,
   not raised.
@@ -62,6 +63,7 @@ installed copy instead.
 | `aider/native_tool_loop.py` | Pure helpers for one tool round |
 | `aider/native_tool_calls.py` | Normalizes tool calls from any response shape |
 | `aider/native_tool_schema.py` | Validates tool arguments against their JSON schema |
+| `aider/native_tool_stream.py` | Assembles streamed tool-call fragments |
 | `aider/native_tools_builtin.py` | Read-only `read_file` / `list_files` tools |
 | `aider/coders/native_tool_rounds.py` | Drives the tool loop for a Coder |
 | `aider/coders/agent_coder.py`, `agent_prompts.py` | Agent chat mode |

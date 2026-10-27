@@ -40,6 +40,7 @@ def fake_tags(abs_path: str, rel_path: str) -> list[Any]:
         return []
     return [
         SimpleNamespace(kind="def", name="helper", line=4),
+        SimpleNamespace(kind="def", name="helper", line=4),
         SimpleNamespace(kind="ref", name="helper", line=1),
     ]
 
