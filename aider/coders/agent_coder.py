@@ -22,7 +22,6 @@ class AgentCoder(Coder):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs["native_tools"] = True
-        kwargs["stream"] = False
         super().__init__(*args, **kwargs)
 
     def build_native_tools(self) -> NativeToolRegistry:

@@ -193,8 +193,8 @@ def get_parser(default_config_files, git_root):
         action=argparse.BooleanOptionalAction,
         default=False,
         help=(
-            "Let the model call read-only project tools via native tool calling;"
-            " implies --no-stream (default: False)"
+            "Let the model call read-only project and search tools via native tool calling"
+            " (default: False)"
         ),
     )
     group.add_argument(

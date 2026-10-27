@@ -38,7 +38,7 @@ class AgentCoderTest(unittest.TestCase):
         os.chdir(self.cwd)
         self.tmp.cleanup()
 
-    def make_coder(self) -> Coder:
+    def make_coder(self, stream: bool = False) -> Coder:
         return Coder.create(
             main_model=Model(MODEL_NAME),
             edit_format="agent",
@@ -47,12 +47,13 @@ class AgentCoderTest(unittest.TestCase):
             use_git=False,
             map_tokens=0,
             auto_lint=False,
+            stream=stream,
         )
 
-    def test_agent_mode_has_the_full_tool_set_and_no_streaming(self) -> None:
-        coder = self.make_coder()
+    def test_agent_mode_has_the_full_tool_set_and_keeps_streaming(self) -> None:
+        coder = self.make_coder(stream=True)
         self.assertIsInstance(coder, AgentCoder)
-        self.assertFalse(coder.stream)
+        self.assertTrue(coder.stream)
         names = {schema["function"]["name"] for schema in coder.native_tools.schemas()}
         self.assertTrue({"edit_file", "write_file", "run_command", "search_code"} <= names)
 

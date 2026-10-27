@@ -97,8 +97,10 @@ def find_symbol(ctx: ToolContext, name: str) -> str:
     found = []
     for rel_path in ctx.list_files():
         for tag in ctx.find_tags(str(ctx.root / rel_path), rel_path):
-            if tag.kind == DEFINITION_KIND and tag.name == name:
-                found.append(f"{rel_path}:{tag.line + 1}: {name}")
+            entry = f"{rel_path}:{tag.line + 1}: {name}"
+            # tree-sitter queries can report one definition more than once
+            if tag.kind == DEFINITION_KIND and tag.name == name and entry not in found:
+                found.append(entry)
     return limited(found, MAX_MATCHES)
 
 
