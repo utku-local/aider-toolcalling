@@ -25,6 +25,7 @@ from aider.native_tools_shell import register_shell_tools
 from aider.repomap import RepoMap
 
 from .native_agent_config import load_agent_config
+from .native_rule_offer import offer_allow_rule
 
 SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache"})
 HIDDEN_PREFIX = "."
@@ -79,6 +80,8 @@ def approve(coder: Any, permission: ToolPermission, title: str, details: str) ->
     coder.native_ledger.mark(OperationStatus.AWAITING_APPROVAL)
     approved = ask_user(coder, permission, title, details)
     coder.native_ledger.mark(OperationStatus.APPROVED if approved else OperationStatus.DENIED)
+    if approved and permission is ToolPermission.EXECUTE:
+        offer_allow_rule(coder, details)
     return approved
 
 
