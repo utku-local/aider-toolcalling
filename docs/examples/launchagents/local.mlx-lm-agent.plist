@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Text model server for aider and aider-agent: mlx_lm.server on 8083, started at login.
+     mlx_lm reuses its prompt cache when a request extends the previous one, which makes agent rounds fast.
+     Fill in __HOME__ and __MODEL__ (see docs/LOCAL_SETUP.md). -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.mlx-lm-agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.venvs/mlx-vlm/bin/python</string>
+    <string>-m</string><string>mlx_lm</string><string>server</string>
+    <string>--model</string><string>__MODEL__</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>8083</string>
+    <string>--chat-template-args</string><string>{"enable_thinking": false}</string>
+    <string>--log-level</string><string>INFO</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>__HOME__</string>
+    <key>PATH</key><string>__HOME__/.venvs/mlx-vlm/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>StandardOutPath</key><string>__HOME__/.cache/mlx-lm-agent.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/.cache/mlx-lm-agent.log</string>
+</dict>
+</plist>

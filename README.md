@@ -22,6 +22,11 @@ all dependencies.
 3. Point Aider at the local model server in `~/.aider.conf.yml` (`model: openai/<model-id>`,
    `openai-api-base: http://127.0.0.1:<port>/v1`).
 
+## Setting up a new Mac
+
+`docs/LOCAL_SETUP.md` walks through the full local setup (model servers, LaunchAgents, aider configuration,
+`aider-agent`), with templates in `docs/examples/`, including which model to run on a 32 GB Mac.
+
 ## Install as a command
 
 ```
