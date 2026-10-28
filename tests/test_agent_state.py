@@ -18,12 +18,12 @@ from aider.coders import Coder
 from aider.io import InputOutput
 from aider.models import Model
 from aider.native_tool_calls import ToolCall
-from aider.native_tool_compaction import COMPACTED_PREFIX, compact_tool_history, with_working_state
+from aider.native_tool_compaction import COMPACTED_PREFIX, add_working_state, compact_tool_history
 from aider.native_tool_ledger import OperationLedger, OperationStatus
 from aider.native_tool_loop import REPEAT_NOTE, REPLAYED_NOTE, build_tool_round_messages
 from aider.native_tool_summary import exit_code, summarize_result
 from aider.native_toolcalling import NativeToolRegistry
-from aider.native_working_state import render_working_state
+from aider.native_working_state import STATE_HEADING, render_working_state
 
 
 def record(ledger: OperationLedger, tool: str, args: dict, result: str, status: OperationStatus) -> None:
@@ -164,12 +164,16 @@ class CompactionTest(unittest.TestCase):
         original = self.history(*[tool_round(f"r{i}", "read_file", {"path": f"{i}.py"}, "a\n") for i in range(4)])
         self.assertEqual(compact_tool_history(original), original)
 
-    def test_working_state_is_appended_and_the_prefix_is_unchanged(self) -> None:
+    def test_working_state_is_added_only_when_it_changes(self) -> None:
         messages = self.history(tool_round("r1", "read_file", {"path": "a.py"}, "a\n"))
-        with_state = with_working_state(messages, "STATE")
-        self.assertEqual(with_state[: len(messages)], messages)
-        self.assertEqual(with_state[-1], {"role": "user", "content": "STATE"})
-        self.assertEqual(with_working_state(messages, ""), messages)
+        before = list(messages)
+        add_working_state(messages, STATE_HEADING + "\nA")
+        add_working_state(messages, STATE_HEADING + "\nA")
+        self.assertEqual(messages[: len(before)], before)
+        self.assertEqual(messages[len(before):], [{"role": "user", "content": STATE_HEADING + "\nA"}])
+        add_working_state(messages, STATE_HEADING + "\nB")
+        add_working_state(messages, "")
+        self.assertEqual([m["content"] for m in messages[len(before):]], [STATE_HEADING + "\nA", STATE_HEADING + "\nB"])
 
 
 class PrefixStabilityTest(unittest.TestCase):
@@ -198,9 +202,7 @@ class PrefixStabilityTest(unittest.TestCase):
 
         requests = [r["messages"] for r in scripted.requests]
         for earlier, later in zip(requests, requests[1:]):
-            prefix = earlier[:-1] if earlier[-1]["role"] == "user" and "Working state" in earlier[-1]["content"] \
-                else earlier
-            self.assertEqual(later[: len(prefix)], prefix)
+            self.assertEqual(later[: len(earlier)], earlier)
 
 
 class RetryResumeTest(unittest.TestCase):

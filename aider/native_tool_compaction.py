@@ -9,6 +9,7 @@ import json
 from typing import Any
 
 from aider.native_tool_summary import summarize_result
+from aider.native_working_state import STATE_HEADING
 
 KEEP_FULL_ROUNDS = 2
 # About 4 characters per token: compaction starts past ~48K tokens and brings the history to ~24K. With mlx_lm's
@@ -103,8 +104,18 @@ def compact_tool_history(
     return compacted
 
 
-def with_working_state(messages: list[dict[str, Any]], state: str) -> list[dict[str, Any]]:
-    """Copy of `messages` with `state` as a final message, leaving everything before it unchanged."""
+def is_state_message(message: dict[str, Any]) -> bool:
+    return message.get("role") == STATE_ROLE and str(message.get("content") or "").startswith(STATE_HEADING)
+
+
+def add_working_state(messages: list[dict[str, Any]], state: str) -> None:
+    """Append `state` to the live request messages when it differs from the last state sent.
+
+    Earlier state messages stay where they are: removing one would make the next request stop extending the
+    previous one, and servers that cannot rewind a recurrent model's cache would process the whole prompt again.
+    """
     if not state:
-        return list(messages)
-    return list(messages) + [{"role": STATE_ROLE, "content": state}]
+        return
+    previous = next((m.get("content") for m in reversed(messages) if is_state_message(m)), None)
+    if previous != state:
+        messages.append({"role": STATE_ROLE, "content": state})

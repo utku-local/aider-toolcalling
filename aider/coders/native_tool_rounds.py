@@ -9,7 +9,7 @@ import time
 from typing import Any, Generator, Optional
 
 from aider.native_tool_calls import describe_call, normalize_tool_calls, visible_content
-from aider.native_tool_compaction import compact_tool_history, with_working_state
+from aider.native_tool_compaction import add_working_state, compact_tool_history
 from aider.native_tool_loop import FINAL_ANSWER_CHOICE, build_tool_round_messages, drop_orphan_tool_messages
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_tool_summary import summarize_result
@@ -22,12 +22,13 @@ RESULT_INDENT = "  -> "
 
 
 def prepare_request_messages(coder: Any, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """What is actually sent: valid tool pairs, compacted old results, the working state."""
+    """What is actually sent: the working state added to the live list when it changed, then a copy with valid
+    tool pairs and compacted old results. Each request extends the previous one, which keeps prefix caches warm."""
     if not coder.native_tools:
         return messages
-    prepared = compact_tool_history(drop_orphan_tool_messages(messages))
     tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
-    return with_working_state(prepared, render_working_state(coder.native_ledger.records, tasks))
+    add_working_state(messages, render_working_state(coder.native_ledger.records, tasks))
+    return compact_tool_history(drop_orphan_tool_messages(messages))
 
 
 def first_message(completion: Any) -> Optional[Any]:
