@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-10-29
+
 ### Changed
 
 - An edit call (`edit_file`, `multi_edit`, `write_file`) identical to one already applied in the same request is refused and the model is told to read the file first; refusals count toward ending the tool loop. On a real task the agent sent one edit 70 times, and because its new text contained the old text each call added the same line again.
