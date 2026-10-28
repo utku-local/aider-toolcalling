@@ -26,6 +26,7 @@ from aider.repomap import RepoMap
 
 from .native_agent_config import load_agent_config
 from .native_mcp_setup import register_mcp_tools
+from .native_subtask import register_research_tool
 from .native_rule_offer import offer_allow_rule
 
 SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache"})
@@ -130,6 +131,14 @@ def make_tool_context(coder: Any) -> ToolContext:
     )
 
 
+def read_only_registry(ctx: ToolContext) -> NativeToolRegistry:
+    registry = NativeToolRegistry()
+    register_read_tools(registry, ctx)
+    register_search_tools(registry, ctx)
+    register_git_tool(registry, ctx)
+    return registry
+
+
 def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     """Registry for `coder`; `include_actions` adds the task list, edit, command, background and fetch tools."""
     coder.native_tool_edits = set()
@@ -145,11 +154,9 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     coder.native_sandboxed = use_sandbox(coder)
     coder.native_processes = ProcessManager()
     ctx = make_tool_context(coder)
-    registry = NativeToolRegistry()
-    register_read_tools(registry, ctx)
-    register_search_tools(registry, ctx)
-    register_git_tool(registry, ctx)
+    registry = read_only_registry(ctx)
     if include_actions:
+        register_research_tool(registry, coder, read_only_registry(ctx))
         register_todo_tool(registry, ctx.todos)
         register_edit_tools(registry, ctx)
         register_shell_tools(registry, ctx)

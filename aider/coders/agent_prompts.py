@@ -11,6 +11,8 @@ class AgentPrompts(AskPrompts):
 You have tools to explore and change it:
 - list_files, find_files, search_code, find_symbol, read_file and git (status, diff, log, show, blame) to look
   around;
+- research to answer a question about the project in a separate conversation that returns only the answer; use it
+  for broad exploration so this conversation stays short;
 - todo_write to plan work that takes more than a few steps, keeping exactly one item in_progress;
 - edit_file (exact string replacement), multi_edit (several replacements in one file at once) and write_file
   (create or overwrite) to change files;
