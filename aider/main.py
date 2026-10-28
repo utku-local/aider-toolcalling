@@ -23,6 +23,7 @@ from aider.analytics import Analytics
 from aider.args import get_parser
 from aider.coders import Coder
 from aider.coders.native_session import resume_session
+from aider.model_seed import with_seed
 from aider.coders.base_coder import UnknownEditFormat
 from aider.commands import Commands, SwitchCoder
 from aider.copypaste import ClipboardWatcher
@@ -827,6 +828,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         editor_edit_format=args.editor_edit_format,
         verbose=args.verbose,
     )
+    main_model.extra_params = with_seed(main_model.extra_params, args.seed)
 
     # Check if deprecated remove_reasoning is set
     if main_model.remove_reasoning is not None:
