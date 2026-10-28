@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `aider-agent` loads `~/.aider.agent.model.settings.yml` when it exists, so agent mode can use its own model server (for example `mlx_lm.server` with prefix caching on another port) while plain `aider` keeps its settings.
+
+### Changed
+
+- Compaction starts only past ~48K tokens of history and then brings it to ~24K in one step, instead of summarizing from ~6K.
+- Working-state messages already sent stay in the request, and a new one is added only when the state changes, so every request extends the previous one.
+- Measured on the local 27B model: `mlx_vlm.server` cannot reuse a cached prefix for an extended prompt, so each agent round re-processed 5-11K tokens (1.5-3.5 minutes). `mlx_lm.server` reuses it when the new prompt strictly extends the old one; with these changes most rounds processed 30-1,100 new tokens. A real task went from 1,060 s to 237 s, and the hardest real task, which had failed at 40 minutes, passed in 400 s.
+
 ## [0.5.0] - 2026-10-28
 
 ### Added
