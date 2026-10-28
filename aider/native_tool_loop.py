@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from aider.native_tool_calls import ToolCall, field
 from aider.native_sensitive import is_sensitive
-from aider.native_tool_ledger import OperationLedger
+from aider.native_tool_ledger import CHANGE_TOOLS, OperationLedger
 from aider.native_toolcalling import (
     NativeToolRegistry,
     ToolResult,
@@ -42,6 +42,12 @@ REPEAT_REFUSAL = (
     "in the conversation above and no file changed since. Do not repeat it: edit the code, or give your answer."
 )
 REPEAT_REFUSAL_MARKER = "Error: refused, this exact call already ran"
+# Measured: a local model sent one edit 70 times; its new_string contained old_string, so every call succeeded
+# and added the same line again. Applying an identical edit twice is never what the model meant.
+REPEAT_EDIT_REFUSAL = (
+    REPEAT_REFUSAL_MARKER + " and this edit is already applied. Read the file to see its current content "
+    "before changing it again."
+)
 REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
 
 
@@ -91,7 +97,11 @@ def execute_tool_call(
     if previous is not None:
         return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
     repeats = ledger.times_run(call.name, call.arguments) if call.name in REPEAT_GUARD_TOOLS else 0
+    repeated_edit = call.name in CHANGE_TOOLS and ledger.applied_before(call.name, call.arguments)
     record = ledger.begin(call.id, call.name, call.arguments)
+    if repeated_edit:
+        ledger.finish(record, REPEAT_EDIT_REFUSAL, failed=True)
+        return ToolResult(call.id, call.name, REPEAT_EDIT_REFUSAL)
     if repeats >= REPEAT_REFUSE_AFTER:
         # Measured: a local model re-read one file range 66 times despite the note; stop feeding the loop.
         refusal = REPEAT_REFUSAL.format(count=repeats)

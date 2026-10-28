@@ -89,6 +89,14 @@ class OperationLedger:
                 count += 1
         return count
 
+    def applied_before(self, tool: str, arguments: str) -> bool:
+        """True when this exact call already executed in the current request, regardless of later changes."""
+        return any(
+            r.request == self.request and r.tool == tool and r.arguments == arguments
+            and r.status is OperationStatus.EXECUTED
+            for r in self.records
+        )
+
     def repeat_refusals(self, marker: str) -> int:
         """Calls refused as repeats in the current request (their result starts with `marker`)."""
         return sum(1 for r in self.records if r.request == self.request and r.result.startswith(marker))
