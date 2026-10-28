@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-29
+
 ### Added
 
 - `docs/LOCAL_SETUP.md`: step-by-step setup of a Mac (mlx_lm server on 8083 at login, optional manual mlx_vlm server on 8081, aider configuration, `aider-agent`, checks and troubleshooting), with templates in `docs/examples/` for the LaunchAgents, `~/.aider.conf.yml`, model settings, model metadata and `.aider-agent.json`.
