@@ -19,10 +19,13 @@ usage with `footprint -p <pid>` (RSS does not show GPU memory).
 
 ## Choose the model
 
-| Mac | Model for 8083 | Size | Notes |
+| Mac | Model for 8083 | Size | Prompt cache cap (`CACHE_BYTES`) |
 |---|---|---|---|
-| 64 GB | `ailexleon/Huihui-Qwen3.8-27B-abliterated-mlx-6Bit` | 21 GB on disk, ~25 GB in memory | the measured default |
-| 32 GB | `lmstudio-community/Qwen3.8-27B-MLX-4bit` | 15 GB on disk, ~16 GB in memory | fits with room for the editor and browser |
+| 64 GB | `ailexleon/Huihui-Qwen3.8-27B-abliterated-mlx-6Bit` | 21 GB on disk, ~25 GB in memory | 8589934592 (8 GB) |
+| 32 GB | `lmstudio-community/Qwen3.8-27B-MLX-4bit` | 15 GB on disk, ~16 GB in memory | 4294967296 (4 GB) |
+
+`mlx_lm.server` keeps a prompt cache next to the model; without a byte cap it was measured at 14 GB after one
+evaluation run, so always set one.
 
 Run at most one 27B server at a time on a 32 GB Mac, and do not start the optional 8081 server while 8083 is up.
 
@@ -48,8 +51,9 @@ Always pass `--python` to `uv pip install`: without it uv installs into whatever
 
 ```
 MODEL=<model id from the table>
+CACHE_BYTES=<cache cap from the table>
 mkdir -p ~/.cache
-sed -e "s|__HOME__|$HOME|g" -e "s|__MODEL__|$MODEL|g" \
+sed -e "s|__HOME__|$HOME|g" -e "s|__MODEL__|$MODEL|g" -e "s|__CACHE_BYTES__|$CACHE_BYTES|g" \
     docs/examples/launchagents/local.mlx-lm-agent.plist > ~/Library/LaunchAgents/local.mlx-lm-agent.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.mlx-lm-agent.plist
 curl -s http://127.0.0.1:8083/v1/models | head -c 200     # answers once the server is up

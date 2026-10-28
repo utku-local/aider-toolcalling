@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Text model server for aider and aider-agent: mlx_lm.server on 8083, started at login.
      mlx_lm reuses its prompt cache when a request extends the previous one, which makes agent rounds fast.
-     Fill in __HOME__ and __MODEL__ (see docs/LOCAL_SETUP.md). -->
+     Fill in __HOME__, __MODEL__ and __CACHE_BYTES__ (see docs/LOCAL_SETUP.md). The prompt cache is capped in
+     bytes: without a cap it holds 10 conversations and was measured at 14 GB on top of the model. -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -14,6 +15,7 @@
     <string>--host</string><string>127.0.0.1</string>
     <string>--port</string><string>8083</string>
     <string>--chat-template-args</string><string>{"enable_thinking": false}</string>
+    <string>--prompt-cache-bytes</string><string>__CACHE_BYTES__</string>
     <string>--log-level</string><string>INFO</string>
   </array>
   <key>EnvironmentVariables</key>
