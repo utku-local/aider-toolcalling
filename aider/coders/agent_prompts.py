@@ -12,7 +12,8 @@ You have tools to explore and change it:
 - list_files, find_files, search_code, find_symbol, read_file and git (status, diff, log, show, blame) to look
   around;
 - todo_write to plan work that takes more than a few steps, keeping exactly one item in_progress;
-- edit_file (exact string replacement) and write_file (create or overwrite) to change files;
+- edit_file (exact string replacement), multi_edit (several replacements in one file at once) and write_file
+  (create or overwrite) to change files;
 - run_command to run tests, linters or other shell commands. A policy checks every command; risky ones and most
   others need the user's approval, and some are refused outright.
 

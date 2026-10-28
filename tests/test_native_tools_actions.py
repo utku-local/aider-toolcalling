@@ -11,7 +11,7 @@ from typing import Any
 
 from aider.native_tool_context import DENIED_ACTION, DENIED_CHANGE, ToolContext, ToolPermission
 from aider.native_tools_builtin import read_file
-from aider.native_tools_edit import EditError, edit_file, replace_text, write_file
+from aider.native_tools_edit import EditError, edit_file, multi_edit, replace_text, write_file
 from aider.native_tools_search import NO_RESULTS, SearchError, find_files, find_symbol, search_code
 from aider.native_tools_shell import run_command
 
@@ -115,6 +115,26 @@ class ActionToolsTest(unittest.TestCase):
             self.assertEqual(recorder.edited, [])
             if not answer:
                 self.assertEqual(result, DENIED_CHANGE)
+
+    def test_multi_edit_applies_all_or_nothing_with_one_approval(self) -> None:
+        ctx, recorder = self.ctx()
+        edits = [{"old_string": "VALUE = 1", "new_string": "VALUE = 10"},
+                 {"old_string": "value = 2", "new_string": "value = 20"}]
+        self.assertIn("2 edit(s), 2 replacement(s)", multi_edit(ctx, "src/util.py", edits))
+        self.assertEqual((self.root / "src/util.py").read_text(), "VALUE = 10\nvalue = 20\n")
+        self.assertEqual(len(recorder.asked), 1)
+        diff = recorder.asked[0][2]
+        self.assertIn("+VALUE = 10", diff)
+        self.assertIn("+value = 20", diff)
+
+        broken = [{"old_string": "VALUE = 10", "new_string": "VALUE = 11"}, {"old_string": "missing", "new_string": "x"}]
+        with self.assertRaises(EditError) as raised:
+            multi_edit(ctx, "src/util.py", broken)
+        self.assertIn("edit 2", str(raised.exception))
+        self.assertEqual((self.root / "src/util.py").read_text(), "VALUE = 10\nvalue = 20\n")
+        for bad in ([], ["text"], [{"old_string": "x"}]):
+            with self.subTest(bad=bad), self.assertRaises(EditError):
+                multi_edit(ctx, "src/util.py", bad)
 
     def test_write_file_creates_and_overwrites_inside_root(self) -> None:
         ctx, recorder = self.ctx()
