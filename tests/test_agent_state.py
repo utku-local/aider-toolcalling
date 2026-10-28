@@ -134,7 +134,9 @@ class CompactionTest(unittest.TestCase):
             tool_round("r2", "read_file", {"path": "b.py"}, "b\n"),
             tool_round("r3", "read_file", {"path": "a.py"}, "new\n"),
         )
-        self.assertEqual(self.tools(compact_tool_history(original)), [COMPACTED_PREFIX + "1 lines", "b\n", "new\n"])
+        self.assertEqual(self.tools(compact_tool_history(original)), ["old\n", "b\n", "new\n"])
+        compacted = compact_tool_history(original, trigger_chars=0, target_chars=10**6)
+        self.assertEqual(self.tools(compacted), [COMPACTED_PREFIX + "1 lines", "b\n", "new\n"])
         self.assertEqual(self.tools(original), ["old\n", "b\n", "new\n"])
 
     def test_different_ranges_are_different_reads(self) -> None:
@@ -142,18 +144,19 @@ class CompactionTest(unittest.TestCase):
             tool_round("r1", "read_file", {"path": "a.py", "start_line": 1, "end_line": 9}, "x\n"),
             tool_round("r2", "read_file", {"path": "a.py", "start_line": 10, "end_line": 20}, "y\n"),
         )
-        self.assertEqual(self.tools(compact_tool_history(original)), ["x\n", "y\n"])
+        self.assertEqual(self.tools(compact_tool_history(original, trigger_chars=0)), ["x\n", "y\n"])
 
     def test_other_results_go_before_reads(self) -> None:
         original = self.history(
             tool_round("r1", "read_file", {"path": "a.py"}, "a\nb\n"),
-            tool_round("s1", "search_code", {"pattern": "x"}, "f:1: x"),
+            tool_round("s1", "search_code", {"pattern": "x"}, "f:1: x\n" * 30),
             tool_round("r2", "read_file", {"path": "b.py"}, "c\n"),
             tool_round("r3", "read_file", {"path": "c.py"}, "d\n"),
         )
-        compacted = self.tools(compact_tool_history(original, keep_rounds=2, min_chars=0, reads_min_chars=10**6))
-        self.assertEqual(compacted, ["a\nb\n", COMPACTED_PREFIX + "1 results", "c\n", "d\n"])
-        everything = self.tools(compact_tool_history(original, keep_rounds=2, min_chars=0, reads_min_chars=0))
+        target = len("sysgo") + len("a\nb\n") + len(COMPACTED_PREFIX + "30 results") + len("c\n") + len("d\n")
+        compacted = self.tools(compact_tool_history(original, keep_rounds=2, trigger_chars=0, target_chars=target))
+        self.assertEqual(compacted, ["a\nb\n", COMPACTED_PREFIX + "30 results", "c\n", "d\n"])
+        everything = self.tools(compact_tool_history(original, keep_rounds=2, trigger_chars=0, target_chars=0))
         self.assertEqual(everything[0], COMPACTED_PREFIX + "2 lines")
         self.assertEqual(everything[2:], ["c\n", "d\n"])
 

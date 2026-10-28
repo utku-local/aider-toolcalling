@@ -1,7 +1,7 @@
 """Shrinks tool history before each request and attaches the working state, without changing the stored history.
-A read_file result superseded by a later read of the same file and range is always summarized; past a size
-threshold, command, search and edit results are summarized next, and file contents only past a much larger one,
-because a model that loses a file it still needs reads it again and can loop.
+Nothing is changed until the history passes a large trigger, so a server with a prefix cache reuses every earlier
+round; past it, the history is brought down to a target in one step: superseded file reads first, then command,
+search and edit results, file contents last, because a model that loses a file it still needs reads it again.
 Every function returns new lists and dicts, so the full history stays available for later turns and for review.
 """
 
@@ -11,10 +11,11 @@ from typing import Any
 from aider.native_tool_summary import summarize_result
 
 KEEP_FULL_ROUNDS = 2
-# About 4 characters per token: other tool results are summarized past ~6K tokens of history, file contents
-# only past ~24K tokens. Measured on real projects, losing file contents made the agent re-read them in a loop.
-COMPACT_ABOVE_CHARS = 24_000
-COMPACT_READS_ABOVE_CHARS = 96_000
+# About 4 characters per token: compaction starts past ~48K tokens and brings the history to ~24K. With mlx_lm's
+# prefix cache an unchanged history costs seconds per round; measured, compacting earlier made every round re-read
+# the whole prompt (about 3 minutes at 66 tok/s), and losing file contents made the agent re-read files in a loop.
+COMPACT_TRIGGER_CHARS = 192_000
+COMPACT_TARGET_CHARS = 96_000
 COMPACTED_PREFIX = "[compacted] "
 STATE_ROLE = "user"
 READ_TOOL = "read_file"
@@ -86,15 +87,17 @@ def compactable(messages: list[dict[str, Any]], keep_rounds: int, reads: bool) -
 def compact_tool_history(
     messages: list[dict[str, Any]],
     keep_rounds: int = KEEP_FULL_ROUNDS,
-    min_chars: int = COMPACT_ABOVE_CHARS,
-    reads_min_chars: int = COMPACT_READS_ABOVE_CHARS,
+    trigger_chars: int = COMPACT_TRIGGER_CHARS,
+    target_chars: int = COMPACT_TARGET_CHARS,
 ) -> list[dict[str, Any]]:
-    """Copy of `messages` with superseded reads summarized, then other results and reads past the thresholds."""
+    """Copy of `messages`, unchanged up to `trigger_chars`; past it, summarized oldest-first down to `target_chars`."""
+    if history_chars(messages) <= trigger_chars:
+        return list(messages)
     stale = superseded_reads(messages)
     compacted = [summarized(m) if i in stale else m for i, m in enumerate(messages)]
-    for reads, threshold in ((False, min_chars), (True, reads_min_chars)):
+    for reads in (False, True):
         for index in compactable(compacted, keep_rounds, reads):
-            if history_chars(compacted) <= threshold:
+            if history_chars(compacted) <= target_chars:
                 break
             compacted[index] = summarized(compacted[index])
     return compacted
