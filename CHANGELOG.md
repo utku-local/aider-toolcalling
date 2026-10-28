@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- "Always allow": after you approve a plain, risk-free command, Aider asks whether to add the narrowest matching allow rule to `.aider-agent.json` (for git, npm, uv and similar, only that subcommand). The question needs an explicit yes, so `--yes-always` never adds rules. Outside the sandbox the rule is written with `trust_unsandboxed`.
+
 ### Changed
 
 - Read-only tool calls of one round (`read_file` on non-secret paths, `list_files`, `find_files`, `search_code`, `find_symbol`, `git`) run concurrently, at most 8 at once; calls that may ask the user stay sequential and results keep the model's order.

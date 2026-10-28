@@ -65,6 +65,25 @@ def load_agent_config(root: str, io: Any) -> AgentConfig:
         return AgentConfig()
 
 
+def rule_as_json(rule: CommandRule) -> dict[str, Any]:
+    data: dict[str, Any] = {"program": rule.program}
+    if rule.subcommands:
+        data["subcommands"] = list(rule.subcommands)
+    if rule.trust_unsandboxed:
+        data["trust_unsandboxed"] = True
+    return data
+
+
+def add_allow_rule(root: str, config: AgentConfig, rule: CommandRule) -> AgentConfig:
+    """Append `rule` to the allow list in .aider-agent.json (created if missing); returns the updated config."""
+    path = Path(root) / CONFIG_FILE_NAME
+    data = json.loads(path.read_text(encoding=CONFIG_ENCODING)) if path.is_file() else {}
+    data.setdefault("commands", {}).setdefault("allow", []).append(rule_as_json(rule))
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding=CONFIG_ENCODING)
+    rules = CommandRules(allow=config.rules.allow + (rule,), deny=config.rules.deny)
+    return AgentConfig(rules, config.sandbox)
+
+
 def instruction_files(root: str) -> list[str]:
     """Existing instruction files in the root, small enough to add to the chat."""
     found = []
