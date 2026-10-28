@@ -1,19 +1,24 @@
 """Shrinks tool history before each request and attaches the working state, without changing the stored history.
-Both steps keep the request prefix stable so a server-side prefix cache can reuse earlier rounds: the working state
-goes in a message at the end, and old tool results are summarized only once the history grows past a size threshold.
+A read_file result superseded by a later read of the same file and range is always summarized; past a size
+threshold, command, search and edit results are summarized next, and file contents only past a much larger one,
+because a model that loses a file it still needs reads it again and can loop.
 Every function returns new lists and dicts, so the full history stays available for later turns and for review.
 """
 
+import json
 from typing import Any
 
 from aider.native_tool_summary import summarize_result
 
 KEEP_FULL_ROUNDS = 2
-# Compact past ~6K tokens (about 4 characters per token). Measured on real projects, prompt processing dominates
-# each round and the local server cannot reuse an extended prefix, so shorter history wins over a stable prefix.
+# About 4 characters per token: other tool results are summarized past ~6K tokens of history, file contents
+# only past ~24K tokens. Measured on real projects, losing file contents made the agent re-read them in a loop.
 COMPACT_ABOVE_CHARS = 24_000
+COMPACT_READS_ABOVE_CHARS = 96_000
 COMPACTED_PREFIX = "[compacted] "
 STATE_ROLE = "user"
+READ_TOOL = "read_file"
+READ_KEY_FIELDS = ("path", "start_line", "end_line")
 
 
 def round_starts(messages: list[dict[str, Any]]) -> list[int]:
@@ -27,23 +32,71 @@ def history_chars(messages: list[dict[str, Any]]) -> int:
     return sum(len(m.get("content") or "") for m in messages if isinstance(m.get("content"), str))
 
 
+def call_arguments(messages: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """tool_call_id -> decoded arguments, from the assistant tool_calls in `messages`."""
+    found: dict[str, dict[str, Any]] = {}
+    for message in messages:
+        for call in message.get("tool_calls") or []:
+            try:
+                arguments = json.loads(call.get("function", {}).get("arguments") or "{}")
+            except ValueError:
+                arguments = {}
+            found[call.get("id")] = arguments if isinstance(arguments, dict) else {}
+    return found
+
+
+def read_key(message: dict[str, Any], arguments: dict[str, dict[str, Any]]) -> tuple:
+    args = arguments.get(message.get("tool_call_id"), {})
+    return tuple(args.get(field) for field in READ_KEY_FIELDS)
+
+
+def superseded_reads(messages: list[dict[str, Any]]) -> set[int]:
+    """Indexes of read_file results that a later read of the same file and range replaces."""
+    arguments = call_arguments(messages)
+    latest: dict[tuple, int] = {}
+    stale: set[int] = set()
+    for index, message in enumerate(messages):
+        if message.get("role") == "tool" and message.get("name") == READ_TOOL:
+            key = read_key(message, arguments)
+            if key in latest:
+                stale.add(latest[key])
+            latest[key] = index
+    return stale
+
+
+def summarized(message: dict[str, Any]) -> dict[str, Any]:
+    content = message.get("content") or ""
+    if content.startswith(COMPACTED_PREFIX):
+        return message
+    return {**message, "content": COMPACTED_PREFIX + summarize_result(message.get("name") or "", content)}
+
+
+def compactable(messages: list[dict[str, Any]], keep_rounds: int, reads: bool) -> list[int]:
+    """Tool results before the last `keep_rounds` rounds, reads or non-reads, oldest first."""
+    starts = round_starts(messages)
+    if len(starts) <= keep_rounds:
+        return []
+    cutoff = starts[-keep_rounds] if keep_rounds else len(messages)
+    return [
+        i for i, m in enumerate(messages[:cutoff])
+        if m.get("role") == "tool" and (m.get("name") == READ_TOOL) == reads
+    ]
+
+
 def compact_tool_history(
     messages: list[dict[str, Any]],
     keep_rounds: int = KEEP_FULL_ROUNDS,
     min_chars: int = COMPACT_ABOVE_CHARS,
+    reads_min_chars: int = COMPACT_READS_ABOVE_CHARS,
 ) -> list[dict[str, Any]]:
-    """Copy of `messages`; once it exceeds `min_chars`, tool results before the last `keep_rounds` are summarized."""
-    starts = round_starts(messages)
-    if len(starts) <= keep_rounds or history_chars(messages) <= min_chars:
-        return list(messages)
-    cutoff = starts[-keep_rounds] if keep_rounds else len(messages)
-    compacted = []
-    for index, message in enumerate(messages):
-        content = message.get("content") or ""
-        if index < cutoff and message.get("role") == "tool" and not content.startswith(COMPACTED_PREFIX):
-            summary = summarize_result(message.get("name") or "", content)
-            message = {**message, "content": COMPACTED_PREFIX + summary}
-        compacted.append(message)
+    """Copy of `messages` with superseded reads summarized, then other results and reads past the thresholds."""
+    stale = superseded_reads(messages)
+    compacted = [summarized(m) if i in stale else m for i, m in enumerate(messages)]
+    for reads, threshold in ((False, min_chars), (True, reads_min_chars)):
+        for index in compactable(compacted, keep_rounds, reads):
+            if history_chars(compacted) <= threshold:
+                break
+            compacted[index] = summarized(compacted[index])
     return compacted
 
 
