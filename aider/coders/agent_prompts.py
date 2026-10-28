@@ -11,6 +11,7 @@ class AgentPrompts(AskPrompts):
 You have tools to explore and change it:
 - list_files, find_files, search_code, find_symbol, read_file and git (status, diff, log, show, blame) to look
   around;
+- read_spreadsheet to read Excel workbooks (.xlsx/.xlsm) sheet by sheet;
 - research to answer a question about the project in a separate conversation that returns only the answer; use it
   for broad exploration so this conversation stays short;
 - todo_write to plan work that takes more than a few steps, keeping exactly one item in_progress;

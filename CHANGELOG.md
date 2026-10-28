@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- `read_spreadsheet` tool (read-only, in agent mode, `--native-tools` and `research`): lists the sheets of an .xlsx/.xlsm workbook and returns rows of one sheet as text, 50 at a time by default. Dates are shown as ISO dates, formulas without a saved result as their formula. Uses only the standard library; old .xls files are refused with a hint.
 - Upstream updates: an `upstream` branch holds the untouched aider-chat source (0.86.2 imported from PyPI), `python -m maintenance.import_upstream VERSION --into DIR --pyproject FILE` imports a release and its pinned dependencies, and `docs/UPSTREAM.md` describes the merge procedure.
 - CI: a GitHub Actions workflow installs the package with its pinned dependencies and runs the test suite on pushes to `main` and `develop` and on pull requests (macOS-only sandbox tests skip on Linux).
 - `research` tool in agent mode: answers a question about the project in a separate conversation with read-only tools (at most 10 rounds) and returns only the answer, so the files it reads never enter the main conversation's prompt.

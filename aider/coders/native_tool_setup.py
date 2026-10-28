@@ -22,6 +22,7 @@ from aider.native_tools_fetch import register_fetch_tool
 from aider.native_tools_git import register_git_tool
 from aider.native_tools_search import register_search_tools
 from aider.native_tools_shell import register_shell_tools
+from aider.native_tools_spreadsheet import register_spreadsheet_tool
 from aider.repomap import RepoMap
 
 from .native_agent_config import load_agent_config
@@ -136,6 +137,7 @@ def read_only_registry(ctx: ToolContext) -> NativeToolRegistry:
     register_read_tools(registry, ctx)
     register_search_tools(registry, ctx)
     register_git_tool(registry, ctx)
+    register_spreadsheet_tool(registry, ctx)
     return registry
 
 
