@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- The `tests` workflow runs only when started by hand (`workflow_dispatch`) until the account's Actions billing is fixed; on push and pull request the jobs were refused before starting and showed as failures. Tests still run locally (`harness-check`) before every merge.
+
 ## [0.5.3] - 2026-10-29
 
 ### Changed
