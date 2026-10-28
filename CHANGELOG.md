@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-10-29
+
 ### Changed
 
 - `edit_file` and `multi_edit` accept an `old_string` that differs from the file only in trailing spaces or tabs on its lines. When nothing matches, the error names the first line that differs (or says the first line is not in the file). In a trial session the model failed the same multi-line edit twice and spent five rounds searching.
