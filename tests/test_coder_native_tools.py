@@ -32,8 +32,8 @@ def make_completion(content: Any = None, tool_calls: Any = None) -> SimpleNamesp
     )
 
 
-def list_files_call(call_id: str) -> list[SimpleNamespace]:
-    function = SimpleNamespace(name="list_files", arguments=json.dumps({"path": "."}))
+def list_files_call(call_id: str, path: str = ".") -> list[SimpleNamespace]:
+    function = SimpleNamespace(name="list_files", arguments=json.dumps({"path": path}))
     return [SimpleNamespace(id=call_id, type="function", function=function)]
 
 
@@ -124,7 +124,9 @@ class CoderNativeToolsTest(unittest.TestCase):
         coder = self.make_coder(native_tools=True)
         coder.io = InputOutput(yes=answer, pretty=False)
         coder.max_tool_rounds = ROUND_BUDGET
-        completions = [make_completion(tool_calls=list_files_call(f"c{i}")) for i in range(rounds_expected)]
+        # Distinct paths to the same directory: these tests count rounds, not repeated identical calls.
+        completions = [make_completion(tool_calls=list_files_call(f"c{i}", "./" * (i + 1)))
+                       for i in range(rounds_expected)]
         completions.append(make_completion(FINAL_TEXT, tool_calls=list_files_call("ignored")))
         scripted = ScriptedModel(completions)
         self.run_coder(coder, scripted)

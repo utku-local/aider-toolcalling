@@ -20,6 +20,8 @@ class OperationStatus(str, Enum):
 
 FINAL_STATUSES = frozenset({OperationStatus.DENIED, OperationStatus.EXECUTED, OperationStatus.FAILED})
 NO_RESULT = ""
+# Tools that change project files; a repeat of the same call after one of these is a new check, not a loop.
+CHANGE_TOOLS = frozenset({"edit_file", "multi_edit", "write_file"})
 
 
 @dataclass
@@ -75,13 +77,21 @@ class OperationLedger:
         if self.current is record:
             self.current = None
 
-    def ran_before(self, record: OperationRecord) -> bool:
-        """True when the same tool already ran with the same arguments earlier in this request."""
-        return any(
-            r is not record and r.request == record.request and r.tool == record.tool
-            and r.arguments == record.arguments and r.status is OperationStatus.EXECUTED
-            for r in self.records
-        )
+    def times_run(self, tool: str, arguments: str) -> int:
+        """How often this exact call already executed in the current request since the last file change."""
+        count = 0
+        for r in self.records:
+            if r.request != self.request or r.status is not OperationStatus.EXECUTED:
+                continue
+            if r.tool in CHANGE_TOOLS:
+                count = 0
+            elif r.tool == tool and r.arguments == arguments:
+                count += 1
+        return count
+
+    def repeat_refusals(self, marker: str) -> int:
+        """Calls refused as repeats in the current request (their result starts with `marker`)."""
+        return sum(1 for r in self.records if r.request == self.request and r.result.startswith(marker))
 
     def executed(self) -> list[OperationRecord]:
         return [r for r in self.records if r.status is OperationStatus.EXECUTED]

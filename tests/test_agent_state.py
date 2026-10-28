@@ -20,7 +20,7 @@ from aider.models import Model
 from aider.native_tool_calls import ToolCall
 from aider.native_tool_compaction import COMPACTED_PREFIX, add_working_state, compact_tool_history
 from aider.native_tool_ledger import OperationLedger, OperationStatus
-from aider.native_tool_loop import REPEAT_NOTE, REPLAYED_NOTE, build_tool_round_messages
+from aider.native_tool_loop import REPEAT_NOTE, REPEAT_REFUSAL_MARKER, REPLAYED_NOTE, build_tool_round_messages
 from aider.native_tool_summary import exit_code, summarize_result
 from aider.native_toolcalling import NativeToolRegistry
 from aider.native_working_state import STATE_HEADING, render_working_state
@@ -70,13 +70,13 @@ class RepeatHintTest(unittest.TestCase):
         ledger.start_request()
         first = build_tool_round_messages(registry, "", [ToolCall("a", "read_file", '{"path": "x"}')], ledger)
         again = build_tool_round_messages(registry, "", [ToolCall("b", "read_file", '{"path": "x"}')], ledger)
+        third = build_tool_round_messages(registry, "", [ToolCall("b3", "read_file", '{"path": "x"}')], ledger)
+        self.assertTrue(third[1]["content"].startswith(REPEAT_REFUSAL_MARKER))
+        self.assertEqual(ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 1)
         other = build_tool_round_messages(registry, "", [ToolCall("c", "read_file", '{"path": "y"}')], ledger)
         self.assertEqual(first[1]["content"], "content")
         self.assertTrue(again[1]["content"].startswith(REPEAT_NOTE))
         self.assertEqual(other[1]["content"], "content")
-        build_tool_round_messages(registry, "", [ToolCall("d", "run_command", "{}")], ledger)
-        rerun = build_tool_round_messages(registry, "", [ToolCall("e", "run_command", "{}")], ledger)
-        self.assertEqual(rerun[1]["content"], "Exit code: 0")
         ledger.start_request()
         fresh = build_tool_round_messages(registry, "", [ToolCall("f", "read_file", '{"path": "x"}')], ledger)
         self.assertEqual(fresh[1]["content"], "content")
@@ -204,6 +204,61 @@ class PrefixStabilityTest(unittest.TestCase):
         for earlier, later in zip(requests, requests[1:]):
             self.assertEqual(later[: len(earlier)], earlier)
 
+
+class RepeatLoopTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        with open(os.path.join(self.tmp.name, "calc.py"), "w") as handle:
+            handle.write("x = 1\n")
+        self.cwd = os.getcwd()
+        os.chdir(self.tmp.name)
+
+    def tearDown(self) -> None:
+        os.chdir(self.cwd)
+        self.tmp.cleanup()
+
+    def test_identical_reads_are_refused_and_the_loop_ends(self) -> None:
+        coder = Coder.create(
+            main_model=Model(MODEL_NAME), edit_format="agent", io=InputOutput(yes=True, pretty=False),
+            fnames=[], use_git=False, map_tokens=0, auto_lint=False, stream=False,
+        )
+        same_read = [make_completion(tool_calls=tool_call(f"r{i}", "read_file", {"path": "calc.py"}))
+                     for i in range(5)]
+        scripted = ScriptedModel(same_read + [make_completion(FINAL_TEXT)])
+        with patch("aider.models.litellm.completion", side_effect=scripted):
+            coder.run(with_message="Look at calc.py.")
+
+        statuses = [r.status for r in coder.native_ledger.records]
+        self.assertEqual(statuses.count(OperationStatus.EXECUTED), 2)
+        self.assertEqual(coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 3)
+        self.assertEqual(scripted.requests[-1]["tool_choice"], "none")
+        self.assertEqual(coder.partial_response_content, FINAL_TEXT)
+
+
+    def test_a_file_change_resets_the_repeat_count(self) -> None:
+        ledger = OperationLedger()
+        ledger.start_request()
+        test = {"command": "python -m unittest"}
+        record(ledger, "run_command", test, "exit 1", OperationStatus.EXECUTED)
+        record(ledger, "run_command", test, "exit 1", OperationStatus.EXECUTED)
+        self.assertEqual(ledger.times_run("run_command", json.dumps(test)), 2)
+        record(ledger, "multi_edit", {"path": "calc.py"}, "ok", OperationStatus.EXECUTED)
+        self.assertEqual(ledger.times_run("run_command", json.dumps(test)), 0)
+
+    def test_identical_commands_are_refused_until_a_file_changes(self) -> None:
+        registry = NativeToolRegistry()
+        registry.register("run_command", "Run", {"type": "object", "properties": {}}, lambda: "Exit code: 0")
+        registry.register("edit_file", "Edit", {"type": "object", "properties": {}}, lambda: "Edited")
+        ledger = OperationLedger()
+        ledger.start_request()
+
+        def run(call_id: str, tool: str) -> str:
+            return build_tool_round_messages(registry, "", [ToolCall(call_id, tool, "{}")], ledger)[1]["content"]
+
+        self.assertEqual([run(f"c{i}", "run_command") for i in range(2)], ["Exit code: 0"] * 2)
+        self.assertTrue(run("c2", "run_command").startswith(REPEAT_REFUSAL_MARKER))
+        run("e", "edit_file")
+        self.assertEqual(run("c3", "run_command"), "Exit code: 0")
 
 class RetryResumeTest(unittest.TestCase):
     def setUp(self) -> None:
