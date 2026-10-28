@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Changed
 
 - A read-only tool call (read, list, find, search, symbol, git) that already ran twice with the same arguments in one request is refused with an error telling the model to edit, run tests or answer; after three refusals the tool loop stops and asks for the final answer. On a real task the agent had re-read one file range 66 times despite the repeat note.
+- The same repeat limit now covers `run_command`, and the count restarts after every file change (`edit_file`, `multi_edit`, `write_file`), so rerunning tests after an edit is never refused. On a real task the agent had run one passing test command 100 times without changing a file.
+
+### Fixed
+
+- `multi_edit` changes are listed under "Files changed" in the working state.
 
 ## [0.5.1] - 2026-10-28
 

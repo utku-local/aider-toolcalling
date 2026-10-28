@@ -77,9 +77,6 @@ class RepeatHintTest(unittest.TestCase):
         self.assertEqual(first[1]["content"], "content")
         self.assertTrue(again[1]["content"].startswith(REPEAT_NOTE))
         self.assertEqual(other[1]["content"], "content")
-        build_tool_round_messages(registry, "", [ToolCall("d", "run_command", "{}")], ledger)
-        rerun = build_tool_round_messages(registry, "", [ToolCall("e", "run_command", "{}")], ledger)
-        self.assertEqual(rerun[1]["content"], "Exit code: 0")
         ledger.start_request()
         fresh = build_tool_round_messages(registry, "", [ToolCall("f", "read_file", '{"path": "x"}')], ledger)
         self.assertEqual(fresh[1]["content"], "content")
@@ -237,6 +234,31 @@ class RepeatLoopTest(unittest.TestCase):
         self.assertEqual(scripted.requests[-1]["tool_choice"], "none")
         self.assertEqual(coder.partial_response_content, FINAL_TEXT)
 
+
+    def test_a_file_change_resets_the_repeat_count(self) -> None:
+        ledger = OperationLedger()
+        ledger.start_request()
+        test = {"command": "python -m unittest"}
+        record(ledger, "run_command", test, "exit 1", OperationStatus.EXECUTED)
+        record(ledger, "run_command", test, "exit 1", OperationStatus.EXECUTED)
+        self.assertEqual(ledger.times_run("run_command", json.dumps(test)), 2)
+        record(ledger, "multi_edit", {"path": "calc.py"}, "ok", OperationStatus.EXECUTED)
+        self.assertEqual(ledger.times_run("run_command", json.dumps(test)), 0)
+
+    def test_identical_commands_are_refused_until_a_file_changes(self) -> None:
+        registry = NativeToolRegistry()
+        registry.register("run_command", "Run", {"type": "object", "properties": {}}, lambda: "Exit code: 0")
+        registry.register("edit_file", "Edit", {"type": "object", "properties": {}}, lambda: "Edited")
+        ledger = OperationLedger()
+        ledger.start_request()
+
+        def run(call_id: str, tool: str) -> str:
+            return build_tool_round_messages(registry, "", [ToolCall(call_id, tool, "{}")], ledger)[1]["content"]
+
+        self.assertEqual([run(f"c{i}", "run_command") for i in range(2)], ["Exit code: 0"] * 2)
+        self.assertTrue(run("c2", "run_command").startswith(REPEAT_REFUSAL_MARKER))
+        run("e", "edit_file")
+        self.assertEqual(run("c3", "run_command"), "Exit code: 0")
 
 class RetryResumeTest(unittest.TestCase):
     def setUp(self) -> None:

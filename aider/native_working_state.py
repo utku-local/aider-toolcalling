@@ -7,11 +7,10 @@ This keeps the essentials available after old tool results have been compacted o
 import json
 from typing import Any
 
-from aider.native_tool_ledger import OperationRecord, OperationStatus
+from aider.native_tool_ledger import CHANGE_TOOLS, OperationRecord, OperationStatus
 from aider.native_tool_summary import exit_code, first_line
 
 READ_TOOLS = frozenset({"read_file"})
-CHANGE_TOOLS = frozenset({"edit_file", "write_file"})
 COMMAND_TOOL = "run_command"
 MAX_LISTED_FILES = 20
 MAX_LISTED_COMMANDS = 5

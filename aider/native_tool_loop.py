@@ -30,6 +30,8 @@ PARALLEL_TOOLS = frozenset(
 READ_FILE_TOOL = "read_file"
 MAX_PARALLEL_CALLS = 8
 REPEAT_HINT_TOOLS = frozenset({"read_file", "list_files", "find_files", "search_code", "find_symbol", "git"})
+# Measured: a local model ran the same passing test command 100 times without changing a file in between.
+REPEAT_GUARD_TOOLS = REPEAT_HINT_TOOLS | {"run_command"}
 REPEAT_NOTE = (
     "Note: you already made this exact call in this request and got the same result; use it and move on "
     "to the next step instead of repeating it.\n"
@@ -37,7 +39,7 @@ REPEAT_NOTE = (
 REPEAT_REFUSE_AFTER = 2
 REPEAT_REFUSAL = (
     "Error: refused, this exact call already ran {count} times in this request and its result is unchanged "
-    "in the conversation above. Do not repeat it: edit the code, run the tests, or give your answer."
+    "in the conversation above and no file changed since. Do not repeat it: edit the code, or give your answer."
 )
 REPEAT_REFUSAL_MARKER = "Error: refused, this exact call already ran"
 REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
@@ -88,7 +90,7 @@ def execute_tool_call(
     previous = ledger.finished(call.id)
     if previous is not None:
         return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
-    repeats = ledger.times_run(call.name, call.arguments) if call.name in REPEAT_HINT_TOOLS else 0
+    repeats = ledger.times_run(call.name, call.arguments) if call.name in REPEAT_GUARD_TOOLS else 0
     record = ledger.begin(call.id, call.name, call.arguments)
     if repeats >= REPEAT_REFUSE_AFTER:
         # Measured: a local model re-read one file range 66 times despite the note; stop feeding the loop.
@@ -103,7 +105,7 @@ def execute_tool_call(
         raise
     result = cap_result(result)
     ledger.finish(record, result.content, failed)
-    if call.name in REPEAT_HINT_TOOLS and ledger.ran_before(record):
+    if call.name in REPEAT_HINT_TOOLS and repeats:
         # Local models can loop on re-reading; say plainly that this exact result is already in the conversation.
         return ToolResult(result.tool_call_id, result.name, REPEAT_NOTE + result.content)
     return result
