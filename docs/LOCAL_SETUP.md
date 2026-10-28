@@ -21,13 +21,18 @@ usage with `footprint -p <pid>` (RSS does not show GPU memory).
 
 | Mac | Model for 8083 | Size | Prompt cache cap (`CACHE_BYTES`) |
 |---|---|---|---|
-| 64 GB | `ailexleon/Huihui-Qwen3.8-27B-abliterated-mlx-6Bit` | 21 GB on disk, ~25 GB in memory | 8589934592 (8 GB) |
-| 32 GB | `lmstudio-community/Qwen3.8-27B-MLX-4bit` | 15 GB on disk, ~16 GB in memory | 4294967296 (4 GB) |
+| 64 GB | `ailexleon/Huihui-Qwen3.8-27B-abliterated-mlx-6Bit` | 21 GB on disk, up to ~27 GB in memory | 8589934592 (8 GB) |
+| 32 GB | `lmstudio-community/Qwen3.8-27B-MLX-4bit` | 15 GB on disk, up to ~21 GB in memory | 4294967296 (4 GB) |
 
 `mlx_lm.server` keeps a prompt cache next to the model; without a byte cap it was measured at 14 GB after one
 evaluation run, so always set one.
 
 Run at most one 27B server at a time on a 32 GB Mac, and do not start the optional 8081 server while 8083 is up.
+
+Measured on the hard evaluation set (10 tasks, 2 runs each, both served by `mlx_lm`): 6-bit and 4-bit both
+passed 20 of 20. Peak server memory was ~27 GB for 6-bit and ~21 GB for 4-bit, so 6-bit does not fit a 32 GB Mac.
+Time outside prompt processing was the same (776 s and 763 s); the 4-bit total was longer only because that freshly
+started server re-processed ~2,900 prompt tokens at the start of every task.
 
 ## 1. Tools
 
