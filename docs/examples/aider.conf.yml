@@ -1,0 +1,25 @@
+# ~/.aider.conf.yml for a local MLX setup: aider and aider-agent use the mlx_lm server on 8083.
+# __MODEL_ID__ is openai/<Hugging Face id of the model the 8083 server runs> (see docs/LOCAL_SETUP.md).
+model: __MODEL_ID__
+openai-api-base: http://127.0.0.1:8083/v1
+openai-api-key: mlx-local
+
+# Local model: no billing, no network metadata lookups.
+show-model-warnings: false
+cache-prompts: false
+stream: true
+
+# Never run shell commands suggested in replies; agent mode asks before every command.
+suggest-shell-commands: false
+
+# Commits stay a manual step.
+auto-commits: false
+dirty-commits: false
+gitignore: false
+attribute-author: false
+attribute-committer: false
+
+# Short names: aider --model 4bit, or /model 6bit in chat.
+alias:
+  - "4bit:openai/lmstudio-community/Qwen3.8-27B-MLX-4bit"
+  - "6bit:openai/ailexleon/Huihui-Qwen3.8-27B-abliterated-mlx-6Bit"

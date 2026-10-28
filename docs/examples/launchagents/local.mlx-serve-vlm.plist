@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Optional image-capable server: mlx_vlm.server on 8081, started by hand only (RunAtLoad false, no KeepAlive,
+     so a stop sticks). Start: launchctl kickstart gui/$(id -u)/local.mlx-serve-vlm
+     Stop:  launchctl kill TERM gui/$(id -u)/local.mlx-serve-vlm
+     Fill in __HOME__ and __MODEL__ (see docs/LOCAL_SETUP.md). -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.mlx-serve-vlm</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.venvs/mlx-vlm/bin/python</string>
+    <string>-m</string><string>mlx_vlm.server</string>
+    <string>--model</string><string>__MODEL__</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>8081</string>
+    <string>--log-level</string><string>INFO</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>__HOME__</string>
+    <key>PATH</key><string>__HOME__/.venvs/mlx-vlm/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key><false/>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>StandardOutPath</key><string>__HOME__/.cache/mlx-serve-vlm.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/.cache/mlx-serve-vlm.log</string>
+</dict>
+</plist>

@@ -10,7 +10,12 @@ from typing import Any, Generator, Optional
 
 from aider.native_tool_calls import describe_call, normalize_tool_calls, visible_content
 from aider.native_tool_compaction import add_working_state, compact_tool_history
-from aider.native_tool_loop import FINAL_ANSWER_CHOICE, build_tool_round_messages, drop_orphan_tool_messages
+from aider.native_tool_loop import (
+    FINAL_ANSWER_CHOICE,
+    REPEAT_REFUSAL_MARKER,
+    build_tool_round_messages,
+    drop_orphan_tool_messages,
+)
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_tool_summary import summarize_result
 from aider.native_working_state import render_working_state
@@ -18,6 +23,8 @@ from aider.native_working_state import render_working_state
 from .native_tool_log import append_operation_log
 
 MAX_CONTINUATIONS = 3
+# After this many refused repeats in one request the loop stops and the model must answer.
+MAX_REPEAT_REFUSALS = 3
 RESULT_INDENT = "  -> "
 
 
@@ -143,6 +150,9 @@ def run_native_tool_rounds(
             report(coder, rounds, calls, started)
             return completion
         rounds, calls = rounds + 1, calls + executed
+        if coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER) >= MAX_REPEAT_REFUSALS:
+            coder.io.tool_warning("The model keeps repeating identical tool calls; asking it to answer now.")
+            break
         if rounds >= budget:
             if not may_continue(coder, rounds, continuations):
                 break

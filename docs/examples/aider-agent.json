@@ -1,0 +1,25 @@
+{
+  "sandbox": true,
+  "commands": {
+    "allow": [
+      {
+        "program": "pytest"
+      },
+      {
+        "program": "unittest"
+      },
+      {
+        "program": "git",
+        "subcommands": [
+          "status",
+          "diff"
+        ]
+      }
+    ],
+    "deny": [
+      {
+        "program": "docker"
+      }
+    ]
+  }
+}
