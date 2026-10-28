@@ -7,6 +7,7 @@ import difflib
 from pathlib import Path
 from typing import Any
 
+from aider.native_edit_match import find_spans, mismatch_hint, replace_spans
 from aider.native_tool_context import DENIED_CHANGE, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolError, NativeToolRegistry
 from aider.native_tools_builtin import FILE_ENCODING, resolve_in_root
@@ -70,15 +71,18 @@ def replace_text(text: str, old: str, new: str, replace_all: bool) -> tuple[str,
     """Pure replacement with the uniqueness rule; returns the new text and the replacement count."""
     if not old:
         raise EditError("old_string must not be empty; use write_file to create a file")
-    count = text.count(old)
+    spans = find_spans(text, old)
+    count = len(spans)
     if count == 0:
-        raise EditError("old_string was not found; read the file again and copy the exact text")
+        hint = mismatch_hint(text, old)
+        detail = f": {hint}" if hint else "; its first line does not occur in the file"
+        raise EditError(f"old_string was not found{detail}. Copy the exact text from the file")
     if count > 1 and not replace_all:
         raise EditError(
             f"old_string occurs {count} times; add surrounding lines to make it unique "
             "or set replace_all"
         )
-    return text.replace(old, new), count
+    return replace_spans(text, spans, new), count
 
 
 def apply_change(ctx: ToolContext, target: Path, rel_path: str, before: str, after: str) -> bool:

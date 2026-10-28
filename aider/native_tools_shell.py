@@ -7,7 +7,7 @@ The user must approve every command; Aider's --yes-always does not approve comma
 import subprocess
 from typing import Union
 
-from aider.native_command_policy import PolicyAction, Risk
+from aider.native_command_policy import PolicyAction, Risk, without_stderr_merge
 from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolRegistry
 
@@ -69,6 +69,7 @@ def authorize(ctx: ToolContext, command: str) -> str:
 
 
 def run_command(ctx: ToolContext, command: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> str:
+    command = without_stderr_merge(command)
     refusal = authorize(ctx, command)
     if refusal:
         return refusal
