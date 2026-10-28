@@ -75,5 +75,13 @@ class OperationLedger:
         if self.current is record:
             self.current = None
 
+    def ran_before(self, record: OperationRecord) -> bool:
+        """True when the same tool already ran with the same arguments earlier in this request."""
+        return any(
+            r is not record and r.request == record.request and r.tool == record.tool
+            and r.arguments == record.arguments and r.status is OperationStatus.EXECUTED
+            for r in self.records
+        )
+
     def executed(self) -> list[OperationRecord]:
         return [r for r in self.records if r.status is OperationStatus.EXECUTED]

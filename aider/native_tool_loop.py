@@ -21,6 +21,11 @@ FINAL_ANSWER_CHOICE = "none"
 MAX_TOOL_RESULT_CHARS = 30_000
 RESULT_TRUNCATED = "\n[result truncated to {limit} characters; request a smaller range or a narrower search]"
 INTERRUPTED_RESULT = "Error: interrupted by the user before the tool finished"
+REPEAT_HINT_TOOLS = frozenset({"read_file", "list_files", "find_files", "search_code", "find_symbol", "git"})
+REPEAT_NOTE = (
+    "Note: you already made this exact call in this request and got the same result; use it and move on "
+    "to the next step instead of repeating it.\n"
+)
 REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
 
 
@@ -78,6 +83,9 @@ def execute_tool_call(
         raise
     result = cap_result(result)
     ledger.finish(record, result.content, failed)
+    if call.name in REPEAT_HINT_TOOLS and ledger.ran_before(record):
+        # Local models can loop on re-reading; say plainly that this exact result is already in the conversation.
+        return ToolResult(result.tool_call_id, result.name, REPEAT_NOTE + result.content)
     return result
 
 

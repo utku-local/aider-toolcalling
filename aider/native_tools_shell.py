@@ -94,7 +94,8 @@ def register_shell_tools(registry: NativeToolRegistry, ctx: ToolContext) -> None
     registry.register(
         "run_command",
         "Run a shell command (tests, linters, git status, builds) in the project root. "
-        "Commands are checked by a policy; most need the user's approval.",
+        "Output (stdout and stderr) is captured and trimmed to its end, so do not add pipes or redirections. "
+        "Commands are checked by a policy; compound ones always need the user's approval.",
         RUN_PARAMETERS,
         lambda command, timeout_seconds=DEFAULT_TIMEOUT_SECONDS: run_command(
             ctx, command, timeout_seconds

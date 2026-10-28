@@ -20,7 +20,7 @@ from aider.models import Model
 from aider.native_tool_calls import ToolCall
 from aider.native_tool_compaction import COMPACTED_PREFIX, compact_tool_history, with_working_state
 from aider.native_tool_ledger import OperationLedger, OperationStatus
-from aider.native_tool_loop import REPLAYED_NOTE, build_tool_round_messages
+from aider.native_tool_loop import REPEAT_NOTE, REPLAYED_NOTE, build_tool_round_messages
 from aider.native_tool_summary import exit_code, summarize_result
 from aider.native_toolcalling import NativeToolRegistry
 from aider.native_working_state import render_working_state
@@ -60,6 +60,28 @@ class LedgerTest(unittest.TestCase):
         self.assertEqual(len(runs), 2)
 
 
+class RepeatHintTest(unittest.TestCase):
+    def test_identical_read_calls_get_a_hint(self) -> None:
+        registry = NativeToolRegistry()
+        registry.register("read_file", "Read", {"type": "object", "properties": {"path": {"type": "string"}}},
+                          lambda path: "content")
+        registry.register("run_command", "Run", {"type": "object", "properties": {}}, lambda: "Exit code: 0")
+        ledger = OperationLedger()
+        ledger.start_request()
+        first = build_tool_round_messages(registry, "", [ToolCall("a", "read_file", '{"path": "x"}')], ledger)
+        again = build_tool_round_messages(registry, "", [ToolCall("b", "read_file", '{"path": "x"}')], ledger)
+        other = build_tool_round_messages(registry, "", [ToolCall("c", "read_file", '{"path": "y"}')], ledger)
+        self.assertEqual(first[1]["content"], "content")
+        self.assertTrue(again[1]["content"].startswith(REPEAT_NOTE))
+        self.assertEqual(other[1]["content"], "content")
+        build_tool_round_messages(registry, "", [ToolCall("d", "run_command", "{}")], ledger)
+        rerun = build_tool_round_messages(registry, "", [ToolCall("e", "run_command", "{}")], ledger)
+        self.assertEqual(rerun[1]["content"], "Exit code: 0")
+        ledger.start_request()
+        fresh = build_tool_round_messages(registry, "", [ToolCall("f", "read_file", '{"path": "x"}')], ledger)
+        self.assertEqual(fresh[1]["content"], "content")
+
+
 class SummaryAndStateTest(unittest.TestCase):
     def test_summaries(self) -> None:
         self.assertEqual(summarize_result("read_file", "a\nb\nc\n"), "3 lines")
@@ -88,28 +110,59 @@ class SummaryAndStateTest(unittest.TestCase):
         self.assertEqual(render_working_state([]), "")
 
 
+def tool_round(call_id: str, name: str, arguments: dict, content: str) -> list[dict]:
+    call = {"id": call_id, "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}
+    return [
+        {"role": "assistant", "content": "", "tool_calls": [call]},
+        {"role": "tool", "tool_call_id": call_id, "name": name, "content": content},
+    ]
+
+
 class CompactionTest(unittest.TestCase):
-    def history(self, rounds: int) -> list[dict]:
+    def history(self, *rounds: list[dict]) -> list[dict]:
         messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "go"}]
-        for i in range(rounds):
-            messages.append({"role": "assistant", "content": "", "tool_calls": [{"id": f"c{i}"}]})
-            messages.append({"role": "tool", "tool_call_id": f"c{i}", "name": "read_file", "content": "a\nb\n"})
+        for messages_of_round in rounds:
+            messages += messages_of_round
         return messages
 
-    def test_old_rounds_are_summarized_recent_kept(self) -> None:
-        original = self.history(4)
-        compacted = compact_tool_history(original, keep_rounds=2, min_chars=0)
-        tools = [m["content"] for m in compacted if m["role"] == "tool"]
-        self.assertEqual(tools[:2], [COMPACTED_PREFIX + "2 lines"] * 2)
-        self.assertEqual(tools[2:], ["a\nb\n"] * 2)
-        self.assertEqual(original, self.history(4))
+    def tools(self, messages: list[dict]) -> list[str]:
+        return [m["content"] for m in messages if m["role"] == "tool"]
+
+    def test_superseded_reads_are_always_summarized(self) -> None:
+        original = self.history(
+            tool_round("r1", "read_file", {"path": "a.py"}, "old\n"),
+            tool_round("r2", "read_file", {"path": "b.py"}, "b\n"),
+            tool_round("r3", "read_file", {"path": "a.py"}, "new\n"),
+        )
+        self.assertEqual(self.tools(compact_tool_history(original)), [COMPACTED_PREFIX + "1 lines", "b\n", "new\n"])
+        self.assertEqual(self.tools(original), ["old\n", "b\n", "new\n"])
+
+    def test_different_ranges_are_different_reads(self) -> None:
+        original = self.history(
+            tool_round("r1", "read_file", {"path": "a.py", "start_line": 1, "end_line": 9}, "x\n"),
+            tool_round("r2", "read_file", {"path": "a.py", "start_line": 10, "end_line": 20}, "y\n"),
+        )
+        self.assertEqual(self.tools(compact_tool_history(original)), ["x\n", "y\n"])
+
+    def test_other_results_go_before_reads(self) -> None:
+        original = self.history(
+            tool_round("r1", "read_file", {"path": "a.py"}, "a\nb\n"),
+            tool_round("s1", "search_code", {"pattern": "x"}, "f:1: x"),
+            tool_round("r2", "read_file", {"path": "b.py"}, "c\n"),
+            tool_round("r3", "read_file", {"path": "c.py"}, "d\n"),
+        )
+        compacted = self.tools(compact_tool_history(original, keep_rounds=2, min_chars=0, reads_min_chars=10**6))
+        self.assertEqual(compacted, ["a\nb\n", COMPACTED_PREFIX + "1 results", "c\n", "d\n"])
+        everything = self.tools(compact_tool_history(original, keep_rounds=2, min_chars=0, reads_min_chars=0))
+        self.assertEqual(everything[0], COMPACTED_PREFIX + "2 lines")
+        self.assertEqual(everything[2:], ["c\n", "d\n"])
 
     def test_small_histories_are_not_compacted(self) -> None:
-        original = self.history(4)
-        self.assertEqual(compact_tool_history(original, keep_rounds=2), original)
+        original = self.history(*[tool_round(f"r{i}", "read_file", {"path": f"{i}.py"}, "a\n") for i in range(4)])
+        self.assertEqual(compact_tool_history(original), original)
 
     def test_working_state_is_appended_and_the_prefix_is_unchanged(self) -> None:
-        messages = self.history(3)
+        messages = self.history(tool_round("r1", "read_file", {"path": "a.py"}, "a\n"))
         with_state = with_working_state(messages, "STATE")
         self.assertEqual(with_state[: len(messages)], messages)
         self.assertEqual(with_state[-1], {"role": "user", "content": "STATE"})

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from aider.native_tools_builtin import (
     MAX_LIST_ENTRIES,
+    DEFAULT_MAX_LINES,
     MAX_READ_CHARS,
     TRUNCATED_NOTE,
     ToolPathError,
@@ -59,6 +60,17 @@ class NativeToolsBuiltinTest(unittest.TestCase):
         for i in range(MAX_LIST_ENTRIES + 1):
             (many / f"f{i:04d}").touch()
         self.assertTrue(list_files(self.root, "many").endswith(TRUNCATED_NOTE))
+
+    def test_large_files_are_read_in_parts_without_a_range(self) -> None:
+        lines = "".join(f"line {i}\n" for i in range(1, DEFAULT_MAX_LINES + 51))
+        (self.root / "long.py").write_text(lines)
+        partial = read_file(self.root, "long.py")
+        self.assertTrue(partial.startswith("line 1\n"))
+        self.assertIn(f"showing lines 1-{DEFAULT_MAX_LINES} of {DEFAULT_MAX_LINES + 50}", partial)
+        self.assertNotIn(f"line {DEFAULT_MAX_LINES + 1}\n", partial)
+        tail = read_file(self.root, "long.py", DEFAULT_MAX_LINES + 1, DEFAULT_MAX_LINES + 50)
+        self.assertTrue(tail.startswith(f"line {DEFAULT_MAX_LINES + 1}\n"))
+        self.assertNotIn("showing lines", tail)
 
     def test_registry_exposes_both_tools(self) -> None:
         registry = build_builtin_registry(str(self.root))

@@ -16,6 +16,10 @@ from .native_session import save_session
 from .native_tool_setup import build_native_tools
 
 
+AGENT_MAX_MAP_TOKENS = 1024
+AGENT_MAP_MULTIPLIER = 1
+
+
 class AgentCoder(Coder):
     """Explore, edit and verify the project through tools."""
 
@@ -24,6 +28,10 @@ class AgentCoder(Coder):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs["native_tools"] = True
+        # The agent finds files with its search tools, so a large repo map mostly costs prefill time on every
+        # round: cap it and drop the "no files in chat" multiplier. --map-tokens 0 still turns it off.
+        kwargs["map_tokens"] = min(kwargs.get("map_tokens", AGENT_MAX_MAP_TOKENS), AGENT_MAX_MAP_TOKENS)
+        kwargs["map_mul_no_files"] = AGENT_MAP_MULTIPLIER
         super().__init__(*args, **kwargs)
         # Project instructions (AGENTS.md, CLAUDE.md) are always in view, like a coding agent's memory file.
         self.abs_read_only_fnames.update(instruction_files(self.root))
