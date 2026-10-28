@@ -19,6 +19,7 @@ from pathlib import Path
 from evals.metrics import TaskResult, parse_metrics, summarize
 from evals.real_project import build_project, tests_pass, tests_untouched
 from evals.real_tasks import RealTask, load_tasks, task_prompt
+from aider.native_tools_shell import as_text
 from evals.tasks import TASKS, EvalTask
 from evals.tasks_hard import HARD_TASKS
 
@@ -45,7 +46,9 @@ CHECK_FILE = "_eval_check.py"
 AGENT_CONFIG_FILE = ".aider-agent.json"
 SANDBOX_CONFIG = {
     "sandbox": True,
-    "commands": {"allow": [{"program": "python"}, {"program": "python3"}, {"program": "pytest"}]},
+    "commands": {
+        "allow": [{"program": "python"}, {"program": "python3"}, {"program": "pytest"}, {"program": "unittest"}]
+    },
 }
 
 
@@ -77,7 +80,7 @@ def run_agent(task: EvalTask, root: Path, model: str, timeout: int) -> tuple[str
         )
         output = done.stdout + done.stderr
     except subprocess.TimeoutExpired as err:
-        output = f"{err.stdout or ''}{err.stderr or ''}\n[timed out after {timeout}s]"
+        output = f"{as_text(err.stdout)}{as_text(err.stderr)}\n[timed out after {timeout}s]"
     return output, time.monotonic() - started
 
 
@@ -103,7 +106,8 @@ def check_real(task: RealTask, root: Path) -> bool:
     return tests_untouched(task, root) and tests_pass(task, root)
 
 
-def run_task(task: EvalTask, model: str, timeout: int, sandbox: bool) -> TaskResult:
+def run_task(task: EvalTask, model: str, timeout: int, sandbox: bool, log_path: Path) -> TaskResult:
+    """Run one task; the agent's full output is kept at `log_path` for diagnosis."""
     real = isinstance(task, RealTask)
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -112,6 +116,7 @@ def run_task(task: EvalTask, model: str, timeout: int, sandbox: bool) -> TaskRes
         else:
             setup_project(task, root, sandbox)
         output, seconds = run_agent(task, root, model, timeout)
+        log_path.write_text(output)
         passed = check_real(task, root) if real else run_check(task, root)
         return TaskResult(task.name, passed, round(seconds, 1), parse_metrics(output))
 
@@ -138,12 +143,14 @@ def main() -> None:
     tasks = [t for t in pool if not wanted or t.name in wanted]
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = RESULTS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}.jsonl"
-    print(f"Repo root: {REPO_ROOT}\nResults: {out_path}\nSandbox: {args.sandbox}")
+    logs_dir = out_path.with_suffix("")
+    logs_dir.mkdir()
+    print(f"Repo root: {REPO_ROOT}\nResults: {out_path}\nAgent output: {logs_dir}\nSandbox: {args.sandbox}")
     results = []
     with open(out_path, "w") as handle:
         for run in range(1, args.repeat + 1):
             for task in tasks:
-                result = run_task(task, args.model, args.timeout, args.sandbox)
+                result = run_task(task, args.model, args.timeout, args.sandbox, logs_dir / f"{task.name}-run{run}.log")
                 results.append(result)
                 handle.write(json.dumps({**result.as_dict(), "run": run}) + "\n")
                 handle.flush()

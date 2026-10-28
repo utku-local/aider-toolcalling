@@ -12,7 +12,7 @@ from aider.native_toolcalling import NativeToolError, NativeToolRegistry
 
 MAX_READ_CHARS = 100_000
 # Without a line range, read_file returns at most this many lines of a larger file.
-DEFAULT_MAX_LINES = 250
+DEFAULT_MAX_LINES = 120
 PARTIAL_NOTE = (
     "\n[showing lines 1-{shown} of {total}; use search_code to find the part you need, "
     "then read_file with start_line and end_line]"
