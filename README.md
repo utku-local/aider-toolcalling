@@ -97,7 +97,8 @@ installed copy instead.
 - Up to `--max-tool-rounds` (default 25) model/tool round trips per message; then Aider asks whether to continue
   (at most three times) or the model answers without tools.
 - Every tool call is recorded in an operation ledger and in `.aider.tools.jsonl`; the model gets a working state
-  built from it at the end of each request. Past about 12K tokens, old tool results are sent as one-line summaries.
+  built from it at the end of each request. Older tool results are sent as one-line summaries once the history
+  grows (superseded file reads first, then other results, file contents last).
 - The request prefix stays stable between rounds, so a server with prefix caching (for `mlx_vlm.server`:
   `APC_ENABLED=1`) only processes the new tokens of each round.
 - Tool errors (unknown tool, invalid JSON, arguments that do not match the tool schema) are returned to the model,
