@@ -75,6 +75,13 @@ history, operation log and task list.
 After you approve a plain command, Aider offers to remember it as a rule ("Always allow `pytest` in this
 project?"); answering yes writes the rule to `.aider-agent.json`.
 
+MCP servers (stdio) can be added in the same file; their tools appear as `mcp__<server>__<tool>` and each call is
+asked unless the server is trusted:
+
+```json
+{"mcp_servers": {"docs": {"command": "npx", "args": ["-y", "some-mcp-server"], "env": {}, "trusted": false}}}
+```
+
 A rule matches the parsed program (`python -m pytest` counts as `pytest`) and optional `subcommands`. Compound
 commands, paths outside the project and risky programs are asked even when a rule matches. Without
 `trust_unsandboxed`, an allow rule does not auto-approve, because the agent can change the code the command runs.

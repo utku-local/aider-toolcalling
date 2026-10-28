@@ -25,6 +25,7 @@ from aider.native_tools_shell import register_shell_tools
 from aider.repomap import RepoMap
 
 from .native_agent_config import load_agent_config
+from .native_mcp_setup import register_mcp_tools
 from .native_rule_offer import offer_allow_rule
 
 SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache"})
@@ -154,4 +155,7 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
         register_shell_tools(registry, ctx)
         register_background_tools(registry, ctx, coder.native_processes)
         register_fetch_tool(registry, ctx)
+        coder.native_mcp_clients = register_mcp_tools(
+            registry, ctx, coder.native_agent_config.mcp_servers, coder.io.tool_warning
+        )
     return registry

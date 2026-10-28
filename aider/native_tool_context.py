@@ -15,13 +15,14 @@ from aider.native_todo import TodoList
 
 
 class ToolPermission(str, Enum):
-    """READ runs without asking; WRITE, EXECUTE, NETWORK and SENSITIVE (reading secrets) need approval."""
+    """READ runs without asking; WRITE, EXECUTE, NETWORK, SENSITIVE (reading secrets) and MCP need approval."""
 
     READ = "read"
     WRITE = "write"
     EXECUTE = "execute"
     NETWORK = "network"
     SENSITIVE = "sensitive"
+    MCP = "mcp"
 
 
 DENIED_CHANGE = "The user declined this change. Ask them how to proceed or try a different approach."
