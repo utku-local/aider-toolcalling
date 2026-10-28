@@ -9,9 +9,9 @@ from typing import Any
 from aider.native_tool_summary import summarize_result
 
 KEEP_FULL_ROUNDS = 2
-# Compact only past ~12K tokens (about 4 characters per token): below that, keeping the prefix byte-identical for
-# the server's prefix cache saves more time than shorter tool results would.
-COMPACT_ABOVE_CHARS = 48_000
+# Compact past ~6K tokens (about 4 characters per token). Measured on real projects, prompt processing dominates
+# each round and the local server cannot reuse an extended prefix, so shorter history wins over a stable prefix.
+COMPACT_ABOVE_CHARS = 24_000
 COMPACTED_PREFIX = "[compacted] "
 STATE_ROLE = "user"
 

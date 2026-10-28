@@ -11,6 +11,12 @@ from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolError, NativeToolRegistry
 
 MAX_READ_CHARS = 100_000
+# Without a line range, read_file returns at most this many lines of a larger file.
+DEFAULT_MAX_LINES = 250
+PARTIAL_NOTE = (
+    "\n[showing lines 1-{shown} of {total}; use search_code to find the part you need, "
+    "then read_file with start_line and end_line]"
+)
 MAX_LIST_ENTRIES = 500
 TRUNCATED_NOTE = "\n[truncated]"
 DEFAULT_LIST_PATH = "."
@@ -72,7 +78,13 @@ def read_file(
     target = resolve_in_root(root, path)
     if not target.is_file():
         raise ToolPathError(f"Not a file: {path!r}")
-    text = select_lines(target.read_text(encoding=FILE_ENCODING, errors="replace"), start_line, end_line)
+    full = target.read_text(encoding=FILE_ENCODING, errors="replace")
+    total_lines = len(full.splitlines())
+    if start_line is None and end_line is None and total_lines > DEFAULT_MAX_LINES:
+        # Whole large files flood every later prompt; return the start and say how to read on.
+        shown = select_lines(full, 1, DEFAULT_MAX_LINES)
+        return shown + PARTIAL_NOTE.format(shown=DEFAULT_MAX_LINES, total=total_lines)
+    text = select_lines(full, start_line, end_line)
     if len(text) > MAX_READ_CHARS:
         return text[:MAX_READ_CHARS] + TRUNCATED_NOTE
     return text
