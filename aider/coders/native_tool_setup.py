@@ -22,9 +22,13 @@ from aider.native_tools_fetch import register_fetch_tool
 from aider.native_tools_git import register_git_tool
 from aider.native_tools_search import register_search_tools
 from aider.native_tools_shell import register_shell_tools
+from aider.native_tools_spreadsheet import register_spreadsheet_tool
 from aider.repomap import RepoMap
 
 from .native_agent_config import load_agent_config
+from .native_mcp_setup import register_mcp_tools
+from .native_subtask import register_research_tool
+from .native_rule_offer import offer_allow_rule
 
 SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache"})
 HIDDEN_PREFIX = "."
@@ -79,6 +83,8 @@ def approve(coder: Any, permission: ToolPermission, title: str, details: str) ->
     coder.native_ledger.mark(OperationStatus.AWAITING_APPROVAL)
     approved = ask_user(coder, permission, title, details)
     coder.native_ledger.mark(OperationStatus.APPROVED if approved else OperationStatus.DENIED)
+    if approved and permission is ToolPermission.EXECUTE:
+        offer_allow_rule(coder, details)
     return approved
 
 
@@ -126,6 +132,15 @@ def make_tool_context(coder: Any) -> ToolContext:
     )
 
 
+def read_only_registry(ctx: ToolContext) -> NativeToolRegistry:
+    registry = NativeToolRegistry()
+    register_read_tools(registry, ctx)
+    register_search_tools(registry, ctx)
+    register_git_tool(registry, ctx)
+    register_spreadsheet_tool(registry, ctx)
+    return registry
+
+
 def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     """Registry for `coder`; `include_actions` adds the task list, edit, command, background and fetch tools."""
     coder.native_tool_edits = set()
@@ -141,14 +156,15 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     coder.native_sandboxed = use_sandbox(coder)
     coder.native_processes = ProcessManager()
     ctx = make_tool_context(coder)
-    registry = NativeToolRegistry()
-    register_read_tools(registry, ctx)
-    register_search_tools(registry, ctx)
-    register_git_tool(registry, ctx)
+    registry = read_only_registry(ctx)
     if include_actions:
+        register_research_tool(registry, coder, read_only_registry(ctx))
         register_todo_tool(registry, ctx.todos)
         register_edit_tools(registry, ctx)
         register_shell_tools(registry, ctx)
         register_background_tools(registry, ctx, coder.native_processes)
         register_fetch_tool(registry, ctx)
+        coder.native_mcp_clients = register_mcp_tools(
+            registry, ctx, coder.native_agent_config.mcp_servers, coder.io.tool_warning
+        )
     return registry

@@ -63,6 +63,7 @@ INSTALL_SUBCOMMANDS = {"pip": {"install", "download"}, "pip3": {"install", "down
 FORCE_FLAGS = frozenset({"--force", "-f", "--force-with-lease"})
 RECURSIVE_FLAGS = frozenset({"-r", "-R", "-rf", "-fr", "-Rf", "-fR", "--recursive"})
 ROOT_TARGETS = frozenset({".", "./", "*"})
+SUBCOMMAND_PROGRAMS = frozenset({"git", "npm", "yarn", "pnpm", "uv", "pip", "pip3", "cargo", "go", "docker", "brew"})
 
 
 def tokenize(command: str) -> Optional[list[str]]:
@@ -130,6 +131,23 @@ def denial(program: str, args: list[str], risks: set[Risk]) -> str:
 
 def matches(rule: CommandRule, program: str, args: list[str]) -> bool:
     return rule.program == program and (not rule.subcommands or bool(args) and args[0] in rule.subcommands)
+
+
+def rule_for_command(command: str, root: Path, trust_unsandboxed: bool) -> Optional[CommandRule]:
+    """The narrowest allow rule covering a plain, risk-free command; None for anything else.
+
+    Programs whose first argument selects an action (git, npm, uv, ...) get a rule for that subcommand only.
+    """
+    tokens = tokenize(command)
+    if not tokens or is_compound(command, tokens):
+        return None
+    program, args = program_and_args(tokens)
+    if risks_of(program, args, root) or denial(program, args, set()):
+        return None
+    subcommands = (args[0],) if program in SUBCOMMAND_PROGRAMS and args and not args[0].startswith("-") else ()
+    if program in SUBCOMMAND_PROGRAMS and not subcommands:
+        return None
+    return CommandRule(program, subcommands, trust_unsandboxed)
 
 
 def decide(command: str, root: Path, rules: CommandRules, sandboxed: bool) -> PolicyDecision:

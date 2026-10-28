@@ -49,9 +49,11 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 | Tool | Modes | Approval |
 |---|---|---|
 | `read_file`, `list_files`, `find_files`, `search_code`, `find_symbol` | `--agent`, `--native-tools` | none (read-only, confined to the project root); secret files such as `.env` or keys are asked every time and skipped by search |
-| `edit_file`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
+| `edit_file`, `multi_edit`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
 | `git` (status, diff, log, show, blame) | `--agent`, `--native-tools` | none (read-only, allow-listed flags) |
+| `read_spreadsheet` | `--agent`, `--native-tools` | none (read-only; .xlsx/.xlsm sheets as text, in pages) |
 | `todo_write` | `--agent` | none (the agent's task list) |
+| `research` | `--agent` | none (a read-only sub-conversation that returns only its answer) |
 | `run_command`, `start_background`, `read_background`, `stop_background` | `--agent` | command policy: refused, asked with risk labels, or allowed by a rule (trusted, or any rule inside the sandbox); `--yes-always` never approves a command |
 | `fetch_url` | `--agent` | asked for every URL; `--yes-always` never approves it |
 
@@ -72,6 +74,16 @@ network. Inside the sandbox every allow rule auto-approves; compound commands an
 Agent sessions are saved to `.aider.agent-session.json` after each request; `--resume` continues one with its tool
 history, operation log and task list.
 
+After you approve a plain command, Aider offers to remember it as a rule ("Always allow `pytest` in this
+project?"); answering yes writes the rule to `.aider-agent.json`.
+
+MCP servers (stdio) can be added in the same file; their tools appear as `mcp__<server>__<tool>` and each call is
+asked unless the server is trusted:
+
+```json
+{"mcp_servers": {"docs": {"command": "npx", "args": ["-y", "some-mcp-server"], "env": {}, "trusted": false}}}
+```
+
 A rule matches the parsed program (`python -m pytest` counts as `pytest`) and optional `subcommands`. Compound
 commands, paths outside the project and risky programs are asked even when a rule matches. Without
 `trust_unsandboxed`, an allow rule does not auto-approve, because the agent can change the code the command runs.
@@ -85,7 +97,8 @@ installed copy instead.
 - Up to `--max-tool-rounds` (default 25) model/tool round trips per message; then Aider asks whether to continue
   (at most three times) or the model answers without tools.
 - Every tool call is recorded in an operation ledger and in `.aider.tools.jsonl`; the model gets a working state
-  built from it at the end of each request. Past about 12K tokens, old tool results are sent as one-line summaries.
+  built from it at the end of each request. Older tool results are sent as one-line summaries once the history
+  grows (superseded file reads first, then other results, file contents last).
 - The request prefix stays stable between rounds, so a server with prefix caching (for `mlx_vlm.server`:
   `APC_ENABLED=1`) only processes the new tokens of each round.
 - Tool errors (unknown tool, invalid JSON, arguments that do not match the tool schema) are returned to the model,
@@ -114,7 +127,7 @@ installed copy instead.
 | `aider/native_sandbox.py`, `native_tools_background.py`, `native_tools_fetch.py` | Sandbox, background commands, `fetch_url` |
 | `aider/coders/native_session.py`, `aider/agent_main.py`, `pyproject.toml` | Session save and `--resume`, the `aider-agent` command, packaging |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
-| `evals/` | Evaluation tasks, metrics and runner |
+| `evals/` | Evaluation tasks (basic, hard, mined from real commits), metrics and runner |
 | `tests/` | Unit and mocked end-to-end tests |
 
 ## Tests
@@ -136,6 +149,20 @@ writes one JSON line per task to `evals/results/`, plus a summary: success rate,
 `--sandbox` adds a sandbox config allowing python and pytest, so the agent can run its own checks.
 `--set hard` (or `all`) selects the harder tasks in `evals/tasks_hard.py`; `--repeat N` runs each task N times and
 reports a pass rate per task.
+
+Real-project tasks come from your own bug-fix commits:
+
+```
+python -m evals.mine_real_tasks --repo ~/path/to/repo --python /path/to/its/python   # writes evals/real/<repo>.json
+python -m evals.run_evals --real evals/real/<repo>.json --sandbox
+```
+
+The task project has no git history and the fix's non-test changes undone, so the agent cannot read the answer;
+the check runs the fix's tests and requires them to be unchanged.
+
+## Upstream updates
+
+New Aider releases are imported into the `upstream` branch and merged into `develop`; see `docs/UPSTREAM.md`.
 
 ## License
 

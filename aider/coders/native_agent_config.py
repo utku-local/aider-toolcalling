@@ -18,11 +18,22 @@ CONFIG_ENCODING = "utf-8"
 
 
 @dataclass(frozen=True)
+class MCPServerConfig:
+    """A stdio MCP server; `trusted` lets its tools run without asking."""
+
+    name: str
+    command: tuple[str, ...]
+    env: tuple[tuple[str, str], ...] = ()
+    trusted: bool = False
+
+
+@dataclass(frozen=True)
 class AgentConfig:
-    """Project settings; defaults: no command rules, no sandbox."""
+    """Project settings; defaults: no command rules, no sandbox, no MCP servers."""
 
     rules: CommandRules = CommandRules()
     sandbox: bool = False
+    mcp_servers: tuple[MCPServerConfig, ...] = ()
 
 
 class AgentConfigError(ValueError):
@@ -38,6 +49,18 @@ def parse_rule(raw: Any) -> CommandRule:
     return CommandRule(raw["program"], tuple(subcommands), bool(raw.get("trust_unsandboxed", False)))
 
 
+def parse_mcp_server(name: str, raw: Any) -> MCPServerConfig:
+    if not isinstance(raw, dict) or not isinstance(raw.get("command"), str):
+        raise AgentConfigError(f'MCP server {name!r} needs a "command" string')
+    args = raw.get("args", [])
+    env = raw.get("env", {})
+    if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
+        raise AgentConfigError(f'MCP server {name!r}: "args" must be a list of strings')
+    if not isinstance(env, dict) or not all(isinstance(v, str) for v in env.values()):
+        raise AgentConfigError(f'MCP server {name!r}: "env" must map names to strings')
+    return MCPServerConfig(name, (raw["command"], *args), tuple(sorted(env.items())), bool(raw.get("trusted")))
+
+
 def parse_config(data: Any) -> AgentConfig:
     if not isinstance(data, dict):
         raise AgentConfigError("the file must contain a JSON object")
@@ -51,7 +74,10 @@ def parse_config(data: Any) -> AgentConfig:
     sandbox = data.get("sandbox", False)
     if not isinstance(sandbox, bool):
         raise AgentConfigError('"sandbox" must be true or false')
-    return AgentConfig(rules, sandbox)
+    servers = data.get("mcp_servers", {})
+    if not isinstance(servers, dict):
+        raise AgentConfigError('"mcp_servers" must be an object')
+    return AgentConfig(rules, sandbox, tuple(parse_mcp_server(name, raw) for name, raw in servers.items()))
 
 
 def load_agent_config(root: str, io: Any) -> AgentConfig:
@@ -63,6 +89,25 @@ def load_agent_config(root: str, io: Any) -> AgentConfig:
     except (OSError, ValueError) as err:
         io.tool_warning(f"Ignoring {CONFIG_FILE_NAME}: {err}")
         return AgentConfig()
+
+
+def rule_as_json(rule: CommandRule) -> dict[str, Any]:
+    data: dict[str, Any] = {"program": rule.program}
+    if rule.subcommands:
+        data["subcommands"] = list(rule.subcommands)
+    if rule.trust_unsandboxed:
+        data["trust_unsandboxed"] = True
+    return data
+
+
+def add_allow_rule(root: str, config: AgentConfig, rule: CommandRule) -> AgentConfig:
+    """Append `rule` to the allow list in .aider-agent.json (created if missing); returns the updated config."""
+    path = Path(root) / CONFIG_FILE_NAME
+    data = json.loads(path.read_text(encoding=CONFIG_ENCODING)) if path.is_file() else {}
+    data.setdefault("commands", {}).setdefault("allow", []).append(rule_as_json(rule))
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding=CONFIG_ENCODING)
+    rules = CommandRules(allow=config.rules.allow + (rule,), deny=config.rules.deny)
+    return AgentConfig(rules, config.sandbox, config.mcp_servers)
 
 
 def instruction_files(root: str) -> list[str]:

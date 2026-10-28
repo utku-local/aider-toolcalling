@@ -5,6 +5,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-28
+
+### Added
+
+- `read_spreadsheet` tool (read-only, in agent mode, `--native-tools` and `research`): lists the sheets of an .xlsx/.xlsm workbook and returns rows of one sheet as text, 50 at a time by default. Dates are shown as ISO dates, formulas without a saved result as their formula. Uses only the standard library; old .xls files are refused with a hint.
+- Upstream updates: an `upstream` branch holds the untouched aider-chat source (0.86.2 imported from PyPI), `python -m maintenance.import_upstream VERSION --into DIR --pyproject FILE` imports a release and its pinned dependencies, and `docs/UPSTREAM.md` describes the merge procedure.
+- CI: a GitHub Actions workflow installs the package with its pinned dependencies and runs the test suite on pushes to `main` and `develop` and on pull requests (macOS-only sandbox tests skip on Linux).
+- `research` tool in agent mode: answers a question about the project in a separate conversation with read-only tools (at most 10 rounds) and returns only the answer, so the files it reads never enter the main conversation's prompt.
+- MCP tools: stdio MCP servers listed under `mcp_servers` in `.aider-agent.json` start with agent mode, and their tools appear as `mcp__<server>__<tool>`. Each call asks first unless the server is `"trusted": true`; a server that cannot start is reported and skipped. Built on a small JSON-RPC client, no new dependency.
+- `multi_edit` tool: several exact replacements in one file, applied in order with one diff and one approval; if any replacement fails, nothing is written.
+- "Always allow": after you approve a plain, risk-free command, Aider asks whether to add the narrowest matching allow rule to `.aider-agent.json` (for git, npm, uv and similar, only that subcommand). The question needs an explicit yes, so `--yes-always` never adds rules. Outside the sandbox the rule is written with `trust_unsandboxed`.
+- `--seed N` sends a sampling seed with every request; `run_evals` gives run k the seed `--seed-base` + k (default 1000). The local server used a fixed default seed when none was sent, so repeated runs had been identical.
+- Evals keep each task's full agent output next to the results, for diagnosis.
+- Real-project tasks: `python -m evals.mine_real_tasks --repo PATH --python PY` turns small bug-fix commits (Python sources plus tests) into tasks, keeping only those whose tests fail before the fix and pass at the fix. The task project is history-free, every non-test file the fix touched (sources, changelog, docs) is back at its pre-fix version, and the check also requires the tests to be unchanged. `run_evals --real FILE` runs them, with `python` in the agent's commands pointing at the project's interpreter.
+
+### Changed
+
+- Agent mode caps the repo map at 1,024 tokens and drops Aider's 8x multiplier for chats without files; on a real project the first prompt went from 10,367 to about 3,400 tokens.
+- `read_file` without a line range returns at most 120 lines of a longer file and says how to read on.
+- Compaction keeps the latest read of every file: superseded reads are summarized first, other tool results past ~6K tokens of history, file contents only past ~24K. A repeated identical read-only call gets a note that its result is already in the conversation. On a real task the agent had re-read the same files 26 times after their contents were compacted.
+- The agent is told to run commands without pipes or redirections (output is already captured), so allow rules can match them.
+- Read-only tool calls of one round (`read_file` on non-secret paths, `list_files`, `find_files`, `search_code`, `find_symbol`, `git`) run concurrently, at most 8 at once; calls that may ask the user stay sequential and results keep the model's order.
+
 ## [0.4.0] - 2026-10-27
 
 ### Added

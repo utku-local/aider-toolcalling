@@ -6,6 +6,7 @@ They also cover the cleanup of orphaned tool messages that keeps the history val
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from typing import Any
@@ -94,6 +95,16 @@ class AgentCoderTest(unittest.TestCase):
         self.assertEqual(len(tool_messages), 1)
         self.assertIn("return a - b", tool_messages[0]["content"])
 
+
+    def test_repo_map_is_capped_in_agent_mode(self) -> None:
+        subprocess.run(["git", "init", "-q"], check=True)
+        io = InputOutput(yes=True, pretty=False)
+        coder = Coder.create(main_model=Model(MODEL_NAME), edit_format="agent", io=io, fnames=[],
+                             map_tokens=4096, map_mul_no_files=8, auto_lint=False)
+        self.assertEqual((coder.repo_map.max_map_tokens, coder.repo_map.map_mul_no_files), (1024, 1))
+        disabled = Coder.create(main_model=Model(MODEL_NAME), edit_format="agent", io=io, fnames=[],
+                                map_tokens=0, auto_lint=False)
+        self.assertIsNone(disabled.repo_map)
 
     def test_instruction_files_are_read_only_context(self) -> None:
         with open("AGENTS.md", "w") as handle:

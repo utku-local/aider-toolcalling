@@ -4,9 +4,12 @@ executing each call through a NativeToolRegistry.
 Tool failures are reported back to the model as tool results instead of interrupting the conversation.
 """
 
+import json
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional
 
 from aider.native_tool_calls import ToolCall, field
+from aider.native_sensitive import is_sensitive
 from aider.native_tool_ledger import OperationLedger
 from aider.native_toolcalling import (
     NativeToolRegistry,
@@ -21,6 +24,16 @@ FINAL_ANSWER_CHOICE = "none"
 MAX_TOOL_RESULT_CHARS = 30_000
 RESULT_TRUNCATED = "\n[result truncated to {limit} characters; request a smaller range or a narrower search]"
 INTERRUPTED_RESULT = "Error: interrupted by the user before the tool finished"
+PARALLEL_TOOLS = frozenset(
+    {"read_file", "list_files", "find_files", "search_code", "find_symbol", "git", "read_spreadsheet"}
+)
+READ_FILE_TOOL = "read_file"
+MAX_PARALLEL_CALLS = 8
+REPEAT_HINT_TOOLS = frozenset({"read_file", "list_files", "find_files", "search_code", "find_symbol", "git"})
+REPEAT_NOTE = (
+    "Note: you already made this exact call in this request and got the same result; use it and move on "
+    "to the next step instead of repeating it.\n"
+)
 REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
 
 
@@ -78,7 +91,23 @@ def execute_tool_call(
         raise
     result = cap_result(result)
     ledger.finish(record, result.content, failed)
+    if call.name in REPEAT_HINT_TOOLS and ledger.ran_before(record):
+        # Local models can loop on re-reading; say plainly that this exact result is already in the conversation.
+        return ToolResult(result.tool_call_id, result.name, REPEAT_NOTE + result.content)
     return result
+
+
+def runs_in_parallel(call: ToolCall) -> bool:
+    """Read-only tools that never prompt; read_file only for paths that are not secret files."""
+    if call.name not in PARALLEL_TOOLS:
+        return False
+    if call.name != READ_FILE_TOOL:
+        return True
+    try:
+        path = json.loads(call.arguments).get("path")
+    except (ValueError, AttributeError):
+        return False
+    return isinstance(path, str) and not is_sensitive(path)
 
 
 def build_tool_round_messages(
@@ -87,10 +116,21 @@ def build_tool_round_messages(
     calls: list[ToolCall],
     ledger: Optional[OperationLedger] = None,
 ) -> list[dict[str, Any]]:
-    """Messages to append after a tool-calling turn: the turn itself, then each result."""
-    results = [execute_tool_call(registry, call, ledger) for call in calls]
+    """Messages to append after a tool-calling turn: the turn itself, then each result in call order.
+
+    Read-only calls that can never ask the user run concurrently; everything else runs one by one, in order.
+    """
+    results: dict[int, ToolResult] = {}
+    parallel = [i for i, call in enumerate(calls) if runs_in_parallel(call)]
+    if len(parallel) > 1:
+        with ThreadPoolExecutor(max_workers=min(len(parallel), MAX_PARALLEL_CALLS)) as pool:
+            futures = {i: pool.submit(execute_tool_call, registry, calls[i], ledger) for i in parallel}
+            results = {i: future.result() for i, future in futures.items()}
+    for i, call in enumerate(calls):
+        if i not in results:
+            results[i] = execute_tool_call(registry, call, ledger)
     return [assistant_tool_call_message(content, calls)] + [
-        make_tool_result_message(result) for result in results
+        make_tool_result_message(results[i]) for i in range(len(calls))
     ]
 
 
