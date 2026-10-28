@@ -183,6 +183,13 @@ def get_parser(default_config_files, git_root):
         help="Use agent mode: the model explores, edits and runs commands through native tools",
     )
     group.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Sampling seed sent with every request; different seeds give independent samples (default: none)",
+    )
+    group.add_argument(
         "--resume",
         action="store_true",
         default=False,

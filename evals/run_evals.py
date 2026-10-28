@@ -29,6 +29,8 @@ DEFAULT_TIMEOUT_SECONDS = 900
 TASK_SETS = {"basic": TASKS, "hard": HARD_TASKS, "all": TASKS + HARD_TASKS}
 DEFAULT_SET = "basic"
 DEFAULT_REPEAT = 1
+# Run k uses seed DEFAULT_SEED_BASE + k: repeats sample independently, and a rerun reproduces a run.
+DEFAULT_SEED_BASE = 1000
 CHECK_TIMEOUT_SECONDS = 60
 GIT_IDENTITY = ("-c", "user.email=eval@localhost", "-c", "user.name=eval")
 AIDER_FLAGS = (
@@ -64,9 +66,9 @@ def setup_project(task: EvalTask, root: Path, sandbox: bool) -> None:
     subprocess.run(["git", *GIT_IDENTITY, "commit", "-qm", "task"], cwd=root, check=True)
 
 
-def run_agent(task: EvalTask, root: Path, model: str, timeout: int) -> tuple[str, float]:
+def run_agent(task: EvalTask, root: Path, model: str, timeout: int, seed: int) -> tuple[str, float]:
     prompt = task_prompt(task) if isinstance(task, RealTask) else task.prompt
-    command = [sys.executable, "-m", "aider", *AIDER_FLAGS, "--message", prompt]
+    command = [sys.executable, "-m", "aider", *AIDER_FLAGS, "--seed", str(seed), "--message", prompt]
     if model:
         command += ["--model", model]
     env = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
@@ -106,7 +108,9 @@ def check_real(task: RealTask, root: Path) -> bool:
     return tests_untouched(task, root) and tests_pass(task, root)
 
 
-def run_task(task: EvalTask, model: str, timeout: int, sandbox: bool, log_path: Path) -> TaskResult:
+def run_task(
+    task: EvalTask, model: str, timeout: int, sandbox: bool, log_path: Path, seed: int
+) -> TaskResult:
     """Run one task; the agent's full output is kept at `log_path` for diagnosis."""
     real = isinstance(task, RealTask)
     with tempfile.TemporaryDirectory() as tmp:
@@ -115,7 +119,7 @@ def run_task(task: EvalTask, model: str, timeout: int, sandbox: bool, log_path: 
             setup_real_project(task, root, sandbox)
         else:
             setup_project(task, root, sandbox)
-        output, seconds = run_agent(task, root, model, timeout)
+        output, seconds = run_agent(task, root, model, timeout, seed)
         log_path.write_text(output)
         passed = check_real(task, root) if real else run_check(task, root)
         return TaskResult(task.name, passed, round(seconds, 1), parse_metrics(output))
@@ -126,6 +130,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tasks", default="", help="Comma-separated task names (default: the whole set)")
     parser.add_argument("--set", default=DEFAULT_SET, choices=sorted(TASK_SETS), help="Task set (default: basic)")
     parser.add_argument("--repeat", type=int, default=DEFAULT_REPEAT, help="Runs per task (default: 1)")
+    parser.add_argument(
+        "--seed-base", type=int, default=DEFAULT_SEED_BASE, help="Run k uses seed base + k (default: 1000)"
+    )
     parser.add_argument("--real", default="", help="Real-project task file from mine_real_tasks (replaces --set)")
     parser.add_argument("--model", default="", help="Model name passed to aider (default: aider config)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS, help="Seconds per task")
@@ -150,7 +157,8 @@ def main() -> None:
     with open(out_path, "w") as handle:
         for run in range(1, args.repeat + 1):
             for task in tasks:
-                result = run_task(task, args.model, args.timeout, args.sandbox, logs_dir / f"{task.name}-run{run}.log")
+                log_path = logs_dir / f"{task.name}-run{run}.log"
+                result = run_task(task, args.model, args.timeout, args.sandbox, log_path, args.seed_base + run)
                 results.append(result)
                 handle.write(json.dumps({**result.as_dict(), "run": run}) + "\n")
                 handle.flush()
