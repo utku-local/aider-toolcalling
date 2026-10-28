@@ -160,6 +160,13 @@ python -m evals.run_evals --real evals/real/<repo>.json --sandbox
 The task project has no git history and the fix's non-test changes undone, so the agent cannot read the answer;
 the check runs the fix's tests and requires them to be unchanged.
 
+## Faster agent rounds with mlx_lm
+
+`mlx_lm.server` reuses the cached prompt when a request extends the previous one, which is exactly what agent rounds
+do; `mlx_vlm.server` does not. Measured on the same 27B model, a real task took 237 s instead of 1,060 s. Run an
+`mlx_lm` server on its own port and point only `aider-agent` at it with `~/.aider.agent.model.settings.yml` (same
+model name, `extra_params.api_base` set to that port); plain `aider` keeps using its usual settings.
+
 ## Upstream updates
 
 New Aider releases are imported into the `upstream` branch and merged into `develop`; see `docs/UPSTREAM.md`.

@@ -137,9 +137,17 @@ class SessionTest(unittest.TestCase):
 
 class AgentMainTest(unittest.TestCase):
     def test_agent_flag_is_prepended(self) -> None:
-        with patch("aider.agent_main.aider_main", return_value=0) as main:
+        with patch("aider.agent_main.aider_main", return_value=0) as main, \
+                patch("aider.agent_main.agent_flags", return_value=["--agent"]):
             agent_main.main(["--model", "x", "--chat-mode", "ask"])
         main.assert_called_once_with(["--agent", "--model", "x", "--chat-mode", "ask"])
+
+    def test_agent_settings_file_is_used_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = Path(tmp, ".aider.agent.model.settings.yml")
+            self.assertEqual(agent_main.agent_flags(settings), ["--agent"])
+            settings.write_text("- name: x\n")
+            self.assertEqual(agent_main.agent_flags(settings), ["--agent", "--model-settings-file", str(settings)])
 
 
 if __name__ == "__main__":
