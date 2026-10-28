@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- A read-only tool call (read, list, find, search, symbol, git) that already ran twice with the same arguments in one request is refused with an error telling the model to edit, run tests or answer; after three refusals the tool loop stops and asks for the final answer. On a real task the agent had re-read one file range 66 times despite the repeat note.
+
 ## [0.5.1] - 2026-10-28
 
 ### Added

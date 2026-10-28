@@ -34,6 +34,12 @@ REPEAT_NOTE = (
     "Note: you already made this exact call in this request and got the same result; use it and move on "
     "to the next step instead of repeating it.\n"
 )
+REPEAT_REFUSE_AFTER = 2
+REPEAT_REFUSAL = (
+    "Error: refused, this exact call already ran {count} times in this request and its result is unchanged "
+    "in the conversation above. Do not repeat it: edit the code, run the tests, or give your answer."
+)
+REPEAT_REFUSAL_MARKER = "Error: refused, this exact call already ran"
 REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
 
 
@@ -82,7 +88,13 @@ def execute_tool_call(
     previous = ledger.finished(call.id)
     if previous is not None:
         return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
+    repeats = ledger.times_run(call.name, call.arguments) if call.name in REPEAT_HINT_TOOLS else 0
     record = ledger.begin(call.id, call.name, call.arguments)
+    if repeats >= REPEAT_REFUSE_AFTER:
+        # Measured: a local model re-read one file range 66 times despite the note; stop feeding the loop.
+        refusal = REPEAT_REFUSAL.format(count=repeats)
+        ledger.finish(record, refusal, failed=True)
+        return ToolResult(call.id, call.name, refusal)
     try:
         result, failed = run_registered(registry, call)
     except KeyboardInterrupt:

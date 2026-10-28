@@ -83,5 +83,17 @@ class OperationLedger:
             for r in self.records
         )
 
+    def times_run(self, tool: str, arguments: str) -> int:
+        """How often this exact call already executed in the current request."""
+        return sum(
+            1 for r in self.records
+            if r.request == self.request and r.tool == tool and r.arguments == arguments
+            and r.status is OperationStatus.EXECUTED
+        )
+
+    def repeat_refusals(self, marker: str) -> int:
+        """Calls refused as repeats in the current request (their result starts with `marker`)."""
+        return sum(1 for r in self.records if r.request == self.request and r.result.startswith(marker))
+
     def executed(self) -> list[OperationRecord]:
         return [r for r in self.records if r.status is OperationStatus.EXECUTED]
