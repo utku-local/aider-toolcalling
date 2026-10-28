@@ -1,0 +1,28 @@
+# Runs the unit and mocked end-to-end tests on every push and pull request.
+# The package is installed with its pinned dependencies so tests import the patched aider, not a released one.
+# macOS-only tests (sandbox-exec) skip themselves on Linux.
+name: tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          uv venv --python 3.12
+          uv pip install --python .venv/bin/python .
+      - name: Unit tests
+        run: |
+          git config --global user.email "ci@localhost"
+          git config --global user.name "ci"
+          .venv/bin/python -m unittest discover -s tests -v
