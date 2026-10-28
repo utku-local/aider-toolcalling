@@ -260,6 +260,21 @@ class RepeatLoopTest(unittest.TestCase):
         run("e", "edit_file")
         self.assertEqual(run("c3", "run_command"), "Exit code: 0")
 
+    def test_an_identical_edit_is_applied_only_once(self) -> None:
+        registry = NativeToolRegistry()
+        registry.register("edit_file", "Edit", {"type": "object", "properties": {}}, lambda: "Edited")
+        ledger = OperationLedger()
+        ledger.start_request()
+
+        def edit(call_id: str) -> str:
+            return build_tool_round_messages(registry, "", [ToolCall(call_id, "edit_file", "{}")], ledger)[1]["content"]
+
+        self.assertEqual(edit("e1"), "Edited")
+        self.assertTrue(edit("e2").startswith(REPEAT_REFUSAL_MARKER))
+        self.assertEqual(ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 1)
+        ledger.start_request()
+        self.assertEqual(edit("e3"), "Edited")
+
 class RetryResumeTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
