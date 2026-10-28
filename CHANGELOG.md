@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- Read-only tool calls of one round (`read_file` on non-secret paths, `list_files`, `find_files`, `search_code`, `find_symbol`, `git`) run concurrently, at most 8 at once; calls that may ask the user stay sequential and results keep the model's order.
+
 ### Added
 
 - Real-project tasks: `python -m evals.mine_real_tasks --repo PATH --python PY` turns small bug-fix commits (Python sources plus tests) into tasks, keeping only those whose tests fail before the fix and pass at the fix. The task project is history-free, every non-test file the fix touched (sources, changelog, docs) is back at its pre-fix version, and the check also requires the tests to be unchanged. `run_evals --real FILE` runs them, with `python` in the agent's commands pointing at the project's interpreter.
