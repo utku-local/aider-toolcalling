@@ -1,4 +1,5 @@
 import base64
+from typing import Optional
 import functools
 import os
 import shutil
@@ -806,13 +807,13 @@ class InputOutput:
     @restore_multiline
     def confirm_ask(
         self,
-        question,
-        default="y",
-        subject=None,
-        explicit_yes_required=False,
-        group=None,
-        allow_never=False,
-    ):
+        question: str,
+        default: str = "y",
+        subject: Optional[str] = None,
+        explicit_yes_required: bool = False,
+        group: Optional[ConfirmGroup] = None,
+        allow_never: Optional[bool] = None,
+    ) -> bool:
         self.num_user_asks += 1
 
         # Ring the bell if needed
@@ -825,8 +826,9 @@ class InputOutput:
 
         if group and not group.show_group:
             group = None
-        if group:
-            allow_never = True
+        if allow_never is None:
+            # Upstream: a group always offers "don't ask again", which answers no. Agent edits pass False.
+            allow_never = bool(group)
 
         valid_responses = ["yes", "no", "skip", "all"]
         options = " (Y)es/(N)o"

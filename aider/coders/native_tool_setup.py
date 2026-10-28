@@ -72,7 +72,8 @@ def symbol_tags(coder: Any, abs_path: str, rel_path: str) -> list[Any]:
 def ask_user(coder: Any, permission: ToolPermission, title: str, details: str) -> bool:
     """Writes share the request's confirm group; commands and network access are asked every time."""
     if permission is ToolPermission.WRITE:
-        return coder.io.confirm_ask(title, subject=details, group=coder.native_write_group)
+        # No "(D)on't ask again": in Aider it means "never, answer no", which users read as "always yes".
+        return coder.io.confirm_ask(title, subject=details, group=coder.native_write_group, allow_never=False)
     return coder.io.confirm_ask(title, subject=details, explicit_yes_required=True)
 
 

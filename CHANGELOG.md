@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-10-29
+
+### Changed
+
+- `edit_file` and `multi_edit` accept an `old_string` that differs from the file only in trailing spaces or tabs on its lines. When nothing matches, the error names the first line that differs (or says the first line is not in the file). In a trial session the model failed the same multi-line edit twice and spent five rounds searching.
+- A trailing `2>&1` is dropped from `run_command` commands, since stdout and stderr are already returned together; it no longer makes a command compound and ask for approval.
+- Agent edit approvals no longer offer "(D)on't ask again", which in Aider means "never, and answer no"; a user pressed it expecting "always yes" and the edit was declined. "(A)ll" approves the remaining edits of the request.
+- The `tests` workflow runs only when started by hand (`workflow_dispatch`) until the account's Actions billing is fixed; on push and pull request the jobs were refused before starting and showed as failures. Tests still run locally (`harness-check`) before every merge.
+
 ## [0.5.3] - 2026-10-29
 
 ### Changed

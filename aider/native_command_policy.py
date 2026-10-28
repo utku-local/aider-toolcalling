@@ -66,6 +66,17 @@ ROOT_TARGETS = frozenset({".", "./", "*"})
 SUBCOMMAND_PROGRAMS = frozenset({"git", "npm", "yarn", "pnpm", "uv", "pip", "pip3", "cargo", "go", "docker", "brew"})
 
 
+STDERR_MERGE = "2>&1"
+
+
+def without_stderr_merge(command: str) -> str:
+    """Drop a trailing `2>&1`: run_command already returns stdout and stderr together, so it changes nothing."""
+    stripped = command.rstrip()
+    if stripped.endswith(STDERR_MERGE):
+        return stripped[: -len(STDERR_MERGE)].rstrip()
+    return command
+
+
 def tokenize(command: str) -> Optional[list[str]]:
     lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
