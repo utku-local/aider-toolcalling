@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `docs/LOCAL_SETUP.md`: step-by-step setup of a Mac (mlx_lm server on 8083 at login, optional manual mlx_vlm server on 8081, aider configuration, `aider-agent`, checks and troubleshooting), with templates in `docs/examples/` for the LaunchAgents, `~/.aider.conf.yml`, model settings, model metadata and `.aider-agent.json`.
+
 ### Changed
 
 - A read-only tool call (read, list, find, search, symbol, git) that already ran twice with the same arguments in one request is refused with an error telling the model to edit, run tests or answer; after three refusals the tool loop stops and asks for the final answer. On a real task the agent had re-read one file range 66 times despite the repeat note.
