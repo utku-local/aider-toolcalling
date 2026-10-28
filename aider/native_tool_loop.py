@@ -24,7 +24,9 @@ FINAL_ANSWER_CHOICE = "none"
 MAX_TOOL_RESULT_CHARS = 30_000
 RESULT_TRUNCATED = "\n[result truncated to {limit} characters; request a smaller range or a narrower search]"
 INTERRUPTED_RESULT = "Error: interrupted by the user before the tool finished"
-PARALLEL_TOOLS = frozenset({"read_file", "list_files", "find_files", "search_code", "find_symbol", "git"})
+PARALLEL_TOOLS = frozenset(
+    {"read_file", "list_files", "find_files", "search_code", "find_symbol", "git", "read_spreadsheet"}
+)
 READ_FILE_TOOL = "read_file"
 MAX_PARALLEL_CALLS = 8
 REPEAT_HINT_TOOLS = frozenset({"read_file", "list_files", "find_files", "search_code", "find_symbol", "git"})
