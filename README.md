@@ -158,6 +158,10 @@ python -m evals.run_evals --real evals/real/<repo>.json --sandbox
 The task project has no git history and the fix's non-test changes undone, so the agent cannot read the answer;
 the check runs the fix's tests and requires them to be unchanged.
 
+## Upstream updates
+
+New Aider releases are imported into the `upstream` branch and merged into `develop`; see `docs/UPSTREAM.md`.
+
 ## License
 
 Aider is licensed under the Apache License 2.0; see `LICENSE.txt`. The changes in this repo use the same license.

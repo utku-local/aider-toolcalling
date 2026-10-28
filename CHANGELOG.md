@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Upstream updates: an `upstream` branch holds the untouched aider-chat source (0.86.2 imported from PyPI), `python -m maintenance.import_upstream VERSION --into DIR --pyproject FILE` imports a release and its pinned dependencies, and `docs/UPSTREAM.md` describes the merge procedure.
 - CI: a GitHub Actions workflow installs the package with its pinned dependencies and runs the test suite on pushes to `main` and `develop` and on pull requests (macOS-only sandbox tests skip on Linux).
 - `research` tool in agent mode: answers a question about the project in a separate conversation with read-only tools (at most 10 rounds) and returns only the answer, so the files it reads never enter the main conversation's prompt.
 - MCP tools: stdio MCP servers listed under `mcp_servers` in `.aider-agent.json` start with agent mode, and their tools appear as `mcp__<server>__<tool>`. Each call asks first unless the server is `"trusted": true`; a server that cannot start is reported and skipped. Built on a small JSON-RPC client, no new dependency.
