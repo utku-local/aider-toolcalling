@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- MCP tools: stdio MCP servers listed under `mcp_servers` in `.aider-agent.json` start with agent mode, and their tools appear as `mcp__<server>__<tool>`. Each call asks first unless the server is `"trusted": true`; a server that cannot start is reported and skipped. Built on a small JSON-RPC client, no new dependency.
 - `multi_edit` tool: several exact replacements in one file, applied in order with one diff and one approval; if any replacement fails, nothing is written.
 - "Always allow": after you approve a plain, risk-free command, Aider asks whether to add the narrowest matching allow rule to `.aider-agent.json` (for git, npm, uv and similar, only that subcommand). The question needs an explicit yes, so `--yes-always` never adds rules. Outside the sandbox the rule is written with `trust_unsandboxed`.
 
