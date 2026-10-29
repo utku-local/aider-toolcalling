@@ -43,7 +43,7 @@ class ToolContext:
     """Everything a tool may touch. `approve(permission, title, details)` returns True to proceed.
 
     Defaults: `check_command` asks for every command, `before_write` keeps no snapshot, `todos` starts empty,
-    `wrap_command` runs a command through /bin/sh without a sandbox.
+    `wrap_command` runs a command through /bin/sh without a sandbox, and `sandboxed` is False to match.
     """
 
     root: Path
@@ -56,3 +56,4 @@ class ToolContext:
     before_write: Callable[[str], None] = ignore_path
     todos: TodoList = field(default_factory=TodoList)
     wrap_command: Callable[[str], list[str]] = shell_argv
+    sandboxed: bool = False

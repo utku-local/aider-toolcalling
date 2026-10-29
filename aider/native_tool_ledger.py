@@ -97,6 +97,14 @@ class OperationLedger:
             for r in self.records
         )
 
+    def denied_before(self, tool: str, arguments: str) -> bool:
+        """True when the user already declined this exact call in the current request."""
+        return any(
+            r.request == self.request and r.tool == tool and r.arguments == arguments
+            and r.status is OperationStatus.DENIED
+            for r in self.records
+        )
+
     def repeat_refusals(self, marker: str) -> int:
         """Calls refused as repeats in the current request (their result starts with `marker`)."""
         return sum(1 for r in self.records if r.request == self.request and r.result.startswith(marker))

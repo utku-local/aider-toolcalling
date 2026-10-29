@@ -73,8 +73,10 @@ Command rules live in `.aider-agent.json` in the project root:
               "deny": [{"program": "docker"}]}}
 ```
 
-`"sandbox": true` runs commands under macOS `sandbox-exec`: writes only inside the project and temp directories, no
-network. Inside the sandbox every allow rule auto-approves; compound commands and risky programs are still asked.
+`"sandbox": true` runs commands under macOS `sandbox-exec`: writes only inside the project and temp directories, and
+network only to localhost (services you run, such as a database, stay reachable; the internet is blocked). The agent
+is told this in its system prompt, and a refused connection or a sandbox denial in command output gets a note naming
+the likely cause, so the model reports a stopped service instead of debugging the code. Inside the sandbox every allow rule auto-approves; compound commands and risky programs are still asked.
 
 Agent sessions are saved to `.aider.agent-session.json` after each request; `--resume` continues one with its tool
 history, operation log and task list.
@@ -130,6 +132,7 @@ installed copy instead.
 | `aider/native_command_policy.py`, `coders/native_agent_config.py` | Command policy and `.aider-agent.json` |
 | `aider/native_tools_git.py`, `native_todo.py`, `native_snapshots.py`, `native_undo.py` | Git tool, task list, snapshots and `/undo-agent` |
 | `aider/native_sandbox.py`, `native_tools_background.py`, `native_tools_fetch.py` | Sandbox, background commands, `fetch_url` |
+| `aider/native_environment.py` | What the agent is told about its command environment, and hints on connection errors |
 | `aider/coders/native_session.py`, `aider/agent_main.py`, `pyproject.toml` | Session save and `--resume`, the `aider-agent` command, packaging |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
 | `evals/` | Evaluation tasks (basic, hard, mined from real commits), metrics and runner |
