@@ -2,16 +2,19 @@
 Each tool is exposed as mcp__<server>__<tool> with the server's input schema; a call asks the user first unless
 the server is marked trusted, because an MCP tool can do anything its server can.
 A server that fails to start is reported once and skipped, and every started server is closed when Aider exits.
+An HTTP server with "oauth" gets an OAuthProvider, which opens the browser for sign-in the first time it is needed.
 """
 
 import atexit
 import json
 import os
 import re
-from typing import Any
+import webbrowser
+from typing import Any, Callable, Optional
 
 from aider.native_mcp_client import MCPClient, MCPSession, MCPTool
-from aider.native_mcp_http import MCPHttpClient
+from aider.native_mcp_http import HttpAuth, MCPHttpClient
+from aider.native_mcp_oauth_flow import TOKEN_STORE, OAuthProvider, TokenStore
 from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolRegistry
 
@@ -22,6 +25,7 @@ NAME_SEPARATOR = "__"
 UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9_-]")
 MAX_TOOL_NAME = 64
 OBJECT_SCHEMA = {"type": "object", "properties": {}}
+SIGN_IN_NOTICE = "MCP server {name!r} needs you to sign in; opening your browser. If it does not open, visit:\n{url}"
 
 
 def tool_name(server: str, tool: str) -> str:
@@ -42,10 +46,21 @@ def call_mcp(ctx: ToolContext, server: MCPServerConfig, client: MCPSession, tool
     return client.call_tool(tool.name, arguments)
 
 
-def start_server(server: MCPServerConfig, cwd: str) -> MCPSession:
+def server_auth(server: MCPServerConfig, notify: Callable[[str], Any]) -> Optional[HttpAuth]:
+    if server.oauth is None:
+        return None
+
+    def open_browser(url: str) -> None:
+        notify(SIGN_IN_NOTICE.format(name=server.name, url=url))
+        webbrowser.open(url)
+
+    return OAuthProvider(server.url, server.oauth, TokenStore(TOKEN_STORE), open_browser)
+
+
+def start_server(server: MCPServerConfig, cwd: str, notify: Callable[[str], Any]) -> MCPSession:
     """A stdio server is started as a process; an HTTP server is only connected to."""
     if server.url:
-        client: MCPSession = MCPHttpClient(server.url, dict(server.headers))
+        client: MCPSession = MCPHttpClient(server.url, dict(server.headers), server_auth(server, notify))
     else:
         client = MCPClient(list(server.command), {**os.environ, **dict(server.env)}, cwd)
     try:
@@ -64,7 +79,7 @@ def register_mcp_tools(
     clients = []
     for server in servers:
         try:
-            client = start_server(server, str(ctx.root))
+            client = start_server(server, str(ctx.root), warn)
             tools = client.list_tools()
         except Exception as err:  # a broken server must not stop the agent
             warn(f"MCP server {server.name!r} could not start: {err}")

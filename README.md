@@ -112,8 +112,15 @@ asked unless the server is trusted:
 
 ```json
 {"mcp_servers": {"docs": {"command": "npx", "args": ["-y", "some-mcp-server"], "env": {}, "trusted": false},
-                 "remote": {"url": "https://mcp.example.com/mcp", "headers": {"Authorization": "Bearer ${MCP_TOKEN}"}}}}
+                 "remote": {"url": "https://mcp.example.com/mcp", "headers": {"Authorization": "Bearer ${MCP_TOKEN}"}},
+                 "signin": {"url": "https://mcp.example.org/mcp", "oauth": true}}}
 ```
+
+`"oauth": true` signs in with OAuth (authorization code + PKCE, as the MCP spec describes): on the first 401 the agent
+discovers the authorization server, registers itself as a client, opens your browser and catches the redirect on a
+local port. Tokens are kept in `~/.aider-agent/mcp-oauth.json` (mode 0600) and refreshed when they expire. For a
+server without dynamic registration, give the pre-registered client instead:
+`"oauth": {"client_id": "...", "scope": "...", "callback_port": 8765}`.
 
 `read_file` also reads Jupyter notebooks (cells with outputs) and PDFs (through poppler's `pdftotext`: `brew install
 poppler`); images and other binary files are refused with a short reason, since the model reads text only.

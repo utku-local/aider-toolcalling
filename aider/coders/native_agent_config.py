@@ -9,9 +9,10 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from aider.native_hooks import HookRule
+from aider.native_mcp_oauth import OAuthSettings
 from aider.native_web_policy import WebPolicy
 from aider.native_command_policy import CommandRule, CommandRules
 
@@ -24,8 +25,8 @@ CONFIG_ENCODING = "utf-8"
 
 @dataclass(frozen=True)
 class MCPServerConfig:
-    """A stdio MCP server (`command`) or an HTTP one (`url`, with `headers`); `trusted` lets its tools run without
-    asking. Defaults: no extra environment, no URL, no headers, not trusted."""
+    """A stdio MCP server (`command`) or an HTTP one (`url`, with `headers` and optional `oauth` sign-in); `trusted`
+    lets its tools run without asking. Defaults: no extra environment, no URL, no headers, not trusted, no OAuth."""
 
     name: str
     command: tuple[str, ...]
@@ -33,6 +34,7 @@ class MCPServerConfig:
     trusted: bool = False
     url: str = ""
     headers: tuple[tuple[str, str], ...] = ()
+    oauth: Optional[OAuthSettings] = None
 
 
 @dataclass(frozen=True)
@@ -67,7 +69,21 @@ def parse_http_mcp_server(name: str, raw: dict) -> MCPServerConfig:
         raise AgentConfigError(f'MCP server {name!r}: "headers" must map names to strings')
     if not raw["url"].startswith(("http://", "https://")):
         raise AgentConfigError(f'MCP server {name!r}: "url" must be an http or https URL')
-    return MCPServerConfig(name, (), (), bool(raw.get("trusted")), raw["url"], tuple(sorted(headers.items())))
+    return MCPServerConfig(name, (), (), bool(raw.get("trusted")), raw["url"], tuple(sorted(headers.items())),
+                           parse_oauth(name, raw.get("oauth", False)))
+
+
+def parse_oauth(name: str, raw: Any) -> Optional[OAuthSettings]:
+    """"oauth": true signs in with dynamic client registration; an object may set client_id, scope, callback_port."""
+    if raw is False:
+        return None
+    if raw is True:
+        return OAuthSettings()
+    fields = {"client_id": str, "scope": str, "callback_port": int}
+    if not isinstance(raw, dict) or any(k not in fields or not isinstance(v, fields[k]) for k, v in raw.items()):
+        raise AgentConfigError(f'MCP server {name!r}: "oauth" must be true or an object with client_id (string), '
+                               'scope (string) and callback_port (integer)')
+    return OAuthSettings(**raw)
 
 
 def parse_mcp_server(name: str, raw: Any) -> MCPServerConfig:

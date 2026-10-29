@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- OAuth sign-in for HTTP MCP servers (`"oauth": true` or `{client_id, scope, callback_port}`): discovery, dynamic client registration, browser sign-in with PKCE, tokens stored in `~/.aider-agent/mcp-oauth.json` and refreshed on expiry or a 401.
 - `/skill NAME [request]` runs the agent with a skill's instructions; `/skill` alone lists the skills.
 
 ## [0.7.0] - 2026-10-29
