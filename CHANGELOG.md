@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Plan approval: the first plan the agent writes with `todo_write` in a request is shown to the user for approval. A rejected plan is cleared and the model gets the user's note; until it writes a new plan, the plan-first check refuses file changes. `--yes-always` runs approve automatically; `"plan_approval": false` in `.aider-agent.json` turns it off.
+- `ask_user` tool: the agent asks one question, optionally with up to six numbered choices, and continues with the answer; an unattended run tells it to decide and state its assumption.
+
 ## [0.6.2] - 2026-10-29
 
 ### Added
