@@ -130,6 +130,7 @@ def make_tool_context(coder: Any) -> ToolContext:
         before_write=lambda path: before_write(coder, path),
         todos=coder.native_todos,
         wrap_command=lambda command: wrap_command(coder, root, command),
+        sandboxed=coder.native_sandboxed,
     )
 
 
