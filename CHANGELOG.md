@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- The sandbox allows network connections to localhost (and local servers started by a command); the internet stays blocked. Before, every TCP connection was denied, so tests could not reach a database or download daemon the user runs.
+- The agent's system prompt says where commands run (sandbox: writes, localhost, no internet; or no sandbox), to check that a needed service is running before debugging a connection error, and to tell the user what is missing instead of working around it.
+- A failed command whose output shows a refused connection gets a note that the service is probably not running; in the sandbox, an "Operation not permitted" failure gets a note that the sandbox likely blocked it.
+- A call the user already declined in the same request is refused without asking again, and counts toward ending the tool loop. A local model had sent one declined command more than 30 times, because declined calls were never counted as repeats.
+- After four failing commands in a row in one request, the agent is told to stop, summarize what it tried and ask the user. In a trial session the model spent half an hour retrying connections that the sandbox and a stopped `aria2c` refused.
+
 ## [0.5.4] - 2026-10-29
 
 ### Changed

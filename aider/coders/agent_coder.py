@@ -7,6 +7,7 @@ Write approvals are grouped per request, so answering "All" approves the remaini
 from typing import Any, Iterator
 
 from aider.io import ConfirmGroup
+from aider.native_environment import environment_note
 from aider.native_toolcalling import NativeToolRegistry
 
 from .agent_prompts import AgentPrompts
@@ -35,6 +36,10 @@ class AgentCoder(Coder):
         super().__init__(*args, **kwargs)
         # Project instructions (AGENTS.md, CLAUDE.md) are always in view, like a coding agent's memory file.
         self.abs_read_only_fnames.update(instruction_files(self.root))
+
+    def fmt_system_prompt(self, prompt: str) -> str:
+        """The mode's prompt plus where commands run, so connection and permission errors are not read as bugs."""
+        return super().fmt_system_prompt(prompt) + environment_note(getattr(self, "native_sandboxed", False))
 
     def build_native_tools(self) -> NativeToolRegistry:
         return build_native_tools(self, include_actions=True)

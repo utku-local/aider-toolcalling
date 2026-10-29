@@ -11,6 +11,7 @@ from typing import Any, Optional
 from aider.native_tool_calls import ToolCall, field
 from aider.native_sensitive import is_sensitive
 from aider.native_tool_ledger import CHANGE_TOOLS, OperationLedger
+from aider.native_tool_summary import exit_code
 from aider.native_toolcalling import (
     NativeToolRegistry,
     ToolResult,
@@ -48,7 +49,42 @@ REPEAT_EDIT_REFUSAL = (
     REPEAT_REFUSAL_MARKER + " and this edit is already applied. Read the file to see its current content "
     "before changing it again."
 )
+# Measured: a local model sent the same declined command more than 30 times; declined calls were never counted.
+REPEAT_DENIED_REFUSAL = (
+    REPEAT_REFUSAL_MARKER + " and the user declined it. Do not ask again: use another approach, or stop and ask "
+    "the user how to proceed."
+)
+COMMAND_TOOL = "run_command"
+# Measured: a local model spent half an hour retrying connections that the sandbox and a stopped service refused.
+FAILING_STREAK_LIMIT = 4
+FAILING_STREAK_NOTE = (
+    "\nNote: the last {count} commands all failed. Stop retrying: summarize what you tried and what blocks you, "
+    "and ask the user how to proceed."
+)
 REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
+
+
+def repeat_refusal(ledger: OperationLedger, call: ToolCall) -> str:
+    """Refusal for a call the user already declined, or an edit already applied; empty to let it run."""
+    if ledger.denied_before(call.name, call.arguments):
+        return REPEAT_DENIED_REFUSAL
+    if call.name in CHANGE_TOOLS and ledger.applied_before(call.name, call.arguments):
+        return REPEAT_EDIT_REFUSAL
+    return ""
+
+
+def failing_command_streak(ledger: OperationLedger) -> int:
+    """Commands that failed in a row (non-zero exit) in the current request, counting back from the latest one."""
+    streak = 0
+    for record in reversed(ledger.executed()):
+        if record.request != ledger.request:
+            break
+        if record.tool != COMMAND_TOOL:
+            continue
+        if not exit_code(record.result):
+            break
+        streak += 1
+    return streak
 
 
 def get_tool_calls(message: Optional[Any]) -> list[Any]:
@@ -97,11 +133,11 @@ def execute_tool_call(
     if previous is not None:
         return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
     repeats = ledger.times_run(call.name, call.arguments) if call.name in REPEAT_GUARD_TOOLS else 0
-    repeated_edit = call.name in CHANGE_TOOLS and ledger.applied_before(call.name, call.arguments)
+    refusal = repeat_refusal(ledger, call)
     record = ledger.begin(call.id, call.name, call.arguments)
-    if repeated_edit:
-        ledger.finish(record, REPEAT_EDIT_REFUSAL, failed=True)
-        return ToolResult(call.id, call.name, REPEAT_EDIT_REFUSAL)
+    if refusal:
+        ledger.finish(record, refusal, failed=True)
+        return ToolResult(call.id, call.name, refusal)
     if repeats >= REPEAT_REFUSE_AFTER:
         # Measured: a local model re-read one file range 66 times despite the note; stop feeding the loop.
         refusal = REPEAT_REFUSAL.format(count=repeats)
@@ -115,6 +151,9 @@ def execute_tool_call(
         raise
     result = cap_result(result)
     ledger.finish(record, result.content, failed)
+    streak = failing_command_streak(ledger) if call.name == COMMAND_TOOL else 0
+    if streak >= FAILING_STREAK_LIMIT:
+        result = ToolResult(result.tool_call_id, result.name, result.content + FAILING_STREAK_NOTE.format(count=streak))
     if call.name in REPEAT_HINT_TOOLS and repeats:
         # Local models can loop on re-reading; say plainly that this exact result is already in the conversation.
         return ToolResult(result.tool_call_id, result.name, REPEAT_NOTE + result.content)
