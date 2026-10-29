@@ -11,6 +11,8 @@ from typing import Any, Callable, Optional
 from aider.native_tool_calls import ToolCall, field
 from aider.native_sensitive import is_sensitive
 from aider.native_tool_ledger import CHANGE_TOOLS, OperationLedger
+from aider.native_hooks import after_notes, blocked_by
+from aider.native_loop_options import NO_OPTIONS, LoopOptions
 from aider.native_output_spill import OutputSpill
 from aider.native_task_gates import PLAN_FIRST, needs_plan
 from aider.native_tool_summary import exit_code
@@ -137,17 +139,18 @@ def execute_tool_call(
     registry: NativeToolRegistry,
     call: ToolCall,
     ledger: Optional[OperationLedger] = None,
-    has_plan: Optional[HasPlan] = None,
-    spill: Optional[OutputSpill] = None,
+    options: LoopOptions = NO_OPTIONS,
 ) -> ToolResult:
     """Run one call and record it in `ledger` (None: no record); a call id that already ran is not rerun."""
     if ledger is None:
-        return cap_result(run_registered(registry, call)[0], spill)
+        return cap_result(run_registered(registry, call)[0], options.spill)
     previous = ledger.finished(call.id)
     if previous is not None:
         return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
     repeats = ledger.times_run(call.name, call.arguments) if call.name in REPEAT_GUARD_TOOLS else 0
-    refusal = repeat_refusal(ledger, call, has_plan)
+    refusal = repeat_refusal(ledger, call, options.has_plan)
+    if not refusal and options.hooks is not None:
+        refusal = blocked_by(options.hooks, call.name, call.arguments)
     record = ledger.begin(call.id, call.name, call.arguments)
     if refusal:
         ledger.finish(record, refusal, failed=True)
@@ -163,7 +166,10 @@ def execute_tool_call(
         # Close the record so the ledger never shows an interrupted call as still running or approved.
         ledger.finish(record, INTERRUPTED_RESULT, failed=True)
         raise
-    result = cap_result(result, spill)
+    result = cap_result(result, options.spill)
+    if options.hooks is not None:
+        notes = after_notes(options.hooks, call.name, call.arguments, result.content)
+        result = ToolResult(result.tool_call_id, result.name, result.content + notes) if notes else result
     ledger.finish(record, result.content, failed)
     streak = failing_command_streak(ledger) if call.name == COMMAND_TOOL else 0
     if streak >= FAILING_STREAK_LIMIT:
@@ -192,8 +198,7 @@ def build_tool_round_messages(
     content: str,
     calls: list[ToolCall],
     ledger: Optional[OperationLedger] = None,
-    has_plan: Optional[HasPlan] = None,
-    spill: Optional[OutputSpill] = None,
+    options: LoopOptions = NO_OPTIONS,
 ) -> list[dict[str, Any]]:
     """Messages to append after a tool-calling turn: the turn itself, then each result in call order.
 
@@ -203,11 +208,12 @@ def build_tool_round_messages(
     parallel = [i for i, call in enumerate(calls) if runs_in_parallel(call)]
     if len(parallel) > 1:
         with ThreadPoolExecutor(max_workers=min(len(parallel), MAX_PARALLEL_CALLS)) as pool:
-            futures = {i: pool.submit(execute_tool_call, registry, calls[i], ledger, None, spill) for i in parallel}
+            read_only = LoopOptions(spill=options.spill, hooks=options.hooks)
+            futures = {i: pool.submit(execute_tool_call, registry, calls[i], ledger, read_only) for i in parallel}
             results = {i: future.result() for i, future in futures.items()}
     for i, call in enumerate(calls):
         if i not in results:
-            results[i] = execute_tool_call(registry, call, ledger, has_plan, spill)
+            results[i] = execute_tool_call(registry, call, ledger, options)
     return [assistant_tool_call_message(content, calls)] + [
         make_tool_result_message(results[i]) for i in range(len(calls))
     ]

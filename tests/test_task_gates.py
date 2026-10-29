@@ -26,6 +26,7 @@ from aider.native_task_gates import (
 )
 from aider.native_tool_calls import ToolCall
 from aider.native_tool_ledger import OperationLedger, OperationStatus
+from aider.native_loop_options import LoopOptions
 from aider.native_tool_loop import build_tool_round_messages
 from aider.native_toolcalling import NativeToolRegistry
 
@@ -60,7 +61,8 @@ class PlanGateTest(unittest.TestCase):
 
         def edit(call_id: str) -> str:
             call = ToolCall(call_id, "edit_file", "{}")
-            return build_tool_round_messages(registry, "", [call], ledger, has_plan=lambda: False)[1]["content"]
+            options = LoopOptions(has_plan=lambda: False)
+            return build_tool_round_messages(registry, "", [call], ledger, options)[1]["content"]
 
         self.assertTrue(edit("e1").startswith(PLAN_FIRST_MARKER))
         self.assertEqual(edit("e2"), "Edited")
