@@ -22,6 +22,10 @@ FINAL_STATUSES = frozenset({OperationStatus.DENIED, OperationStatus.EXECUTED, Op
 NO_RESULT = ""
 # Tools that change project files; a repeat of the same call after one of these is a new check, not a loop.
 CHANGE_TOOLS = frozenset({"edit_file", "multi_edit", "write_file"})
+# Tools that change what a repeated call would see without touching a file: starting or stopping a background
+# process (a server, a watcher). Measured: a model started a stopped server and was refused re-running its client.
+STATE_TOOLS = frozenset({"start_background", "stop_background"})
+REPEAT_RESET_TOOLS = CHANGE_TOOLS | STATE_TOOLS
 
 
 @dataclass
@@ -78,12 +82,13 @@ class OperationLedger:
             self.current = None
 
     def times_run(self, tool: str, arguments: str) -> int:
-        """How often this exact call already executed in the current request since the last file change."""
+        """How often this exact call already executed in the current request since the last file change or
+        background process start or stop."""
         count = 0
         for r in self.records:
             if r.request != self.request or r.status is not OperationStatus.EXECUTED:
                 continue
-            if r.tool in CHANGE_TOOLS:
+            if r.tool in REPEAT_RESET_TOOLS:
                 count = 0
             elif r.tool == tool and r.arguments == arguments:
                 count += 1

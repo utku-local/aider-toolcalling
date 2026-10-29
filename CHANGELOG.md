@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- Starting or stopping a background process (`start_background`, `stop_background`) resets the repeat count, like a file change. In a trial the model started a stopped server and was then refused re-running the client that had failed against it.
+
 ## [0.6.1] - 2026-10-29
 
 ### Fixed
