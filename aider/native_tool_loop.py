@@ -6,11 +6,12 @@ Tool failures are reported back to the model as tool results instead of interrup
 
 import json
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from aider.native_tool_calls import ToolCall, field
 from aider.native_sensitive import is_sensitive
 from aider.native_tool_ledger import CHANGE_TOOLS, OperationLedger
+from aider.native_task_gates import PLAN_FIRST, needs_plan
 from aider.native_tool_summary import exit_code
 from aider.native_toolcalling import (
     NativeToolRegistry,
@@ -55,6 +56,7 @@ REPEAT_DENIED_REFUSAL = (
     "the user how to proceed."
 )
 COMMAND_TOOL = "run_command"
+HasPlan = Callable[[], bool]
 # Measured: a local model spent half an hour retrying connections that the sandbox and a stopped service refused.
 FAILING_STREAK_LIMIT = 4
 FAILING_STREAK_NOTE = (
@@ -64,8 +66,11 @@ FAILING_STREAK_NOTE = (
 REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
 
 
-def repeat_refusal(ledger: OperationLedger, call: ToolCall) -> str:
-    """Refusal for a call the user already declined, or an edit already applied; empty to let it run."""
+def repeat_refusal(ledger: OperationLedger, call: ToolCall, has_plan: Optional[HasPlan] = None) -> str:
+    """Refusal for a call the user already declined, an edit already applied, or a change made before a plan
+    (`has_plan` None: no plan check); empty to let it run."""
+    if has_plan is not None and needs_plan(ledger, call.name, has_plan()):
+        return PLAN_FIRST
     if ledger.denied_before(call.name, call.arguments):
         return REPEAT_DENIED_REFUSAL
     if call.name in CHANGE_TOOLS and ledger.applied_before(call.name, call.arguments):
@@ -124,7 +129,10 @@ def run_registered(registry: NativeToolRegistry, call: ToolCall) -> tuple[ToolRe
 
 
 def execute_tool_call(
-    registry: NativeToolRegistry, call: ToolCall, ledger: Optional[OperationLedger] = None
+    registry: NativeToolRegistry,
+    call: ToolCall,
+    ledger: Optional[OperationLedger] = None,
+    has_plan: Optional[HasPlan] = None,
 ) -> ToolResult:
     """Run one call and record it in `ledger` (None: no record); a call id that already ran is not rerun."""
     if ledger is None:
@@ -133,7 +141,7 @@ def execute_tool_call(
     if previous is not None:
         return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
     repeats = ledger.times_run(call.name, call.arguments) if call.name in REPEAT_GUARD_TOOLS else 0
-    refusal = repeat_refusal(ledger, call)
+    refusal = repeat_refusal(ledger, call, has_plan)
     record = ledger.begin(call.id, call.name, call.arguments)
     if refusal:
         ledger.finish(record, refusal, failed=True)
@@ -178,6 +186,7 @@ def build_tool_round_messages(
     content: str,
     calls: list[ToolCall],
     ledger: Optional[OperationLedger] = None,
+    has_plan: Optional[HasPlan] = None,
 ) -> list[dict[str, Any]]:
     """Messages to append after a tool-calling turn: the turn itself, then each result in call order.
 
@@ -191,7 +200,7 @@ def build_tool_round_messages(
             results = {i: future.result() for i, future in futures.items()}
     for i, call in enumerate(calls):
         if i not in results:
-            results[i] = execute_tool_call(registry, call, ledger)
+            results[i] = execute_tool_call(registry, call, ledger, has_plan)
     return [assistant_tool_call_message(content, calls)] + [
         make_tool_result_message(results[i]) for i in range(len(calls))
     ]

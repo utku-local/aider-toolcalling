@@ -294,8 +294,9 @@ class RetryResumeTest(unittest.TestCase):
         )
         fix = {"path": "calc.py", "old_string": "a - b", "new_string": "a + b"}
         outage = litellm.APIConnectionError(message="down", llm_provider="openai", model=MODEL_NAME)
+        # The last completion answers the one-time reminder to verify the unverified change.
         scripted = ScriptedModel([make_completion(tool_calls=tool_call("e1", "edit_file", fix)), outage,
-                                  make_completion(FINAL_TEXT)])
+                                  make_completion(FINAL_TEXT), make_completion(FINAL_TEXT)])
         scripted_call = scripted.__call__
 
         def respond(**kwargs: object) -> object:
@@ -308,11 +309,12 @@ class RetryResumeTest(unittest.TestCase):
             coder.run(with_message="Fix add().")
 
         self.assertEqual(len(coder.native_ledger.records), 1)
-        retry_tools = [m for m in scripted.requests[-1]["messages"] if m["role"] == "tool"]
+        retry = scripted.requests[-2]
+        retry_tools = [m for m in retry["messages"] if m["role"] == "tool"]
         self.assertEqual([m["tool_call_id"] for m in retry_tools], ["e1"])
         with open("calc.py") as handle:
             self.assertIn("return a + b", handle.read())
-        self.assertIn("Files changed: calc.py", scripted.requests[-1]["messages"][-1]["content"])
+        self.assertIn("Files changed: calc.py", retry["messages"][-1]["content"])
 
 
 if __name__ == "__main__":
