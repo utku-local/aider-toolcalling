@@ -17,10 +17,13 @@ from aider.native_hooks import HookRule, ToolHooks
 from aider.native_loop_options import LoopOptions
 from aider.native_memory_skills import (
     MEMORY_FILE,
+    NO_REQUEST,
+    NO_SKILLS,
     SKILLS_DIR,
     MemorySkillError,
     find_skills,
     remember,
+    skill_message,
     skills_listing,
     use_skill,
 )
@@ -100,3 +103,17 @@ class MemorySkillTest(unittest.TestCase):
         self.assertEqual(skills_listing({}), "")
         with self.assertRaises(MemorySkillError):
             use_skill(skills, "deploy")
+
+    def test_skill_command_message(self) -> None:
+        (self.root / SKILLS_DIR).mkdir(parents=True)
+        (self.root / SKILLS_DIR / "release.md").write_text("# Cut a release\n1. bump")
+        skills = find_skills(self.root, self.home)
+        self.assertEqual(skill_message({}, ""), (NO_SKILLS, ""))
+        self.assertIn("- release: Cut a release", skill_message(skills, " ")[0])
+        listing, message = skill_message(skills, "release 0.8.0 please")
+        self.assertEqual(listing, "")
+        self.assertIn("1. bump", message)
+        self.assertTrue(message.endswith("Request: 0.8.0 please"))
+        self.assertTrue(skill_message(skills, "release")[1].endswith(NO_REQUEST))
+        with self.assertRaises(MemorySkillError):
+            skill_message(skills, "deploy now")
