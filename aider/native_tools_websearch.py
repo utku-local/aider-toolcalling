@@ -17,8 +17,9 @@ MAX_RESULTS = 15
 NO_RESULTS = "No results."
 NOT_SET_UP = (
     "Web search is not set up for this project. Tell the user it needs \"network\": {\"search_url\": "
-    "\"http://127.0.0.1:8888/search?q={query}&format=json\"} in .aider-agent.json (a SearXNG instance), "
-    "or use fetch_url on a documentation URL you know."
+    "\"http://127.0.0.1:8888/search?q={query}&format=json\"} in .aider-agent.json or the same URL in the "
+    "AIDER_AGENT_SEARCH_URL environment variable (a SearXNG instance), or use fetch_url on a documentation URL "
+    "you know."
 )
 SEARCH_PARAMETERS = {
     "type": "object",
