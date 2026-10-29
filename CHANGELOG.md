@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-29
+
 ### Fixed
 
 - The plan-first check applies only before the request's first file change; after a change it had added rounds (a model writing a verification script late in a task was stopped to write a plan).
