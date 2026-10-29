@@ -17,6 +17,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Hooks: `"hooks": {"before_tool": [...], "after_tool": [...]}` in `.aider-agent.json` runs a command around tools whose name matches a pattern. A failing before hook blocks the call with its output as the reason; an after hook's output is appended to the result. The project's hooks are shown once per session and run only on an explicit yes, never in `--yes-always` runs, since a cloned repo could define any command.
 - `remember` tool: saves a dated one-line project fact to `.aider-agent/memory.md`, which later sessions read like `AGENTS.md`.
 - Skills: Markdown files in `.aider-agent/skills/` (project) and `~/.aider-agent/skills/` (user) are listed in the system prompt by their first line; `use_skill` loads one.
+- `task` tool: delegates a self-contained job to a sub-agent with every tool except `ask_user` and `task` (up to 30 rounds); its edits and commands go through the usual approvals, hooks and output spill, and only its report returns to the main conversation.
+- Background exit notices: when a process started with `start_background` exits on its own, the next request says so once (id, command, exit code), so the model does not have to poll `read_background`.
 
 ### Changed
 

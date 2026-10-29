@@ -14,6 +14,7 @@ You have tools to explore and change it:
 - read_spreadsheet to read Excel workbooks (.xlsx/.xlsm) sheet by sheet;
 - research to answer a question about the project in a separate conversation that returns only the answer; use it
   for broad exploration so this conversation stays short;
+- task to delegate a self-contained job (with every tool, same approvals) to a sub-agent that returns a report;
 - todo_write to plan work that takes more than a few steps, keeping exactly one item in_progress; the user may
   be asked to approve your first plan, and if they reject it you get their note and revise it;
 - web_search and fetch_url to look up documentation or an error message on the web (hosts outside the project's
