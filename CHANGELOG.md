@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - `ask_user` tool: the agent asks one question, optionally with up to six numbered choices, and continues with the answer; an unattended run tells it to decide and state its assumption.
 - Read before edit: `edit_file`, `multi_edit` and `write_file` refuse to change an existing file the agent has not read in this session, or that changed on disk since it read it (another tool, an editor, the user). New files need no read, and the agent's own writes keep the record current.
 - Long output is kept whole: a command or tool result over the limit is saved to `.aider-agent/outputs/` (git-ignored by its own `.gitignore`) and the model gets the first 4,000 and last 16,000 characters with the path, instead of a cut-off tail.
+- Model-written context summary: when a request's history passes ~48K tokens, the model writes a summary of the older tool rounds (goal, findings, changes, commands, what remains) that replaces them in the live request and in `cur_messages`; the last two rounds stay verbatim. The summary stays in place, so later requests extend it and the prefix cache stays warm. If the model cannot write one, the one-line compaction applies as before.
 
 ## [0.6.2] - 2026-10-29
 

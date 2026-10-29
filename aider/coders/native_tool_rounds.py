@@ -21,6 +21,7 @@ from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_tool_summary import summarize_result
 from aider.native_working_state import render_working_state
 
+from .native_context import maybe_summarize
 from .native_tool_log import append_operation_log
 
 MAX_CONTINUATIONS = 3
@@ -34,6 +35,7 @@ def prepare_request_messages(coder: Any, messages: list[dict[str, Any]]) -> list
     tool pairs and compacted old results. Each request extends the previous one, which keeps prefix caches warm."""
     if not coder.native_tools:
         return messages
+    maybe_summarize(coder, messages)
     tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
     add_working_state(messages, render_working_state(coder.native_ledger.records, tasks))
     return compact_tool_history(drop_orphan_tool_messages(messages))
