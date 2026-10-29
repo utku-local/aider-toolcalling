@@ -104,12 +104,17 @@ history, operation log and task list.
 After you approve a plain command, Aider offers to remember it as a rule ("Always allow `pytest` in this
 project?"); answering yes writes the rule to `.aider-agent.json`.
 
-MCP servers (stdio) can be added in the same file; their tools appear as `mcp__<server>__<tool>` and each call is
+MCP servers can be added in the same file, started over stdio (`command`) or reached over Streamable HTTP (`url`,
+with `headers` whose values may use `${ENV_VAR}`); their tools appear as `mcp__<server>__<tool>` and each call is
 asked unless the server is trusted:
 
 ```json
-{"mcp_servers": {"docs": {"command": "npx", "args": ["-y", "some-mcp-server"], "env": {}, "trusted": false}}}
+{"mcp_servers": {"docs": {"command": "npx", "args": ["-y", "some-mcp-server"], "env": {}, "trusted": false},
+                 "remote": {"url": "https://mcp.example.com/mcp", "headers": {"Authorization": "Bearer ${MCP_TOKEN}"}}}}
 ```
+
+`read_file` also reads Jupyter notebooks (cells with outputs) and PDFs (through poppler's `pdftotext`: `brew install
+poppler`); images and other binary files are refused with a short reason, since the model reads text only.
 
 A rule matches the parsed program (`python -m pytest` counts as `pytest`) and optional `subcommands`. Compound
 commands, paths outside the project and risky programs are asked even when a rule matches. Without

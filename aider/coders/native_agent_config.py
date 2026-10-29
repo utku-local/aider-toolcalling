@@ -24,12 +24,15 @@ CONFIG_ENCODING = "utf-8"
 
 @dataclass(frozen=True)
 class MCPServerConfig:
-    """A stdio MCP server; `trusted` lets its tools run without asking."""
+    """A stdio MCP server (`command`) or an HTTP one (`url`, with `headers`); `trusted` lets its tools run without
+    asking. Defaults: no extra environment, no URL, no headers, not trusted."""
 
     name: str
     command: tuple[str, ...]
     env: tuple[tuple[str, str], ...] = ()
     trusted: bool = False
+    url: str = ""
+    headers: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -58,9 +61,20 @@ def parse_rule(raw: Any) -> CommandRule:
     return CommandRule(raw["program"], tuple(subcommands), bool(raw.get("trust_unsandboxed", False)))
 
 
+def parse_http_mcp_server(name: str, raw: dict) -> MCPServerConfig:
+    headers = raw.get("headers", {})
+    if not isinstance(headers, dict) or not all(isinstance(v, str) for v in headers.values()):
+        raise AgentConfigError(f'MCP server {name!r}: "headers" must map names to strings')
+    if not raw["url"].startswith(("http://", "https://")):
+        raise AgentConfigError(f'MCP server {name!r}: "url" must be an http or https URL')
+    return MCPServerConfig(name, (), (), bool(raw.get("trusted")), raw["url"], tuple(sorted(headers.items())))
+
+
 def parse_mcp_server(name: str, raw: Any) -> MCPServerConfig:
+    if isinstance(raw, dict) and isinstance(raw.get("url"), str):
+        return parse_http_mcp_server(name, raw)
     if not isinstance(raw, dict) or not isinstance(raw.get("command"), str):
-        raise AgentConfigError(f'MCP server {name!r} needs a "command" string')
+        raise AgentConfigError(f'MCP server {name!r} needs a "command" or "url" string')
     args = raw.get("args", [])
     env = raw.get("env", {})
     if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
