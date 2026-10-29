@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from aider.native_tool_calls import ToolCall
-from aider.native_tool_schema import validate_arguments
+from aider.native_tool_schema import coerce_integers, validate_arguments, wire_parameters
 
 
 class NativeToolError(ValueError):
@@ -51,7 +51,11 @@ class NativeToolRegistry:
         self._tools[name] = (schema, handler)
 
     def schemas(self) -> list[dict[str, Any]]:
-        return [entry[0] for entry in self._tools.values()]
+        """Tool schemas as sent to the model (integer parameters shown as whole numbers)."""
+        return [
+            {**schema, "function": {**schema["function"], "parameters": wire_parameters(schema["function"]["parameters"])}}
+            for schema, _ in self._tools.values()
+        ]
 
     def execute(self, call: ToolCall) -> ToolResult:
         """Execute one registered, schema-valid tool call; never execute unknown names."""
@@ -69,6 +73,7 @@ class NativeToolRegistry:
             raise NativeToolError("Tool arguments must be a JSON object")
 
         schema, handler = self._tools[call.name]
+        arguments = coerce_integers(schema["function"]["parameters"], arguments)
         problems = validate_arguments(schema["function"]["parameters"], arguments)
         if problems:
             raise NativeToolError(f"Invalid arguments for tool {call.name!r}: {'; '.join(problems)}")
