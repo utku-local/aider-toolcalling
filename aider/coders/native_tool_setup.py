@@ -22,6 +22,7 @@ from aider.native_tools_builtin import register_read_tools
 from aider.native_tools_background import ProcessManager, register_background_tools
 from aider.native_tools_edit import register_edit_tools
 from aider.native_tools_fetch import register_fetch_tool
+from aider.native_tools_websearch import register_search_web_tool
 from aider.native_tools_git import register_git_tool
 from aider.native_tools_search import register_search_tools
 from aider.native_tools_shell import register_shell_tools
@@ -137,6 +138,7 @@ def make_tool_context(coder: Any) -> ToolContext:
         sandboxed=coder.native_sandboxed,
         file_state=coder.native_file_state,
         spill=coder.native_spill,
+        web=coder.native_agent_config.web,
     )
 
 
@@ -180,6 +182,7 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
         register_shell_tools(registry, ctx)
         register_background_tools(registry, ctx, coder.native_processes)
         register_fetch_tool(registry, ctx)
+        register_search_web_tool(registry, ctx)
         coder.native_mcp_clients = register_mcp_tools(
             registry, ctx, coder.native_agent_config.mcp_servers, coder.io.tool_warning
         )

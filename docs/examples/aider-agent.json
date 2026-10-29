@@ -21,5 +21,13 @@
         "program": "docker"
       }
     ]
+  },
+  "network": {
+    "allow_domains": [
+      "docs.python.org",
+      "pypi.org",
+      "*.readthedocs.io"
+    ],
+    "search": false
   }
 }
