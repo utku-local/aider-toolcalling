@@ -47,6 +47,7 @@ class AgentCoder(Coder):
     def send_message(self, inp: str) -> Iterator[str]:
         self.native_write_group = ConfirmGroup()
         self.native_ledger.start_request()
+        self.native_todos.approved = False
         yield from super().send_message(inp)
         save_session(self)
 
