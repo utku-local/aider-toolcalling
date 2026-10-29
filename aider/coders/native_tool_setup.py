@@ -11,6 +11,7 @@ from aider.io import ConfirmGroup
 from aider.native_command_policy import PolicyDecision, decide
 from aider.native_sandbox import sandbox_available, sandboxed_argv, shell_argv
 from aider.native_file_state import FileState
+from aider.native_loop_options import LoopOptions
 from aider.native_memory_skills import find_skills, register_memory_skill_tools
 from aider.native_output_spill import OutputSpill
 from aider.native_snapshots import SnapshotStore
@@ -32,7 +33,7 @@ from aider.repomap import RepoMap
 
 from .native_agent_config import load_agent_config
 from .native_mcp_setup import register_mcp_tools
-from .native_subtask import register_research_tool
+from .native_subtask import register_research_tool, register_task_tool
 from .native_hook_setup import project_hooks
 from .native_rule_offer import offer_allow_rule
 from .native_user_io import answer_question, ask_text, confirm_plan
@@ -176,21 +177,29 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     ctx = make_tool_context(coder)
     registry = read_only_registry(ctx)
     if include_actions:
-        register_research_tool(registry, coder, read_only_registry(ctx))
-        plan_check = coder.native_agent_config.plan_approval
-        register_todo_tool(
-            registry, ctx.todos,
-            confirm=(lambda plan: confirm_plan(coder, plan)) if plan_check else None,
-            note=lambda question: ask_text(coder, question),
-        )
-        register_ask_tool(registry, lambda question, choices: answer_question(coder, question, choices))
-        register_memory_skill_tools(registry, root, coder.native_skills)
-        register_edit_tools(registry, ctx)
-        register_shell_tools(registry, ctx)
-        register_background_tools(registry, ctx, coder.native_processes)
-        register_fetch_tool(registry, ctx)
-        register_search_web_tool(registry, ctx)
-        coder.native_mcp_clients = register_mcp_tools(
-            registry, ctx, coder.native_agent_config.mcp_servers, coder.io.tool_warning
-        )
+        register_action_tools(registry, coder, ctx, root)
     return registry
+
+
+def register_action_tools(registry: NativeToolRegistry, coder: Any, ctx: ToolContext, root: Path) -> None:
+    """The agent's tools beyond reading: research, plans, questions, memory, edits, commands, web, MCP and task."""
+    register_research_tool(registry, coder, read_only_registry(ctx))
+    plan_check = coder.native_agent_config.plan_approval
+    register_todo_tool(
+        registry, ctx.todos,
+        confirm=(lambda plan: confirm_plan(coder, plan)) if plan_check else None,
+        note=lambda question: ask_text(coder, question),
+    )
+    register_ask_tool(registry, lambda question, choices: answer_question(coder, question, choices))
+    register_memory_skill_tools(registry, root, coder.native_skills)
+    register_edit_tools(registry, ctx)
+    register_shell_tools(registry, ctx)
+    register_background_tools(registry, ctx, coder.native_processes)
+    register_fetch_tool(registry, ctx)
+    register_search_web_tool(registry, ctx)
+    coder.native_mcp_clients = register_mcp_tools(
+        registry, ctx, coder.native_agent_config.mcp_servers, coder.io.tool_warning
+    )
+    # The sub-agent gets every tool but questions to the user and further delegation.
+    options = LoopOptions(spill=coder.native_spill, hooks=coder.native_hooks)
+    register_task_tool(registry, coder, registry.without("ask_user", "task"), options)

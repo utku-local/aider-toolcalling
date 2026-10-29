@@ -62,6 +62,9 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 | `todo_write` | `--agent` | none (the agent's task list); the first plan of a request is shown for approval unless `"plan_approval": false` |
 | `ask_user` | `--agent` | none (asks you one question, with numbered choices; unattended runs get no answer) |
 | `research` | `--agent` | none (a read-only sub-conversation that returns only its answer) |
+| `task` | `--agent` | the sub-agent's edits and commands are approved as usual (a delegated job with every tool but `ask_user` and `task`; only its report returns) |
+| `web_search` | `--agent` | network: asked unless `"network": {"search": true}`; needs `"search_url"` |
+| `remember`, `use_skill` | `--agent` | none (`.aider-agent/memory.md`; skills from `.aider-agent/skills/` and `~/.aider-agent/skills/`) |
 | `run_command`, `start_background`, `read_background`, `stop_background` | `--agent` | command policy: refused, asked with risk labels, or allowed by a rule (trusted, or any rule inside the sandbox); `--yes-always` never approves a command |
 | `fetch_url` | `--agent` | asked for every URL; `--yes-always` never approves it |
 

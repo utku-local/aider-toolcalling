@@ -50,6 +50,12 @@ class NativeToolRegistry:
         }
         self._tools[name] = (schema, handler)
 
+    def without(self, *names: str) -> "NativeToolRegistry":
+        """A new registry with the same tools except `names` (tools are shared, not copied)."""
+        other = NativeToolRegistry()
+        other._tools = {name: entry for name, entry in self._tools.items() if name not in names}
+        return other
+
     def schemas(self) -> list[dict[str, Any]]:
         """Tool schemas as sent to the model (integer parameters shown as whole numbers)."""
         return [
