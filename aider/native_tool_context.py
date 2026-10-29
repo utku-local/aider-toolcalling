@@ -7,9 +7,12 @@ ToolPermission names the approval level a tool needs before it may act.
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from aider.native_command_policy import PolicyAction, PolicyDecision
+from aider.native_file_state import FileState
+from aider.native_output_spill import OutputSpill
+from aider.native_web_policy import WebPolicy
 from aider.native_sandbox import shell_argv
 from aider.native_todo import TodoList
 
@@ -44,6 +47,8 @@ class ToolContext:
 
     Defaults: `check_command` asks for every command, `before_write` keeps no snapshot, `todos` starts empty,
     `wrap_command` runs a command through /bin/sh without a sandbox, and `sandboxed` is False to match.
+    `file_state` None skips the read-before-edit check and `spill` None truncates long output instead of saving it.
+    `web` pre-approves no host and no search.
     """
 
     root: Path
@@ -57,3 +62,6 @@ class ToolContext:
     todos: TodoList = field(default_factory=TodoList)
     wrap_command: Callable[[str], list[str]] = shell_argv
     sandboxed: bool = False
+    file_state: Optional[FileState] = None
+    spill: Optional[OutputSpill] = None
+    web: WebPolicy = WebPolicy()

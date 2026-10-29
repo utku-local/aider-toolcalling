@@ -26,6 +26,7 @@ from aider.native_task_gates import (
 )
 from aider.native_tool_calls import ToolCall
 from aider.native_tool_ledger import OperationLedger, OperationStatus
+from aider.native_loop_options import LoopOptions
 from aider.native_tool_loop import build_tool_round_messages
 from aider.native_toolcalling import NativeToolRegistry
 
@@ -53,6 +54,12 @@ class PlanGateTest(unittest.TestCase):
         self.assertFalse(needs_plan(ledger, "edit_file", has_plan=True))
         self.assertFalse(needs_plan(ledger, "read_file", has_plan=False))
 
+    def test_no_plan_is_asked_after_the_first_change(self) -> None:
+        ledger = explored_ledger(1)
+        record(ledger, "edit_file", "Edited")
+        record(ledger, "run_command", "Exit code: 1")
+        self.assertFalse(needs_plan(ledger, "write_file", has_plan=False))
+
     def test_plan_first_is_asked_once_per_request(self) -> None:
         registry = NativeToolRegistry()
         registry.register("edit_file", "Edit", {"type": "object", "properties": {}}, lambda: "Edited")
@@ -60,7 +67,8 @@ class PlanGateTest(unittest.TestCase):
 
         def edit(call_id: str) -> str:
             call = ToolCall(call_id, "edit_file", "{}")
-            return build_tool_round_messages(registry, "", [call], ledger, has_plan=lambda: False)[1]["content"]
+            options = LoopOptions(has_plan=lambda: False)
+            return build_tool_round_messages(registry, "", [call], ledger, options)[1]["content"]
 
         self.assertTrue(edit("e1").startswith(PLAN_FIRST_MARKER))
         self.assertEqual(edit("e2"), "Edited")
@@ -117,6 +125,7 @@ class SendBackFlowTest(unittest.TestCase):
         )
         fix = {"path": "calc.py", "old_string": "a - b", "new_string": "a + b"}
         scripted = ScriptedModel([
+            make_completion(tool_calls=tool_call("r0", "read_file", {"path": "calc.py"})),
             make_completion(tool_calls=tool_call("e1", "edit_file", fix)),
             make_completion("Fixed it."),
             make_completion(FINAL_TEXT),
@@ -126,5 +135,5 @@ class SendBackFlowTest(unittest.TestCase):
 
         nudges = [m for m in scripted.requests[-1]["messages"] if VERIFY_HEADING in str(m.get("content"))]
         self.assertEqual(len(nudges), 1)
-        self.assertEqual(len(scripted.requests), 3)
+        self.assertEqual(len(scripted.requests), 4)
         self.assertEqual(coder.partial_response_content, FINAL_TEXT)

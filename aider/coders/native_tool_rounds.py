@@ -16,17 +16,20 @@ from aider.native_tool_loop import (
     build_tool_round_messages,
     drop_orphan_tool_messages,
 )
+from aider.native_loop_options import LoopOptions
 from aider.native_task_gates import completion_nudge
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_tool_summary import summarize_result
 from aider.native_working_state import render_working_state
 
+from .native_context import maybe_summarize
 from .native_tool_log import append_operation_log
 
 MAX_CONTINUATIONS = 3
 # After this many refused repeats in one request the loop stops and the model must answer.
 MAX_REPEAT_REFUSALS = 3
 RESULT_INDENT = "  -> "
+BACKGROUND_HEADING = "## Background update\n"
 
 
 def prepare_request_messages(coder: Any, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -34,9 +37,19 @@ def prepare_request_messages(coder: Any, messages: list[dict[str, Any]]) -> list
     tool pairs and compacted old results. Each request extends the previous one, which keeps prefix caches warm."""
     if not coder.native_tools:
         return messages
+    maybe_summarize(coder, messages)
+    add_background_notices(coder, messages)
     tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
     add_working_state(messages, render_working_state(coder.native_ledger.records, tasks))
     return compact_tool_history(drop_orphan_tool_messages(messages))
+
+
+def add_background_notices(coder: Any, messages: list[dict[str, Any]]) -> None:
+    """Tell the model, once, about background processes that exited on their own."""
+    processes = getattr(coder, "native_processes", None)
+    notices = processes.exit_notices() if processes is not None else []
+    if notices:
+        messages.append({"role": "user", "content": BACKGROUND_HEADING + "\n".join(notices)})
 
 
 def first_message(completion: Any) -> Optional[Any]:
@@ -107,7 +120,8 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     logged = len(coder.native_ledger.records)
     round_messages = build_tool_round_messages(
         coder.native_tools, visible_content(message), calls, coder.native_ledger,
-        has_plan=lambda: bool(coder.native_todos.items),
+        LoopOptions(has_plan=lambda: bool(coder.native_todos.items), spill=getattr(coder, "native_spill", None),
+                    hooks=getattr(coder, "native_hooks", None)),
     )
     show_results(coder, round_messages)
     append_operation_log(coder, coder.native_ledger.records[logged:])

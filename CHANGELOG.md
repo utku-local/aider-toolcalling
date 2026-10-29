@@ -5,6 +5,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-29
+
+### Fixed
+
+- The plan-first check applies only before the request's first file change; after a change it had added rounds (a model writing a verification script late in a task was stopped to write a plan).
+
+### Added
+
+- Plan approval: the first plan the agent writes with `todo_write` in a request is shown to the user for approval. A rejected plan is cleared and the model gets the user's note; until it writes a new plan, the plan-first check refuses file changes. `--yes-always` runs approve automatically; `"plan_approval": false` in `.aider-agent.json` turns it off.
+- `ask_user` tool: the agent asks one question, optionally with up to six numbered choices, and continues with the answer; an unattended run tells it to decide and state its assumption.
+- Read before edit: `edit_file`, `multi_edit` and `write_file` refuse to change an existing file the agent has not read in this session, or that changed on disk since it read it (another tool, an editor, the user). New files need no read, and the agent's own writes keep the record current.
+- Long output is kept whole: a command or tool result over the limit is saved to `.aider-agent/outputs/` (git-ignored by its own `.gitignore`) and the model gets the first 4,000 and last 16,000 characters with the path, instead of a cut-off tail.
+- Model-written context summary: when a request's history passes ~48K tokens, the model writes a summary of the older tool rounds (goal, findings, changes, commands, what remains) that replaces them in the live request and in `cur_messages`; the last two rounds stay verbatim. The summary stays in place, so later requests extend it and the prefix cache stays warm. If the model cannot write one, the one-line compaction applies as before.
+- Web access settings: `"network": {"allow_domains": [...]}` in `.aider-agent.json` lets `fetch_url` read those hosts (exact or `*.domain`) without asking; other URLs still ask. The example config allows docs.python.org, pypi.org and *.readthedocs.io.
+- `web_search` tool: queries the search service named by `"network.search_url"` (SearXNG JSON format, for example a local SearXNG) and returns titles, URLs and snippets; each search asks unless `"network.search": true`. Without a service the tool tells the model search is not set up.
+- Hooks: `"hooks": {"before_tool": [...], "after_tool": [...]}` in `.aider-agent.json` runs a command around tools whose name matches a pattern. A failing before hook blocks the call with its output as the reason; an after hook's output is appended to the result. The project's hooks are shown once per session and run only on an explicit yes, never in `--yes-always` runs, since a cloned repo could define any command.
+- `remember` tool: saves a dated one-line project fact to `.aider-agent/memory.md`, which later sessions read like `AGENTS.md`.
+- Skills: Markdown files in `.aider-agent/skills/` (project) and `~/.aider-agent/skills/` (user) are listed in the system prompt by their first line; `use_skill` loads one.
+- `task` tool: delegates a self-contained job to a sub-agent with every tool except `ask_user` and `task` (up to 30 rounds); its edits and commands go through the usual approvals, hooks and output spill, and only its report returns to the main conversation.
+- Background exit notices: when a process started with `start_background` exits on its own, the next request says so once (id, command, exit code), so the model does not have to poll `read_background`.
+- `read_file` reads Jupyter notebooks (each cell with its text outputs) and PDFs (through poppler's `pdftotext`, no new Python dependency); images and other binary files are refused with a short reason instead of being returned as garbage.
+- MCP over Streamable HTTP: an `mcp_servers` entry with `"url"` (and optional `"headers"`, whose values may use `${ENV_VAR}`) is reached by POSTing JSON-RPC; JSON and event-stream replies are both read, and the session id from `initialize` is sent with later requests. Stdio and HTTP share one `MCPSession` base for initialize, tools/list and tools/call.
+
+### Changed
+
+- Only `.aider-agent/outputs/` is git-ignored now (its own `.gitignore`), so memory and skills in `.aider-agent/` can be committed.
+- The tool loop's optional behaviour (plan check, output spill, hooks) is passed as one `LoopOptions` object.
+
 ## [0.6.2] - 2026-10-29
 
 ### Added

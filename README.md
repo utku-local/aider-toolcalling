@@ -59,8 +59,12 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 | `edit_file`, `multi_edit`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
 | `git` (status, diff, log, show, blame) | `--agent`, `--native-tools` | none (read-only, allow-listed flags) |
 | `read_spreadsheet` | `--agent`, `--native-tools` | none (read-only; .xlsx/.xlsm sheets as text, in pages) |
-| `todo_write` | `--agent` | none (the agent's task list) |
+| `todo_write` | `--agent` | none (the agent's task list); the first plan of a request is shown for approval unless `"plan_approval": false` |
+| `ask_user` | `--agent` | none (asks you one question, with numbered choices; unattended runs get no answer) |
 | `research` | `--agent` | none (a read-only sub-conversation that returns only its answer) |
+| `task` | `--agent` | the sub-agent's edits and commands are approved as usual (a delegated job with every tool but `ask_user` and `task`; only its report returns) |
+| `web_search` | `--agent` | network: asked unless `"network": {"search": true}`; needs `"search_url"` |
+| `remember`, `use_skill` | `--agent` | none (`.aider-agent/memory.md`; skills from `.aider-agent/skills/` and `~/.aider-agent/skills/`) |
 | `run_command`, `start_background`, `read_background`, `stop_background` | `--agent` | command policy: refused, asked with risk labels, or allowed by a rule (trusted, or any rule inside the sandbox); `--yes-always` never approves a command |
 | `fetch_url` | `--agent` | asked for every URL; `--yes-always` never approves it |
 
@@ -75,6 +79,20 @@ Command rules live in `.aider-agent.json` in the project root:
               "deny": [{"program": "docker"}]}}
 ```
 
+`"network"` controls web access: `"allow_domains"` lists hosts (`"pypi.org"`, `"*.readthedocs.io"`) that
+`fetch_url` reads without asking, `"search_url"` names a search service in SearXNG's JSON format
+(`"http://127.0.0.1:8888/search?q={query}&format=json"`) for `web_search`, and `"search": true` stops each search
+from asking. `"plan_approval": false` turns off the plan approval prompt.
+
+`"hooks"` runs your commands around tool calls: `{"before_tool": [{"tools": "edit_file|write_file", "command":
+"./check.sh"}], "after_tool": [...]}`. A before hook that exits non-zero blocks the call and its output is the
+reason; an after hook's output is added to the result. The hooks are shown once per session and run only if you
+say yes; `--yes-always` runs never run them. Each gets `AIDER_TOOL`, `AIDER_TOOL_ARGS` and (after)
+`AIDER_TOOL_RESULT` in its environment.
+
+The agent can `remember` project facts in `.aider-agent/memory.md`, read at the start of later sessions, and load
+skills: Markdown files in `.aider-agent/skills/` or `~/.aider-agent/skills/` whose first line describes them.
+
 `"sandbox": true` runs commands under macOS `sandbox-exec`: writes only inside the project and temp directories, and
 network only to localhost (services you run, such as a database, stay reachable; the internet is blocked). The agent
 is told this in its system prompt, and a refused connection or a sandbox denial in command output gets a note naming
@@ -86,12 +104,17 @@ history, operation log and task list.
 After you approve a plain command, Aider offers to remember it as a rule ("Always allow `pytest` in this
 project?"); answering yes writes the rule to `.aider-agent.json`.
 
-MCP servers (stdio) can be added in the same file; their tools appear as `mcp__<server>__<tool>` and each call is
+MCP servers can be added in the same file, started over stdio (`command`) or reached over Streamable HTTP (`url`,
+with `headers` whose values may use `${ENV_VAR}`); their tools appear as `mcp__<server>__<tool>` and each call is
 asked unless the server is trusted:
 
 ```json
-{"mcp_servers": {"docs": {"command": "npx", "args": ["-y", "some-mcp-server"], "env": {}, "trusted": false}}}
+{"mcp_servers": {"docs": {"command": "npx", "args": ["-y", "some-mcp-server"], "env": {}, "trusted": false},
+                 "remote": {"url": "https://mcp.example.com/mcp", "headers": {"Authorization": "Bearer ${MCP_TOKEN}"}}}}
 ```
+
+`read_file` also reads Jupyter notebooks (cells with outputs) and PDFs (through poppler's `pdftotext`: `brew install
+poppler`); images and other binary files are refused with a short reason, since the model reads text only.
 
 A rule matches the parsed program (`python -m pytest` counts as `pytest`) and optional `subcommands`. Compound
 commands, paths outside the project and risky programs are asked even when a rule matches. Without

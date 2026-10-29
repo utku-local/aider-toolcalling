@@ -4,36 +4,48 @@ a missing file means no rules and no sandbox, and a malformed file is reported o
 Instruction files such as AGENTS.md are found here too, so the AgentCoder can add them read-only to the chat.
 """
 
+import dataclasses
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from aider.native_hooks import HookRule
+from aider.native_web_policy import WebPolicy
 from aider.native_command_policy import CommandRule, CommandRules
 
 CONFIG_FILE_NAME = ".aider-agent.json"
-INSTRUCTION_FILE_NAMES = ("AGENTS.md", "CLAUDE.md")
+# The agent's own notes from earlier sessions (native_memory_skills.MEMORY_FILE) are read like instructions.
+INSTRUCTION_FILE_NAMES = ("AGENTS.md", "CLAUDE.md", ".aider-agent/memory.md")
 MAX_INSTRUCTION_BYTES = 50_000
 CONFIG_ENCODING = "utf-8"
 
 
 @dataclass(frozen=True)
 class MCPServerConfig:
-    """A stdio MCP server; `trusted` lets its tools run without asking."""
+    """A stdio MCP server (`command`) or an HTTP one (`url`, with `headers`); `trusted` lets its tools run without
+    asking. Defaults: no extra environment, no URL, no headers, not trusted."""
 
     name: str
     command: tuple[str, ...]
     env: tuple[tuple[str, str], ...] = ()
     trusted: bool = False
+    url: str = ""
+    headers: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
 class AgentConfig:
-    """Project settings; defaults: no command rules, no sandbox, no MCP servers."""
+    """Project settings; defaults: no command rules, no sandbox, no MCP servers, plans shown for approval."""
 
     rules: CommandRules = CommandRules()
     sandbox: bool = False
     mcp_servers: tuple[MCPServerConfig, ...] = ()
+    plan_approval: bool = True
+    web: WebPolicy = WebPolicy()
+    before_hooks: tuple[HookRule, ...] = ()
+    after_hooks: tuple[HookRule, ...] = ()
 
 
 class AgentConfigError(ValueError):
@@ -49,9 +61,20 @@ def parse_rule(raw: Any) -> CommandRule:
     return CommandRule(raw["program"], tuple(subcommands), bool(raw.get("trust_unsandboxed", False)))
 
 
+def parse_http_mcp_server(name: str, raw: dict) -> MCPServerConfig:
+    headers = raw.get("headers", {})
+    if not isinstance(headers, dict) or not all(isinstance(v, str) for v in headers.values()):
+        raise AgentConfigError(f'MCP server {name!r}: "headers" must map names to strings')
+    if not raw["url"].startswith(("http://", "https://")):
+        raise AgentConfigError(f'MCP server {name!r}: "url" must be an http or https URL')
+    return MCPServerConfig(name, (), (), bool(raw.get("trusted")), raw["url"], tuple(sorted(headers.items())))
+
+
 def parse_mcp_server(name: str, raw: Any) -> MCPServerConfig:
+    if isinstance(raw, dict) and isinstance(raw.get("url"), str):
+        return parse_http_mcp_server(name, raw)
     if not isinstance(raw, dict) or not isinstance(raw.get("command"), str):
-        raise AgentConfigError(f'MCP server {name!r} needs a "command" string')
+        raise AgentConfigError(f'MCP server {name!r} needs a "command" or "url" string')
     args = raw.get("args", [])
     env = raw.get("env", {})
     if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
@@ -59,6 +82,44 @@ def parse_mcp_server(name: str, raw: Any) -> MCPServerConfig:
     if not isinstance(env, dict) or not all(isinstance(v, str) for v in env.values()):
         raise AgentConfigError(f'MCP server {name!r}: "env" must map names to strings')
     return MCPServerConfig(name, (raw["command"], *args), tuple(sorted(env.items())), bool(raw.get("trusted")))
+
+
+def parse_web(raw: Any) -> WebPolicy:
+    """The "network" section: {"allow_domains": [...], "search": true|false, "search_url": "...{query}..."}."""
+    if not isinstance(raw, dict):
+        raise AgentConfigError('"network" must be an object')
+    domains = raw.get("allow_domains", [])
+    if not isinstance(domains, list) or not all(isinstance(d, str) and d.strip() for d in domains):
+        raise AgentConfigError('"network.allow_domains" must be a list of host names')
+    search = raw.get("search", False)
+    if not isinstance(search, bool):
+        raise AgentConfigError('"network.search" must be true or false')
+    search_url = raw.get("search_url", "")
+    if not isinstance(search_url, str) or (search_url and "{query}" not in search_url):
+        raise AgentConfigError('"network.search_url" must be a URL containing {query}')
+    return WebPolicy(tuple(domains), search, search_url)
+
+
+def parse_hook_rules(raw: Any, section: str) -> tuple[HookRule, ...]:
+    if not isinstance(raw, list):
+        raise AgentConfigError(f'"hooks.{section}" must be a list')
+    rules = []
+    for item in raw:
+        if not isinstance(item, dict) or not isinstance(item.get("tools"), str) or not isinstance(item.get("command"), str):
+            raise AgentConfigError(f'each "hooks.{section}" entry needs "tools" and "command" strings')
+        try:
+            re.compile(item["tools"])
+        except re.error as err:
+            raise AgentConfigError(f'"hooks.{section}" tools pattern {item["tools"]!r}: {err}') from err
+        rules.append(HookRule(item["tools"], item["command"]))
+    return tuple(rules)
+
+
+def parse_hooks(raw: Any) -> tuple[tuple[HookRule, ...], tuple[HookRule, ...]]:
+    """The "hooks" section: {"before_tool": [{"tools": regex, "command": shell}], "after_tool": [...]}."""
+    if not isinstance(raw, dict):
+        raise AgentConfigError('"hooks" must be an object')
+    return parse_hook_rules(raw.get("before_tool", []), "before_tool"), parse_hook_rules(raw.get("after_tool", []), "after_tool")
 
 
 def parse_config(data: Any) -> AgentConfig:
@@ -77,7 +138,11 @@ def parse_config(data: Any) -> AgentConfig:
     servers = data.get("mcp_servers", {})
     if not isinstance(servers, dict):
         raise AgentConfigError('"mcp_servers" must be an object')
-    return AgentConfig(rules, sandbox, tuple(parse_mcp_server(name, raw) for name, raw in servers.items()))
+    plan_approval = data.get("plan_approval", True)
+    if not isinstance(plan_approval, bool):
+        raise AgentConfigError('"plan_approval" must be true or false')
+    return AgentConfig(rules, sandbox, tuple(parse_mcp_server(name, raw) for name, raw in servers.items()),
+                       plan_approval, parse_web(data.get("network", {})), *parse_hooks(data.get("hooks", {})))
 
 
 def load_agent_config(root: str, io: Any) -> AgentConfig:
@@ -107,7 +172,7 @@ def add_allow_rule(root: str, config: AgentConfig, rule: CommandRule) -> AgentCo
     data.setdefault("commands", {}).setdefault("allow", []).append(rule_as_json(rule))
     path.write_text(json.dumps(data, indent=2) + "\n", encoding=CONFIG_ENCODING)
     rules = CommandRules(allow=config.rules.allow + (rule,), deny=config.rules.deny)
-    return AgentConfig(rules, config.sandbox, config.mcp_servers)
+    return dataclasses.replace(config, rules=rules)
 
 
 def instruction_files(root: str) -> list[str]:

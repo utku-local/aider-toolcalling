@@ -30,12 +30,14 @@ def this_request(ledger: OperationLedger) -> list[OperationRecord]:
 
 
 def needs_plan(ledger: OperationLedger, tool: str, has_plan: bool) -> bool:
-    """True when `tool` would change a file before any plan, after exploring, and plan-first was not asked yet."""
+    """True when `tool` would make the request's first file change before any plan, after exploring, and
+    plan-first was not asked yet. Once a change has been made, asking for a plan only adds rounds."""
     if tool not in CHANGE_TOOLS or has_plan:
         return False
     records = this_request(ledger)
     asked = any(r.result.startswith(PLAN_FIRST_MARKER) for r in records)
-    return not asked and len(records) >= PLAN_AFTER_CALLS
+    changed = any(r.tool in CHANGE_TOOLS and r.status is OperationStatus.EXECUTED for r in records)
+    return not asked and not changed and len(records) >= PLAN_AFTER_CALLS
 
 
 def verified_since_change(records: list[OperationRecord]) -> bool:
