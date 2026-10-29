@@ -11,6 +11,7 @@ from typing import Any, Callable, Optional
 from aider.native_tool_calls import ToolCall, field
 from aider.native_sensitive import is_sensitive
 from aider.native_tool_ledger import CHANGE_TOOLS, OperationLedger
+from aider.native_output_spill import OutputSpill
 from aider.native_task_gates import PLAN_FIRST, needs_plan
 from aider.native_tool_summary import exit_code
 from aider.native_toolcalling import (
@@ -114,9 +115,12 @@ def assistant_tool_call_message(content: str, calls: list[ToolCall]) -> dict[str
     }
 
 
-def cap_result(result: ToolResult) -> ToolResult:
+def cap_result(result: ToolResult, spill: Optional[OutputSpill] = None) -> ToolResult:
+    """A result within the limit; a longer one is saved whole to a file (`spill`) or truncated."""
     if len(result.content) <= MAX_TOOL_RESULT_CHARS:
         return result
+    if spill is not None:
+        return ToolResult(result.tool_call_id, result.name, spill.shorten(result.content, result.name))
     note = RESULT_TRUNCATED.format(limit=MAX_TOOL_RESULT_CHARS)
     return ToolResult(result.tool_call_id, result.name, result.content[:MAX_TOOL_RESULT_CHARS] + note)
 
@@ -134,10 +138,11 @@ def execute_tool_call(
     call: ToolCall,
     ledger: Optional[OperationLedger] = None,
     has_plan: Optional[HasPlan] = None,
+    spill: Optional[OutputSpill] = None,
 ) -> ToolResult:
     """Run one call and record it in `ledger` (None: no record); a call id that already ran is not rerun."""
     if ledger is None:
-        return cap_result(run_registered(registry, call)[0])
+        return cap_result(run_registered(registry, call)[0], spill)
     previous = ledger.finished(call.id)
     if previous is not None:
         return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
@@ -158,7 +163,7 @@ def execute_tool_call(
         # Close the record so the ledger never shows an interrupted call as still running or approved.
         ledger.finish(record, INTERRUPTED_RESULT, failed=True)
         raise
-    result = cap_result(result)
+    result = cap_result(result, spill)
     ledger.finish(record, result.content, failed)
     streak = failing_command_streak(ledger) if call.name == COMMAND_TOOL else 0
     if streak >= FAILING_STREAK_LIMIT:
@@ -188,6 +193,7 @@ def build_tool_round_messages(
     calls: list[ToolCall],
     ledger: Optional[OperationLedger] = None,
     has_plan: Optional[HasPlan] = None,
+    spill: Optional[OutputSpill] = None,
 ) -> list[dict[str, Any]]:
     """Messages to append after a tool-calling turn: the turn itself, then each result in call order.
 
@@ -197,11 +203,11 @@ def build_tool_round_messages(
     parallel = [i for i, call in enumerate(calls) if runs_in_parallel(call)]
     if len(parallel) > 1:
         with ThreadPoolExecutor(max_workers=min(len(parallel), MAX_PARALLEL_CALLS)) as pool:
-            futures = {i: pool.submit(execute_tool_call, registry, calls[i], ledger) for i in parallel}
+            futures = {i: pool.submit(execute_tool_call, registry, calls[i], ledger, None, spill) for i in parallel}
             results = {i: future.result() for i, future in futures.items()}
     for i, call in enumerate(calls):
         if i not in results:
-            results[i] = execute_tool_call(registry, call, ledger, has_plan)
+            results[i] = execute_tool_call(registry, call, ledger, has_plan, spill)
     return [assistant_tool_call_message(content, calls)] + [
         make_tool_result_message(results[i]) for i in range(len(calls))
     ]

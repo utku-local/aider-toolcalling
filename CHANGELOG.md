@@ -9,6 +9,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - Plan approval: the first plan the agent writes with `todo_write` in a request is shown to the user for approval. A rejected plan is cleared and the model gets the user's note; until it writes a new plan, the plan-first check refuses file changes. `--yes-always` runs approve automatically; `"plan_approval": false` in `.aider-agent.json` turns it off.
 - `ask_user` tool: the agent asks one question, optionally with up to six numbered choices, and continues with the answer; an unattended run tells it to decide and state its assumption.
+- Read before edit: `edit_file`, `multi_edit` and `write_file` refuse to change an existing file the agent has not read in this session, or that changed on disk since it read it (another tool, an editor, the user). New files need no read, and the agent's own writes keep the record current.
+- Long output is kept whole: a command or tool result over the limit is saved to `.aider-agent/outputs/` (git-ignored by its own `.gitignore`) and the model gets the first 4,000 and last 16,000 characters with the path, instead of a cut-off tail.
 
 ## [0.6.2] - 2026-10-29
 

@@ -18,6 +18,7 @@ MAX_OUTPUT_CHARS = 20_000
 OUTPUT_TRUNCATED = "[output truncated; showing the last part]\n"
 NO_OUTPUT = "(no output)"
 POLICY_REFUSAL = "Refused by the command policy: "
+SPILL_LABEL = "command"
 AUTHORIZED = ""
 
 RUN_PARAMETERS = {
@@ -88,7 +89,9 @@ def run_command(ctx: ToolContext, command: str, timeout_seconds: int = DEFAULT_T
         partial = as_text(err.stdout) + as_text(err.stderr)
         return f"Command timed out after {timeout} seconds.\n{output_tail(partial)}"
     combined = (completed.stdout or "") + (completed.stderr or "")
-    result = f"Exit code: {completed.returncode}\n{output_tail(combined)}"
+    shown = ctx.spill.shorten(combined, SPILL_LABEL) if ctx.spill and len(combined) > MAX_OUTPUT_CHARS \
+        else output_tail(combined)
+    result = f"Exit code: {completed.returncode}\n{shown}"
     hint = command_hint(combined, ctx.sandboxed) if completed.returncode else ""
     return f"{result}\n{hint}" if hint else result
 

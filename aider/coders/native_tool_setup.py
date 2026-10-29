@@ -10,6 +10,8 @@ from typing import Any
 from aider.io import ConfirmGroup
 from aider.native_command_policy import PolicyDecision, decide
 from aider.native_sandbox import sandbox_available, sandboxed_argv, shell_argv
+from aider.native_file_state import FileState
+from aider.native_output_spill import OutputSpill
 from aider.native_snapshots import SnapshotStore
 from aider.native_tools_ask import register_ask_tool
 from aider.native_todo import TodoList, register_todo_tool
@@ -133,6 +135,8 @@ def make_tool_context(coder: Any) -> ToolContext:
         todos=coder.native_todos,
         wrap_command=lambda command: wrap_command(coder, root, command),
         sandboxed=coder.native_sandboxed,
+        file_state=coder.native_file_state,
+        spill=coder.native_spill,
     )
 
 
@@ -159,6 +163,8 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     coder.native_agent_config = load_agent_config(coder.root, coder.io)
     coder.native_sandboxed = use_sandbox(coder)
     coder.native_processes = ProcessManager()
+    coder.native_file_state = FileState()
+    coder.native_spill = OutputSpill(Path(coder.root).resolve())
     ctx = make_tool_context(coder)
     registry = read_only_registry(ctx)
     if include_actions:

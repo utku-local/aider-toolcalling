@@ -108,6 +108,7 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     round_messages = build_tool_round_messages(
         coder.native_tools, visible_content(message), calls, coder.native_ledger,
         has_plan=lambda: bool(coder.native_todos.items),
+        spill=getattr(coder, "native_spill", None),
     )
     show_results(coder, round_messages)
     append_operation_log(coder, coder.native_ledger.records[logged:])
