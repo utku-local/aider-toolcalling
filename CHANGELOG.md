@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-30
+
 ### Added
 
 - `AIDER_AGENT_SEARCH_URL` sets the `web_search` service for every project without its own `network.search_url`; `scripts/searxng_server.sh` installs and runs a private SearXNG on 127.0.0.1:8888 (install, start, stop, enable at login).
