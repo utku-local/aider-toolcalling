@@ -54,6 +54,12 @@ class PlanGateTest(unittest.TestCase):
         self.assertFalse(needs_plan(ledger, "edit_file", has_plan=True))
         self.assertFalse(needs_plan(ledger, "read_file", has_plan=False))
 
+    def test_no_plan_is_asked_after_the_first_change(self) -> None:
+        ledger = explored_ledger(1)
+        record(ledger, "edit_file", "Edited")
+        record(ledger, "run_command", "Exit code: 1")
+        self.assertFalse(needs_plan(ledger, "write_file", has_plan=False))
+
     def test_plan_first_is_asked_once_per_request(self) -> None:
         registry = NativeToolRegistry()
         registry.register("edit_file", "Edit", {"type": "object", "properties": {}}, lambda: "Edited")

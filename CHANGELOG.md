@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- The plan-first check applies only before the request's first file change; after a change it had added rounds (a model writing a verification script late in a task was stopped to write a plan).
+
 ### Added
 
 - Plan approval: the first plan the agent writes with `todo_write` in a request is shown to the user for approval. A rejected plan is cleared and the model gets the user's note; until it writes a new plan, the plan-first check refuses file changes. `--yes-always` runs approve automatically; `"plan_approval": false` in `.aider-agent.json` turns it off.
