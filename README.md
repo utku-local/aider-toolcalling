@@ -81,6 +81,15 @@ Command rules live in `.aider-agent.json` in the project root:
 (`"http://127.0.0.1:8888/search?q={query}&format=json"`) for `web_search`, and `"search": true` stops each search
 from asking. `"plan_approval": false` turns off the plan approval prompt.
 
+`"hooks"` runs your commands around tool calls: `{"before_tool": [{"tools": "edit_file|write_file", "command":
+"./check.sh"}], "after_tool": [...]}`. A before hook that exits non-zero blocks the call and its output is the
+reason; an after hook's output is added to the result. The hooks are shown once per session and run only if you
+say yes; `--yes-always` runs never run them. Each gets `AIDER_TOOL`, `AIDER_TOOL_ARGS` and (after)
+`AIDER_TOOL_RESULT` in its environment.
+
+The agent can `remember` project facts in `.aider-agent/memory.md`, read at the start of later sessions, and load
+skills: Markdown files in `.aider-agent/skills/` or `~/.aider-agent/skills/` whose first line describes them.
+
 `"sandbox": true` runs commands under macOS `sandbox-exec`: writes only inside the project and temp directories, and
 network only to localhost (services you run, such as a database, stay reachable; the internet is blocked). The agent
 is told this in its system prompt, and a refused connection or a sandbox denial in command output gets a note naming

@@ -67,7 +67,7 @@ class OutputSpillTest(unittest.TestCase):
             self.assertTrue(shown.startswith("head"))
             self.assertTrue(shown.endswith("tail error"))
             self.assertIn(str(OUTPUT_DIR / "command-1.txt"), shown)
-            self.assertEqual((Path(tmp) / ".aider-agent" / ".gitignore").read_text(), "*\n")
+            self.assertEqual((Path(tmp) / OUTPUT_DIR / ".gitignore").read_text(), "*\n")
 
     def test_preview_is_short(self) -> None:
         self.assertLess(len(preview("a" * 100_000, "out.txt")), 21_000)

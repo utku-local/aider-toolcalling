@@ -8,6 +8,7 @@ from typing import Any, Iterator
 
 from aider.io import ConfirmGroup
 from aider.native_environment import environment_note
+from aider.native_memory_skills import skills_listing
 from aider.native_toolcalling import NativeToolRegistry
 
 from .agent_prompts import AgentPrompts
@@ -39,7 +40,8 @@ class AgentCoder(Coder):
 
     def fmt_system_prompt(self, prompt: str) -> str:
         """The mode's prompt plus where commands run, so connection and permission errors are not read as bugs."""
-        return super().fmt_system_prompt(prompt) + environment_note(getattr(self, "native_sandboxed", False))
+        base = super().fmt_system_prompt(prompt) + environment_note(getattr(self, "native_sandboxed", False))
+        return base + skills_listing(getattr(self, "native_skills", {}))
 
     def build_native_tools(self) -> NativeToolRegistry:
         return build_native_tools(self, include_actions=True)

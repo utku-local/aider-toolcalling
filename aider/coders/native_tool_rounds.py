@@ -16,6 +16,7 @@ from aider.native_tool_loop import (
     build_tool_round_messages,
     drop_orphan_tool_messages,
 )
+from aider.native_loop_options import LoopOptions
 from aider.native_task_gates import completion_nudge
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_tool_summary import summarize_result
@@ -109,8 +110,8 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     logged = len(coder.native_ledger.records)
     round_messages = build_tool_round_messages(
         coder.native_tools, visible_content(message), calls, coder.native_ledger,
-        has_plan=lambda: bool(coder.native_todos.items),
-        spill=getattr(coder, "native_spill", None),
+        LoopOptions(has_plan=lambda: bool(coder.native_todos.items), spill=getattr(coder, "native_spill", None),
+                    hooks=getattr(coder, "native_hooks", None)),
     )
     show_results(coder, round_messages)
     append_operation_log(coder, coder.native_ledger.records[logged:])

@@ -6,15 +6,18 @@ Instruction files such as AGENTS.md are found here too, so the AgentCoder can ad
 
 import dataclasses
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from aider.native_hooks import HookRule
 from aider.native_web_policy import WebPolicy
 from aider.native_command_policy import CommandRule, CommandRules
 
 CONFIG_FILE_NAME = ".aider-agent.json"
-INSTRUCTION_FILE_NAMES = ("AGENTS.md", "CLAUDE.md")
+# The agent's own notes from earlier sessions (native_memory_skills.MEMORY_FILE) are read like instructions.
+INSTRUCTION_FILE_NAMES = ("AGENTS.md", "CLAUDE.md", ".aider-agent/memory.md")
 MAX_INSTRUCTION_BYTES = 50_000
 CONFIG_ENCODING = "utf-8"
 
@@ -38,6 +41,8 @@ class AgentConfig:
     mcp_servers: tuple[MCPServerConfig, ...] = ()
     plan_approval: bool = True
     web: WebPolicy = WebPolicy()
+    before_hooks: tuple[HookRule, ...] = ()
+    after_hooks: tuple[HookRule, ...] = ()
 
 
 class AgentConfigError(ValueError):
@@ -81,6 +86,28 @@ def parse_web(raw: Any) -> WebPolicy:
     return WebPolicy(tuple(domains), search, search_url)
 
 
+def parse_hook_rules(raw: Any, section: str) -> tuple[HookRule, ...]:
+    if not isinstance(raw, list):
+        raise AgentConfigError(f'"hooks.{section}" must be a list')
+    rules = []
+    for item in raw:
+        if not isinstance(item, dict) or not isinstance(item.get("tools"), str) or not isinstance(item.get("command"), str):
+            raise AgentConfigError(f'each "hooks.{section}" entry needs "tools" and "command" strings')
+        try:
+            re.compile(item["tools"])
+        except re.error as err:
+            raise AgentConfigError(f'"hooks.{section}" tools pattern {item["tools"]!r}: {err}') from err
+        rules.append(HookRule(item["tools"], item["command"]))
+    return tuple(rules)
+
+
+def parse_hooks(raw: Any) -> tuple[tuple[HookRule, ...], tuple[HookRule, ...]]:
+    """The "hooks" section: {"before_tool": [{"tools": regex, "command": shell}], "after_tool": [...]}."""
+    if not isinstance(raw, dict):
+        raise AgentConfigError('"hooks" must be an object')
+    return parse_hook_rules(raw.get("before_tool", []), "before_tool"), parse_hook_rules(raw.get("after_tool", []), "after_tool")
+
+
 def parse_config(data: Any) -> AgentConfig:
     if not isinstance(data, dict):
         raise AgentConfigError("the file must contain a JSON object")
@@ -101,7 +128,7 @@ def parse_config(data: Any) -> AgentConfig:
     if not isinstance(plan_approval, bool):
         raise AgentConfigError('"plan_approval" must be true or false')
     return AgentConfig(rules, sandbox, tuple(parse_mcp_server(name, raw) for name, raw in servers.items()),
-                       plan_approval, parse_web(data.get("network", {})))
+                       plan_approval, parse_web(data.get("network", {})), *parse_hooks(data.get("hooks", {})))
 
 
 def load_agent_config(root: str, io: Any) -> AgentConfig:

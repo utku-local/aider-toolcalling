@@ -1,5 +1,5 @@
 """Keeps long tool output whole: the full text goes to a file in the project and the model gets a preview and path.
-The file lives in .aider-agent/outputs/, which carries its own .gitignore so nothing there is committed; the model
+The file lives in .aider-agent/outputs/, which carries its own .gitignore so none of it is committed; the model
 can read any part of it with read_file and a line range.
 The preview keeps the start and the end, because errors and summaries usually sit at the end of command output.
 """
@@ -33,7 +33,7 @@ class OutputSpill:
     def save(self, text: str, label: str) -> str:
         folder = self.root / OUTPUT_DIR
         folder.mkdir(parents=True, exist_ok=True)
-        ignore = folder.parent / ".gitignore"
+        ignore = folder / ".gitignore"
         if not ignore.exists():
             ignore.write_text(IGNORE_ALL, encoding=ENCODING)
         self.count += 1
