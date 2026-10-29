@@ -117,6 +117,7 @@ class SendBackFlowTest(unittest.TestCase):
         )
         fix = {"path": "calc.py", "old_string": "a - b", "new_string": "a + b"}
         scripted = ScriptedModel([
+            make_completion(tool_calls=tool_call("r0", "read_file", {"path": "calc.py"})),
             make_completion(tool_calls=tool_call("e1", "edit_file", fix)),
             make_completion("Fixed it."),
             make_completion(FINAL_TEXT),
@@ -126,5 +127,5 @@ class SendBackFlowTest(unittest.TestCase):
 
         nudges = [m for m in scripted.requests[-1]["messages"] if VERIFY_HEADING in str(m.get("content"))]
         self.assertEqual(len(nudges), 1)
-        self.assertEqual(len(scripted.requests), 3)
+        self.assertEqual(len(scripted.requests), 4)
         self.assertEqual(coder.partial_response_content, FINAL_TEXT)

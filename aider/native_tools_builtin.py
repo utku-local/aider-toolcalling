@@ -111,7 +111,10 @@ def guarded_read(
         ToolPermission.SENSITIVE, f"Read {path}? It may contain secrets.", path
     ):
         return DENIED_ACTION
-    return read_file(ctx.root, path, start_line, end_line)
+    text = read_file(ctx.root, path, start_line, end_line)
+    if ctx.file_state is not None:
+        ctx.file_state.record(resolve_in_root(ctx.root, path))
+    return text
 
 
 def register_read_tools(registry: NativeToolRegistry, ctx: ToolContext) -> None:

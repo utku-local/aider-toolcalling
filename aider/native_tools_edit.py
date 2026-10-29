@@ -85,6 +85,12 @@ def replace_text(text: str, old: str, new: str, replace_all: bool) -> tuple[str,
     return replace_spans(text, spans, new), count
 
 
+def check_fresh(ctx: ToolContext, target: Path, rel_path: str) -> None:
+    """Refuse an edit of an existing file the agent has not read, or that changed on disk since it read it."""
+    if ctx.file_state is not None:
+        ctx.file_state.check_before_change(target, rel_path)
+
+
 def apply_change(ctx: ToolContext, target: Path, rel_path: str, before: str, after: str) -> bool:
     """Ask for approval with a diff, then write; False when the user declines."""
     if not ctx.approve(ToolPermission.WRITE, f"Edit {rel_path}?", make_diff(rel_path, before, after)):
@@ -94,6 +100,8 @@ def apply_change(ctx: ToolContext, target: Path, rel_path: str, before: str, aft
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(after, encoding=FILE_ENCODING)
         ctx.on_edit(str(target))
+        if ctx.file_state is not None:
+            ctx.file_state.record(target)
     return True
 
 
@@ -103,6 +111,7 @@ def edit_file(
     target = resolve_in_root(ctx.root, path)
     if not target.is_file():
         raise EditError(f"Not a file: {path!r}; use write_file to create it")
+    check_fresh(ctx, target, path)
     before = target.read_text(encoding=FILE_ENCODING)
     after, count = replace_text(before, old_string, new_string, replace_all)
     if not apply_change(ctx, target, path, before, after):
@@ -116,6 +125,7 @@ def write_file(ctx: ToolContext, path: str, content: str) -> str:
     if target.is_dir():
         raise EditError(f"Is a directory: {path!r}")
     existed = target.exists()
+    check_fresh(ctx, target, path)
     before = target.read_text(encoding=FILE_ENCODING) if existed else ""
     if not apply_change(ctx, target, path, before, content):
         return DENIED_CHANGE
@@ -144,6 +154,7 @@ def multi_edit(ctx: ToolContext, path: str, edits: list[Any]) -> str:
     target = resolve_in_root(ctx.root, path)
     if not target.is_file():
         raise EditError(f"Not a file: {path!r}; use write_file to create it")
+    check_fresh(ctx, target, path)
     before = target.read_text(encoding=FILE_ENCODING)
     after, count = apply_edits(before, edits)
     if not apply_change(ctx, target, path, before, after):

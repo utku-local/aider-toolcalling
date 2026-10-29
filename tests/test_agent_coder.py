@@ -63,6 +63,7 @@ class AgentCoderTest(unittest.TestCase):
         fix = {"path": "calc.py", "old_string": "a - b", "new_string": "a + b"}
         scripted = ScriptedModel(
             [
+                make_completion(tool_calls=tool_call("r0", "read_file", {"path": "calc.py"})),
                 make_completion(tool_calls=tool_call("e1", "edit_file", fix)),
                 make_completion(tool_calls=tool_call("r1", "run_command", {"command": "touch ran"})),
                 make_completion(FINAL_TEXT),
