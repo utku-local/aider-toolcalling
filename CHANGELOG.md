@@ -5,6 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-29
+
+### Fixed
+
+- Integer tool parameters (line numbers, timeouts, row counts) are sent to the model as numbers described as whole numbers, and values like `120.0` are turned back into integers before validation. mlx_lm's `qwen3_coder` tool parser silently dropped any call whose "integer" value read `120.0`, so Qwen3-Coder-Next appeared to announce a step and then stop.
+- An identical `todo_write` repeated in one request is refused like other repeated calls; Qwen3-Coder-Next had sent the same plan 98 times.
+
 ## [0.6.0] - 2026-10-29
 
 ### Added
