@@ -16,6 +16,7 @@ from aider.native_tool_loop import (
     build_tool_round_messages,
     drop_orphan_tool_messages,
 )
+from aider.native_task_gates import completion_nudge
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_tool_summary import summarize_result
 from aider.native_working_state import render_working_state
@@ -105,7 +106,8 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
         coder.io.tool_output(f"Running tool: {describe_call(call)}")
     logged = len(coder.native_ledger.records)
     round_messages = build_tool_round_messages(
-        coder.native_tools, visible_content(message), calls, coder.native_ledger
+        coder.native_tools, visible_content(message), calls, coder.native_ledger,
+        has_plan=lambda: bool(coder.native_todos.items),
     )
     show_results(coder, round_messages)
     append_operation_log(coder, coder.native_ledger.records[logged:])
@@ -114,6 +116,30 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     coder.cur_messages += round_messages
     coder.calculate_and_show_tokens_and_cost(messages, None if coder.stream else completion)
     return len(calls)
+
+
+def finish_nudge(coder: Any) -> str:
+    """The once-per-request reminder to verify or finish open tasks; empty when the answer may stand."""
+    ledger = coder.native_ledger
+    if getattr(coder, "native_nudged_request", None) == ledger.request:
+        return ""
+    open_tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
+    nudge = completion_nudge(ledger, open_tasks)
+    if nudge:
+        coder.native_nudged_request = ledger.request
+    return nudge
+
+
+def send_back(coder: Any, messages: list[dict[str, Any]], completion: Any, nudge: str) -> None:
+    """Keep the model's answer in the conversation and ask it to close the gaps before finishing."""
+    start_new_display(coder)
+    coder.io.tool_output(f"Sending the answer back: {nudge.splitlines()[1]}")
+    exchange = [
+        {"role": "assistant", "content": visible_content(current_message(coder, completion))},
+        {"role": "user", "content": nudge},
+    ]
+    messages.extend(exchange)
+    coder.cur_messages += exchange
 
 
 def report(coder: Any, rounds: int, calls: int, started: float) -> None:
@@ -147,8 +173,11 @@ def run_native_tool_rounds(
     while True:
         executed = run_tool_round(coder, messages, completion)
         if not executed:
-            report(coder, rounds, calls, started)
-            return completion
+            nudge = finish_nudge(coder)
+            if not nudge:
+                report(coder, rounds, calls, started)
+                return completion
+            send_back(coder, messages, completion, nudge)
         rounds, calls = rounds + 1, calls + executed
         if coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER) >= MAX_REPEAT_REFUSALS:
             coder.io.tool_warning("The model keeps repeating identical tool calls; asking it to answer now.")

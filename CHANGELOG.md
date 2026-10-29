@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Plan first: when the agent tries to change a file after exploring (three or more tool calls in the request) without a task list, the change is refused once and it is asked to write a plan with `todo_write`, ending with how it will verify the result. A direct one- or two-step fix is not affected.
+- Verify before finishing: when the agent answers after changing files and no command has passed since its last change, or its task list still has open items, the answer is sent back once with what is missing. In a trial session the agent had called an untested project "ready to use".
+- The system prompt asks the agent to learn how a project runs (entry points, dependencies, services, tests) before planning, and never to call something working until a command shows it.
+
 ## [0.5.5] - 2026-10-29
 
 ### Changed
