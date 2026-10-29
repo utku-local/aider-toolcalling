@@ -4,21 +4,32 @@ and sandbox denials, the localhost rules in the sandbox profile, and the note af
 A sandbox test on macOS checks that localhost is reachable while writes outside the project stay blocked.
 """
 
+import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
+from test_coder_native_tools import MODEL_NAME
+
+from aider.coders import Coder
+from aider.io import InputOutput
+from aider.models import Model
 from aider.native_environment import (
     REFUSED_HINT,
     SANDBOX_HINT,
+    UNSANDBOXED_NOTE,
     command_hint,
     environment_note,
 )
 from aider.native_sandbox import sandbox_available, sandbox_profile, sandboxed_argv
 from aider.native_tool_calls import ToolCall
 from aider.native_tool_ledger import OperationLedger, OperationStatus
-from aider.native_tool_loop import FAILING_STREAK_LIMIT, REPEAT_REFUSAL_MARKER, build_tool_round_messages
+from aider.native_tool_loop import (
+    FAILING_STREAK_LIMIT,
+    REPEAT_REFUSAL_MARKER,
+    build_tool_round_messages,
+)
 from aider.native_toolcalling import NativeToolRegistry
 
 STREAK_MARKER = "commands all failed"
@@ -33,6 +44,20 @@ class EnvironmentNoteTest(unittest.TestCase):
 
     def test_unsandboxed_note_says_so(self) -> None:
         self.assertIn("without a sandbox", environment_note(False))
+
+    def test_note_is_in_the_main_prompt_once_and_not_in_the_reminder(self) -> None:
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as root:
+            os.chdir(root)
+            try:
+                coder = Coder.create(main_model=Model(MODEL_NAME), edit_format="agent",
+                                     io=InputOutput(yes=True, pretty=False), fnames=[], use_git=False, map_tokens=0)
+                prompt = coder.fmt_system_prompt(coder.gpt_prompts.main_system)
+                reminder = coder.fmt_system_prompt(coder.gpt_prompts.system_reminder)
+            finally:
+                os.chdir(cwd)
+        self.assertEqual(prompt.count(UNSANDBOXED_NOTE), 1)
+        self.assertNotIn(UNSANDBOXED_NOTE, reminder)
 
 
 class CommandHintTest(unittest.TestCase):

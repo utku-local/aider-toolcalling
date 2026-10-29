@@ -19,25 +19,24 @@ DRY_RUN_NOTE = " (dry run: nothing was written)"
 EDIT_PARAMETERS = {
     "type": "object",
     "properties": {
-        "path": {"type": "string", "description": "File path relative to the project root."},
+        "path": {"type": "string"},
         "old_string": {
             "type": "string",
-            "description": "Exact text to replace, including indentation. Must occur exactly once "
-            "unless replace_all is true.",
+            "description": "Exact text, with indentation; must occur once unless replace_all.",
         },
-        "new_string": {"type": "string", "description": "Replacement text."},
-        "replace_all": {"type": "boolean", "description": "Replace every occurrence."},
+        "new_string": {"type": "string"},
+        "replace_all": {"type": "boolean"},
     },
     "required": ["path", "old_string", "new_string"],
 }
 MULTI_EDIT_PARAMETERS = {
     "type": "object",
     "properties": {
-        "path": {"type": "string", "description": "File path relative to the project root."},
+        "path": {"type": "string"},
         "edits": {
             "type": "array",
-            "description": 'List of {"old_string": ..., "new_string": ..., "replace_all": false} applied in order; '
-            "each old_string must match the text as left by the previous edits.",
+            "description": '[{"old_string", "new_string", "replace_all"?}], applied in order to the text left by '
+            "the previous edit.",
         },
     },
     "required": ["path", "edits"],
@@ -45,8 +44,8 @@ MULTI_EDIT_PARAMETERS = {
 WRITE_PARAMETERS = {
     "type": "object",
     "properties": {
-        "path": {"type": "string", "description": "File path relative to the project root."},
-        "content": {"type": "string", "description": "Complete new content of the file."},
+        "path": {"type": "string"},
+        "content": {"type": "string"},
     },
     "required": ["path", "content"],
 }
@@ -175,14 +174,13 @@ def register_edit_tools(registry: NativeToolRegistry, ctx: ToolContext) -> None:
     )
     registry.register(
         "multi_edit",
-        "Make several exact replacements in one file at once, applied in order; all succeed or none is applied. "
-        "Prefer it over several edit_file calls on the same file.",
+        "Several exact replacements in one file; all apply or none. Prefer it to repeated edit_file calls.",
         MULTI_EDIT_PARAMETERS,
         lambda path, edits: multi_edit(ctx, path, edits),
     )
     registry.register(
         "write_file",
-        "Create a new file or overwrite an existing one with the given content.",
+        "Create or overwrite a file.",
         WRITE_PARAMETERS,
         lambda path, content: write_file(ctx, path, content),
     )

@@ -88,8 +88,7 @@ def register_fetch_tool(registry: NativeToolRegistry, ctx: ToolContext) -> None:
     """Add fetch_url, bound to `ctx`, to `registry`."""
     registry.register(
         "fetch_url",
-        "Fetch a web page (documentation, an issue, an API reference) as text. The user approves each fetch "
-        "unless its host is on the project's allow list.",
+        "Fetch a web page as text; hosts not on the project's allow list need approval.",
         FETCH_PARAMETERS,
         lambda url: fetch_url(ctx, url),
     )

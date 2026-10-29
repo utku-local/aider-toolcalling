@@ -24,7 +24,7 @@ NOT_SET_UP = (
 SEARCH_PARAMETERS = {
     "type": "object",
     "properties": {
-        "query": {"type": "string", "description": "What to search for."},
+        "query": {"type": "string"},
         "max_results": {"type": "integer", "description": f"Results to return (default {DEFAULT_RESULTS})."},
     },
     "required": ["query"],
@@ -67,8 +67,7 @@ def web_search(ctx: ToolContext, query: str, max_results: int = DEFAULT_RESULTS)
 def register_search_web_tool(registry: NativeToolRegistry, ctx: ToolContext) -> None:
     registry.register(
         "web_search",
-        "Search the web for documentation, error messages or package information; returns titles, URLs and "
-        "snippets. Fetch a result with fetch_url to read it.",
+        "Search the web; returns titles, URLs and snippets. Read a result with fetch_url.",
         SEARCH_PARAMETERS,
         lambda query, max_results=DEFAULT_RESULTS: web_search(ctx, query, max_results),
     )

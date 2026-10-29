@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- Shorter agent system prompt and tool descriptions: the fixed part of every request drops from about 3,560 to 2,610 tokens (v0.6.2 sent 2,850).
+
+### Fixed
+
+- The environment note and skill list were added to the system reminder as well, so they reached the model twice.
+
 ## [0.8.0] - 2026-10-30
 
 ### Added

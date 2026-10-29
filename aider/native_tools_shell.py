@@ -24,7 +24,7 @@ AUTHORIZED = ""
 RUN_PARAMETERS = {
     "type": "object",
     "properties": {
-        "command": {"type": "string", "description": "Shell command to run in the project root."},
+        "command": {"type": "string"},
         "timeout_seconds": {
             "type": "integer",
             "description": f"Seconds before the command is stopped (default {DEFAULT_TIMEOUT_SECONDS}, "
@@ -100,9 +100,7 @@ def register_shell_tools(registry: NativeToolRegistry, ctx: ToolContext) -> None
     """Add run_command, bound to `ctx`, to `registry`."""
     registry.register(
         "run_command",
-        "Run a shell command (tests, linters, git status, builds) in the project root. "
-        "Output (stdout and stderr) is captured and trimmed to its end, so do not add pipes or redirections. "
-        "Commands are checked by a policy; compound ones always need the user's approval.",
+        "Run a shell command in the project root; stdout and stderr are captured, so add no pipes or redirections.",
         RUN_PARAMETERS,
         lambda command, timeout_seconds=DEFAULT_TIMEOUT_SECONDS: run_command(
             ctx, command, timeout_seconds

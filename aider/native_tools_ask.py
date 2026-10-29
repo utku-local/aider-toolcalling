@@ -17,7 +17,7 @@ NO_USER = (
 ASK_PARAMETERS = {
     "type": "object",
     "properties": {
-        "question": {"type": "string", "description": "One clear question for the user."},
+        "question": {"type": "string"},
         "options": {
             "type": "array",
             "description": f"Up to {MAX_CHOICES} short choices; omit for a free-text answer.",
@@ -55,8 +55,7 @@ def ask_user(answer: Answer, question: str, options: Optional[list] = None) -> s
 def register_ask_tool(registry: NativeToolRegistry, answer: Answer) -> None:
     registry.register(
         "ask_user",
-        "Ask the user one question when you need a decision only they can make (a missing requirement, a choice "
-        "between approaches). Prefer acting when the task is clear.",
+        "Ask the user one question, only for a decision only they can make.",
         ASK_PARAMETERS,
         lambda question, options=None: ask_user(answer, question, options),
     )
