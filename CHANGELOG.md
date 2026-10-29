@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Behaviour scenarios for the agent (`evals/scenarios.py`, `evals/scenario_scoring.py`, `python -m evals.run_scenarios`): planning, re-testing after a failure and a stopped service, scored separately on order, error handling, task success, time and tokens. `python -m evals.compare_models` turns eval results and scenario folders into comparison tables. Declined test commands do not count as tests run, and the service scenario accepts starting the server as well as telling the user.
+- `docs/MODEL_COMPARISON.md`: the 27B versus Qwen3-Coder-Next measurements and the decision to keep the 27B as the agent model, with a section for the 32 GB M4 Air (27B 4-bit only).
+- `scripts/coder_next_server.sh start|stop|status`: runs Qwen3-Coder-Next on 8084 by hand on the 64 GB Mac, stopping 8080 and 8083 while it runs.
+
 ### Fixed
 
 - Starting or stopping a background process (`start_background`, `stop_background`) resets the repeat count, like a file change. In a trial the model started a stopped server and was then refused re-running the client that had failed against it.
