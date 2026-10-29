@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-29
+
 ### Added
 
 - Behaviour scenarios for the agent (`evals/scenarios.py`, `evals/scenario_scoring.py`, `python -m evals.run_scenarios`): planning, re-testing after a failure and a stopped service, scored separately on order, error handling, task success, time and tokens. `python -m evals.compare_models` turns eval results and scenario folders into comparison tables. Declined test commands do not count as tests run, and the service scenario accepts starting the server as well as telling the user.
