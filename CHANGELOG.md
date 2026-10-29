@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-10-29
+
 ### Changed
 
 - The sandbox allows network connections to localhost (and local servers started by a command); the internet stays blocked. Before, every TCP connection was denied, so tests could not reach a database or download daemon the user runs.
