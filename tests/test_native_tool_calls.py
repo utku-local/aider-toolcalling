@@ -14,7 +14,9 @@ from aider.native_tool_calls import (
     normalize_tool_calls,
     visible_content,
 )
-from aider.native_tool_schema import validate_arguments
+from aider.native_tool_calls import ToolCall as Call
+from aider.native_tool_schema import coerce_integers, validate_arguments, wire_parameters
+from aider.native_toolcalling import NativeToolRegistry
 
 
 def obj_call(call_id: object, name: str, arguments: object) -> SimpleNamespace:
@@ -97,3 +99,25 @@ class ValidateArgumentsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+LINES = {"type": "object", "properties": {"start_line": {"type": "integer", "description": "First line."}}}
+
+
+class IntegerWireTest(unittest.TestCase):
+    def test_integers_are_sent_as_whole_numbers_without_changing_the_registered_schema(self) -> None:
+        wire = wire_parameters(LINES)
+        self.assertEqual(wire["properties"]["start_line"]["type"], "number")
+        self.assertIn("whole number", wire["properties"]["start_line"]["description"])
+        self.assertEqual(LINES["properties"]["start_line"]["type"], "integer")
+
+    def test_whole_number_floats_become_ints(self) -> None:
+        self.assertEqual(coerce_integers(LINES, {"start_line": 120.0}), {"start_line": 120})
+        self.assertEqual(coerce_integers(LINES, {"start_line": 1.5}), {"start_line": 1.5})
+        self.assertTrue(validate_arguments(LINES, coerce_integers(LINES, {"start_line": 1.5})))
+
+    def test_registry_runs_a_call_with_a_float_line_number(self) -> None:
+        registry = NativeToolRegistry()
+        registry.register("read_file", "Read", LINES, lambda start_line: f"{start_line!r}")
+        self.assertEqual(registry.schemas()[0]["function"]["parameters"]["properties"]["start_line"]["type"], "number")
+        self.assertEqual(registry.execute(Call("a", "read_file", '{"start_line": 120.0}')).content, "120")

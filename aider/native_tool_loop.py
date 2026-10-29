@@ -33,7 +33,8 @@ READ_FILE_TOOL = "read_file"
 MAX_PARALLEL_CALLS = 8
 REPEAT_HINT_TOOLS = frozenset({"read_file", "list_files", "find_files", "search_code", "find_symbol", "git"})
 # Measured: a local model ran the same passing test command 100 times without changing a file in between.
-REPEAT_GUARD_TOOLS = REPEAT_HINT_TOOLS | {"run_command"}
+# Measured: Qwen3-Coder-Next sent the same todo_write 98 times in one request.
+REPEAT_GUARD_TOOLS = REPEAT_HINT_TOOLS | {"run_command", "todo_write"}
 REPEAT_NOTE = (
     "Note: you already made this exact call in this request and got the same result; use it and move on "
     "to the next step instead of repeating it.\n"
