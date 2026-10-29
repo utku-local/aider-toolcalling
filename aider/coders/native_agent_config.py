@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from aider.native_web_policy import WebPolicy
 from aider.native_command_policy import CommandRule, CommandRules
 
 CONFIG_FILE_NAME = ".aider-agent.json"
@@ -36,6 +37,7 @@ class AgentConfig:
     sandbox: bool = False
     mcp_servers: tuple[MCPServerConfig, ...] = ()
     plan_approval: bool = True
+    web: WebPolicy = WebPolicy()
 
 
 class AgentConfigError(ValueError):
@@ -63,6 +65,22 @@ def parse_mcp_server(name: str, raw: Any) -> MCPServerConfig:
     return MCPServerConfig(name, (raw["command"], *args), tuple(sorted(env.items())), bool(raw.get("trusted")))
 
 
+def parse_web(raw: Any) -> WebPolicy:
+    """The "network" section: {"allow_domains": [...], "search": true|false, "search_url": "...{query}..."}."""
+    if not isinstance(raw, dict):
+        raise AgentConfigError('"network" must be an object')
+    domains = raw.get("allow_domains", [])
+    if not isinstance(domains, list) or not all(isinstance(d, str) and d.strip() for d in domains):
+        raise AgentConfigError('"network.allow_domains" must be a list of host names')
+    search = raw.get("search", False)
+    if not isinstance(search, bool):
+        raise AgentConfigError('"network.search" must be true or false')
+    search_url = raw.get("search_url", "")
+    if not isinstance(search_url, str) or (search_url and "{query}" not in search_url):
+        raise AgentConfigError('"network.search_url" must be a URL containing {query}')
+    return WebPolicy(tuple(domains), search, search_url)
+
+
 def parse_config(data: Any) -> AgentConfig:
     if not isinstance(data, dict):
         raise AgentConfigError("the file must contain a JSON object")
@@ -83,7 +101,7 @@ def parse_config(data: Any) -> AgentConfig:
     if not isinstance(plan_approval, bool):
         raise AgentConfigError('"plan_approval" must be true or false')
     return AgentConfig(rules, sandbox, tuple(parse_mcp_server(name, raw) for name, raw in servers.items()),
-                       plan_approval)
+                       plan_approval, parse_web(data.get("network", {})))
 
 
 def load_agent_config(root: str, io: Any) -> AgentConfig:

@@ -1,5 +1,6 @@
 """The fetch_url tool: downloads one http(s) page after NETWORK approval and returns it as plain text.
-Every fetch is asked, because a URL can carry project data out; --yes-always does not approve it.
+A fetch is asked unless its host is on the project's allow list, because a URL can carry project data out;
+--yes-always does not approve it.
 HTML is reduced to visible text (scripts and styles dropped), and size and time are capped.
 """
 
@@ -10,6 +11,7 @@ from urllib.parse import urlparse
 
 from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolError, NativeToolRegistry
+from aider.native_web_policy import url_allowed
 from aider.native_tools_shell import MAX_OUTPUT_CHARS
 
 ALLOWED_SCHEMES = frozenset({"http", "https"})
@@ -73,7 +75,7 @@ def download(url: str) -> tuple[int, str, str]:
 def fetch_url(ctx: ToolContext, url: str) -> str:
     if urlparse(url).scheme not in ALLOWED_SCHEMES or not urlparse(url).netloc:
         raise FetchError(f"Only http and https URLs can be fetched, not {url!r}")
-    if not ctx.approve(ToolPermission.NETWORK, "Fetch this URL?", url):
+    if not url_allowed(url, ctx.web) and not ctx.approve(ToolPermission.NETWORK, "Fetch this URL?", url):
         return DENIED_ACTION
     status, content_type, body = download(url)
     text = html_to_text(body) if HTML_TYPE in content_type else body
@@ -86,7 +88,8 @@ def register_fetch_tool(registry: NativeToolRegistry, ctx: ToolContext) -> None:
     """Add fetch_url, bound to `ctx`, to `registry`."""
     registry.register(
         "fetch_url",
-        "Fetch a web page (documentation, an issue, an API reference) as text. The user approves every fetch.",
+        "Fetch a web page (documentation, an issue, an API reference) as text. The user approves each fetch "
+        "unless its host is on the project's allow list.",
         FETCH_PARAMETERS,
         lambda url: fetch_url(ctx, url),
     )

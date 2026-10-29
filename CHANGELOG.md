@@ -12,6 +12,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Read before edit: `edit_file`, `multi_edit` and `write_file` refuse to change an existing file the agent has not read in this session, or that changed on disk since it read it (another tool, an editor, the user). New files need no read, and the agent's own writes keep the record current.
 - Long output is kept whole: a command or tool result over the limit is saved to `.aider-agent/outputs/` (git-ignored by its own `.gitignore`) and the model gets the first 4,000 and last 16,000 characters with the path, instead of a cut-off tail.
 - Model-written context summary: when a request's history passes ~48K tokens, the model writes a summary of the older tool rounds (goal, findings, changes, commands, what remains) that replaces them in the live request and in `cur_messages`; the last two rounds stay verbatim. The summary stays in place, so later requests extend it and the prefix cache stays warm. If the model cannot write one, the one-line compaction applies as before.
+- Web access settings: `"network": {"allow_domains": [...]}` in `.aider-agent.json` lets `fetch_url` read those hosts (exact or `*.domain`) without asking; other URLs still ask. The example config allows docs.python.org, pypi.org and *.readthedocs.io.
+- `web_search` tool: queries the search service named by `"network.search_url"` (SearXNG JSON format, for example a local SearXNG) and returns titles, URLs and snippets; each search asks unless `"network.search": true`. Without a service the tool tells the model search is not set up.
 
 ## [0.6.2] - 2026-10-29
 

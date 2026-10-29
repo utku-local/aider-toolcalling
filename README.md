@@ -76,6 +76,11 @@ Command rules live in `.aider-agent.json` in the project root:
               "deny": [{"program": "docker"}]}}
 ```
 
+`"network"` controls web access: `"allow_domains"` lists hosts (`"pypi.org"`, `"*.readthedocs.io"`) that
+`fetch_url` reads without asking, `"search_url"` names a search service in SearXNG's JSON format
+(`"http://127.0.0.1:8888/search?q={query}&format=json"`) for `web_search`, and `"search": true` stops each search
+from asking. `"plan_approval": false` turns off the plan approval prompt.
+
 `"sandbox": true` runs commands under macOS `sandbox-exec`: writes only inside the project and temp directories, and
 network only to localhost (services you run, such as a database, stay reachable; the internet is blocked). The agent
 is told this in its system prompt, and a refused connection or a sandbox denial in command output gets a note naming
