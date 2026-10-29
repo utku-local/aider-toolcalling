@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-29
+
 ### Added
 
 - Plan first: when the agent tries to change a file after exploring (three or more tool calls in the request) without a task list, the change is refused once and it is asked to write a plan with `todo_write`, ending with how it will verify the result. A direct one- or two-step fix is not affected.
