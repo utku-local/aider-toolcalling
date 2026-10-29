@@ -29,6 +29,10 @@ evaluation run, so always set one.
 
 Run at most one 27B server at a time on a 32 GB Mac, and do not start the optional 8081 server while 8083 is up.
 
+**M4 Air (32 GB): use only the 27B, 4-bit.** Do not install Qwen3-Coder-Next there (it needs ~44 GB); see
+`docs/MODEL_COMPARISON.md`. On the 64 GB Mac it is optional and started by hand with
+`scripts/coder_next_server.sh start` (`aider-agent --model coder`), which stops 8080 and 8083 while it runs.
+
 Measured on the hard evaluation set (10 tasks, 2 runs each, both served by `mlx_lm`): 6-bit and 4-bit both
 passed 20 of 20. Peak server memory was ~27 GB for 6-bit and ~21 GB for 4-bit, so 6-bit does not fit a 32 GB Mac.
 Time outside prompt processing was the same (776 s and 763 s); the 4-bit total was longer only because that freshly
