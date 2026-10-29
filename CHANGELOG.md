@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- `AIDER_AGENT_SEARCH_URL` sets the `web_search` service for every project without its own `network.search_url`; `scripts/searxng_server.sh` installs and runs a private SearXNG on 127.0.0.1:8888 (install, start, stop, enable at login).
 - OAuth sign-in for HTTP MCP servers (`"oauth": true` or `{client_id, scope, callback_port}`): discovery, dynamic client registration, browser sign-in with PKCE, tokens stored in `~/.aider-agent/mcp-oauth.json` and refreshed on expiry or a 401.
 - `/skill NAME [request]` runs the agent with a skill's instructions; `/skill` alone lists the skills.
 

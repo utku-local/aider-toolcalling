@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from aider.coders.native_agent_config import AgentConfigError, parse_config
+from aider.coders.native_agent_config import AgentConfigError, parse_config, with_default_search
 from aider.native_tool_context import DENIED_ACTION, ToolContext
 from aider.native_tools_fetch import fetch_url
 from aider.native_tools_websearch import NOT_SET_UP, SearchError, parse_results, web_search
@@ -78,3 +78,11 @@ class NetworkConfigTest(unittest.TestCase):
         self.assertEqual(parse_config({}).web, WebPolicy())
         with self.assertRaises(AgentConfigError):
             parse_config({"network": {"allow_domains": "pypi.org"}})
+
+    def test_default_search_url_fills_only_an_unset_one(self) -> None:
+        default = "http://127.0.0.1:8888/search?q={query}&format=json"
+        self.assertEqual(with_default_search(parse_config({}), default).web.search_url, default)
+        project = parse_config({"network": {"search_url": SEARCH_URL}})
+        self.assertEqual(with_default_search(project, default).web.search_url, SEARCH_URL)
+        self.assertEqual(with_default_search(parse_config({}), "http://x/search").web.search_url, "")
+        self.assertEqual(with_default_search(parse_config({}), "").web.search_url, "")

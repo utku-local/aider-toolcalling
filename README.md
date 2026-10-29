@@ -63,7 +63,7 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 | `ask_user` | `--agent` | none (asks you one question, with numbered choices; unattended runs get no answer) |
 | `research` | `--agent` | none (a read-only sub-conversation that returns only its answer) |
 | `task` | `--agent` | the sub-agent's edits and commands are approved as usual (a delegated job with every tool but `ask_user` and `task`; only its report returns) |
-| `web_search` | `--agent` | network: asked unless `"network": {"search": true}`; needs `"search_url"` |
+| `web_search` | `--agent` | network: asked unless `"network": {"search": true}`; needs `"search_url"` or `AIDER_AGENT_SEARCH_URL` |
 | `remember`, `use_skill` | `--agent` | none (`.aider-agent/memory.md`; skills from `.aider-agent/skills/` and `~/.aider-agent/skills/`) |
 | `run_command`, `start_background`, `read_background`, `stop_background` | `--agent` | command policy: refused, asked with risk labels, or allowed by a rule (trusted, or any rule inside the sandbox); `--yes-always` never approves a command |
 | `fetch_url` | `--agent` | asked for every URL; `--yes-always` never approves it |
@@ -81,8 +81,9 @@ Command rules live in `.aider-agent.json` in the project root:
 
 `"network"` controls web access: `"allow_domains"` lists hosts (`"pypi.org"`, `"*.readthedocs.io"`) that
 `fetch_url` reads without asking, `"search_url"` names a search service in SearXNG's JSON format
-(`"http://127.0.0.1:8888/search?q={query}&format=json"`) for `web_search`, and `"search": true` stops each search
-from asking. `"plan_approval": false` turns off the plan approval prompt.
+(`"http://127.0.0.1:8888/search?q={query}&format=json"`) for `web_search` (the `AIDER_AGENT_SEARCH_URL`
+environment variable sets it for every project; `scripts/searxng_server.sh` runs a local SearXNG, see
+[docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)), and `"search": true` stops each search from asking. `"plan_approval": false` turns off the plan approval prompt.
 
 `"hooks"` runs your commands around tool calls: `{"before_tool": [{"tools": "edit_file|write_file", "command":
 "./check.sh"}], "after_tool": [...]}`. A before hook that exits non-zero blocks the call and its output is the
