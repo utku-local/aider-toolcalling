@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `/skill NAME [request]` runs the agent with a skill's instructions; `/skill` alone lists the skills.
+
 ## [0.7.0] - 2026-10-29
 
 ### Fixed

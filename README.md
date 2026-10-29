@@ -92,6 +92,8 @@ say yes; `--yes-always` runs never run them. Each gets `AIDER_TOOL`, `AIDER_TOOL
 
 The agent can `remember` project facts in `.aider-agent/memory.md`, read at the start of later sessions, and load
 skills: Markdown files in `.aider-agent/skills/` or `~/.aider-agent/skills/` whose first line describes them.
+You can also start one yourself: `/skill` lists them, `/skill release 0.8.0` sends the `release` skill's
+instructions with `0.8.0` as the request.
 
 `"sandbox": true` runs commands under macOS `sandbox-exec`: writes only inside the project and temp directories, and
 network only to localhost (services you run, such as a database, stay reachable; the internet is blocked). The agent
