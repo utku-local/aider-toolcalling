@@ -7,6 +7,7 @@ import tempfile
 from collections import OrderedDict
 from os.path import expanduser
 from pathlib import Path
+from typing import Optional
 
 import pyperclip
 from PIL import Image, ImageGrab
@@ -19,6 +20,7 @@ from aider.format_settings import format_settings
 from aider.help import Help, install_help_extra
 from aider.io import CommandCompletionException
 from aider.llm import litellm
+from aider.native_memory_skills import MemorySkillError, skill_message
 from aider.native_undo import undo_agent_request
 from aider.repo import ANY_GIT_ERROR
 from aider.run_cmd import run_cmd
@@ -554,6 +556,21 @@ class Commands:
     def cmd_undo_agent(self, args: str) -> None:
         "Restore the files changed by the agent's tools in its most recent request"
         undo_agent_request(self.coder)
+
+    def cmd_skill(self, args: str) -> Optional[str]:
+        "Run the agent with a skill's instructions: /skill NAME [request]; /skill alone lists them"
+        try:
+            listing, message = skill_message(getattr(self.coder, "native_skills", {}), args)
+        except MemorySkillError as err:
+            self.io.tool_error(str(err))
+            return None
+        if listing:
+            self.io.tool_output(listing.rstrip())
+            return None
+        return message
+
+    def completions_skill(self) -> list[str]:
+        return sorted(getattr(self.coder, "native_skills", {}))
 
     def cmd_undo(self, args):
         "Undo the last git commit if it was done by aider"

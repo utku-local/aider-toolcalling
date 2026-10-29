@@ -1,15 +1,17 @@
 """MCP over Streamable HTTP: each JSON-RPC message is a POST to the server's URL.
 A reply is either a JSON body or a text/event-stream whose data lines carry JSON-RPC messages; the response with the
 request's id is taken. The session id the server returns on initialize is sent with every later request.
-Header values may name environment variables as ${NAME}, so API keys stay out of .aider-agent.json.
+Header values may name environment variables as ${NAME}, so API keys stay out of .aider-agent.json; an optional
+HttpAuth adds its own headers and, on a 401, gets one chance (refresh or browser sign-in) before the request is retried.
 """
 
 import json
 import os
 import re
+from abc import ABC, abstractmethod
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Optional
 
 from aider.native_mcp_client import (
     JSONRPC_VERSION,
@@ -27,6 +29,20 @@ JSON_TYPE = "application/json"
 EVENT_STREAM_TYPE = "text/event-stream"
 DATA_PREFIX = "data:"
 ENV_REFERENCE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+UNAUTHORIZED = 401
+CHALLENGE_HEADER = "WWW-Authenticate"
+
+
+class HttpAuth(ABC):
+    """Credentials an MCPHttpClient adds to its requests."""
+
+    @abstractmethod
+    def headers(self) -> dict[str, str]:
+        """Headers for the next request (for example a bearer token)."""
+
+    @abstractmethod
+    def unauthorized(self, challenge: str) -> None:
+        """React to a 401 with its WWW-Authenticate value; the request is retried once afterwards."""
 
 
 def expand_env(value: str, env: dict[str, str]) -> str:
@@ -55,14 +71,30 @@ def messages_in(body: str, content_type: str) -> list[dict[str, Any]]:
 class MCPHttpClient(MCPSession):
     """One MCP server reached over HTTP."""
 
-    def __init__(self, url: str, headers: dict[str, str]) -> None:
+    def __init__(self, url: str, headers: dict[str, str], auth: Optional[HttpAuth] = None) -> None:
+        """`auth` defaults to None: only the configured headers are sent."""
         self.url = url
+        self.auth = auth
         self.headers = {name: expand_env(value, dict(os.environ)) for name, value in headers.items()}
         self.session_id = ""
         self.next_id = 0
 
     def post(self, payload: dict[str, Any]) -> tuple[str, str]:
+        try:
+            return self.send(payload)
+        except urllib.error.HTTPError as err:
+            if err.code != UNAUTHORIZED or self.auth is None:
+                raise MCPError(f"MCP server {self.url} answered {err.code}") from err
+            self.auth.unauthorized(err.headers.get(CHALLENGE_HEADER, ""))
+        try:
+            return self.send(payload)
+        except urllib.error.HTTPError as err:
+            raise MCPError(f"MCP server {self.url} answered {err.code} after authorization") from err
+
+    def send(self, payload: dict[str, Any]) -> tuple[str, str]:
         headers = {"Content-Type": JSON_TYPE, "Accept": ACCEPT, VERSION_HEADER: PROTOCOL_VERSION, **self.headers}
+        if self.auth is not None:
+            headers.update(self.auth.headers())
         if self.session_id:
             headers[SESSION_HEADER] = self.session_id
         request = urllib.request.Request(self.url, data=json.dumps(payload).encode(), headers=headers)
@@ -70,6 +102,8 @@ class MCPHttpClient(MCPSession):
             with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as reply:
                 self.session_id = reply.headers.get(SESSION_HEADER) or self.session_id
                 return reply.read().decode("utf-8", errors="replace"), reply.headers.get_content_type()
+        except urllib.error.HTTPError:
+            raise
         except (urllib.error.URLError, TimeoutError) as err:
             raise MCPError(f"MCP server {self.url} unreachable: {err}") from err
 

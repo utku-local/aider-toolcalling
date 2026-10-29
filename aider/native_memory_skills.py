@@ -18,6 +18,8 @@ MAX_NOTE_CHARS = 1_000
 MAX_SKILL_CHARS = 20_000
 MEMORY_HEADER = "# Agent memory\n\nNotes the agent saved for later sessions in this project.\n"
 SKILLS_HEADING = "Skills you can load with use_skill (name: what it is for):"
+NO_SKILLS = "No skills found. Add Markdown files to .aider-agent/skills/ or ~/.aider-agent/skills/."
+NO_REQUEST = "Apply this skill to the project now."
 REMEMBER_PARAMETERS = {
     "type": "object",
     "properties": {"note": {"type": "string", "description": "One durable fact about this project, in one line."}},
@@ -75,6 +77,14 @@ def use_skill(skills: dict[str, Path], name: str) -> str:
         raise MemorySkillError(f"Unknown skill {name!r}; available: {sorted(skills) or 'none'}")
     text = path.read_text(encoding=ENCODING, errors="replace")[:MAX_SKILL_CHARS]
     return f"Skill {name}. Follow these instructions for the current task:\n\n{text}"
+
+
+def skill_message(skills: dict[str, Path], args: str) -> tuple[str, str]:
+    """For /skill: (listing, "") when no name is given, else ("", the request that loads the skill and asks for args)."""
+    name, _, request = args.strip().partition(" ")
+    if not name:
+        return (skills_listing(skills) or NO_SKILLS), ""
+    return "", use_skill(skills, name) + "\n\nRequest: " + (request.strip() or NO_REQUEST)
 
 
 def register_memory_skill_tools(registry: NativeToolRegistry, root: Path, skills: dict[str, Path]) -> None:

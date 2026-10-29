@@ -115,6 +115,20 @@ Copy `docs/examples/aider-agent.json` to a project as `.aider-agent.json` to run
 let `pytest`, `unittest`, `git status` and `git diff` run without asking. `AGENTS.md` or `CLAUDE.md` in a project
 root is added to agent sessions as read-only instructions.
 
+## 8. Web search (optional)
+
+`web_search` needs a search service. `scripts/searxng_server.sh` runs a private SearXNG on `127.0.0.1:8888`
+(its own venv in `~/.venvs/searxng`, settings in `~/.config/searxng/settings.yml`, JSON output on):
+
+```sh
+scripts/searxng_server.sh install   # clone into ~/opt/searxng and install
+scripts/searxng_server.sh enable    # LaunchAgent: start now and at login (or: start / stop)
+echo "export AIDER_AGENT_SEARCH_URL='http://127.0.0.1:8888/search?q={query}&format=json'" >> ~/.zshrc
+```
+
+`AIDER_AGENT_SEARCH_URL` is used by every project that sets no `"network.search_url"` of its own. Searches still
+ask first unless a project sets `"network": {"search": true}`.
+
 ## Troubleshooting
 
 | Symptom | Cause and fix |
