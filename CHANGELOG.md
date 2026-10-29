@@ -19,6 +19,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Skills: Markdown files in `.aider-agent/skills/` (project) and `~/.aider-agent/skills/` (user) are listed in the system prompt by their first line; `use_skill` loads one.
 - `task` tool: delegates a self-contained job to a sub-agent with every tool except `ask_user` and `task` (up to 30 rounds); its edits and commands go through the usual approvals, hooks and output spill, and only its report returns to the main conversation.
 - Background exit notices: when a process started with `start_background` exits on its own, the next request says so once (id, command, exit code), so the model does not have to poll `read_background`.
+- `read_file` reads Jupyter notebooks (each cell with its text outputs) and PDFs (through poppler's `pdftotext`, no new Python dependency); images and other binary files are refused with a short reason instead of being returned as garbage.
+- MCP over Streamable HTTP: an `mcp_servers` entry with `"url"` (and optional `"headers"`, whose values may use `${ENV_VAR}`) is reached by POSTing JSON-RPC; JSON and event-stream replies are both read, and the session id from `initialize` is sent with later requests. Stdio and HTTP share one `MCPSession` base for initialize, tools/list and tools/call.
 
 ### Changed
 

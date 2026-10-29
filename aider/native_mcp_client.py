@@ -1,10 +1,11 @@
-"""Minimal MCP client for stdio servers: starts the server, initializes it, lists and calls its tools.
-MCP over stdio is newline-delimited JSON-RPC 2.0, so a subprocess with line reads and a reader thread is enough;
-this avoids adding the MCP SDK and its dependencies to the package.
+"""Minimal MCP client: the protocol steps shared by every transport, and the stdio transport.
+MCPSession holds initialize, tools/list and tools/call over an abstract request; MCPClient runs a stdio server,
+where MCP is newline-delimited JSON-RPC 2.0, so a subprocess with line reads and a reader thread is enough.
 Every request has a timeout, and server errors become MCPError so the tool loop can report them to the model.
 """
 
 import json
+from abc import ABC, abstractmethod
 import queue
 import subprocess
 import threading
@@ -30,7 +31,51 @@ class MCPTool:
     input_schema: dict[str, Any]
 
 
-class MCPClient:
+class MCPSession(ABC):
+    """The MCP steps above JSON-RPC; a transport provides request(method, params), notify(method) and close()."""
+
+    @abstractmethod
+    def request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Send a JSON-RPC request and return its result."""
+
+    @abstractmethod
+    def notify(self, method: str) -> None:
+        """Send a JSON-RPC notification."""
+
+    @abstractmethod
+    def close(self) -> None:
+        """Release the transport."""
+
+    def initialize(self) -> None:
+        self.request("initialize", {"protocolVersion": PROTOCOL_VERSION, "capabilities": {},
+                                    "clientInfo": CLIENT_INFO})
+        self.notify("notifications/initialized")
+
+    def list_tools(self) -> list[MCPTool]:
+        tools = self.request("tools/list", {}).get("tools", [])
+        return [
+            MCPTool(t["name"], t.get("description", ""), t.get("inputSchema") or {"type": "object"})
+            for t in tools if isinstance(t, dict) and isinstance(t.get("name"), str)
+        ]
+
+    def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
+        result = self.request("tools/call", {"name": name, "arguments": arguments})
+        text = "\n".join(
+            part.get("text", "") for part in result.get("content", []) if part.get("type") == TEXT_CONTENT
+        )
+        if result.get("isError"):
+            raise MCPError(text or f"MCP tool {name} reported an error")
+        return text
+
+
+def response_result(method: str, message: dict[str, Any]) -> dict[str, Any]:
+    """The result of a JSON-RPC response, or MCPError for an error response."""
+    if "error" in message:
+        raise MCPError(f"MCP {method} failed: {message['error'].get('message', message['error'])}")
+    return message.get("result") or {}
+
+
+class MCPClient(MCPSession):
     """One running stdio MCP server."""
 
     def __init__(self, command: list[str], env: Optional[dict[str, str]], cwd: str) -> None:
@@ -70,30 +115,10 @@ class MCPClient:
                     raise MCPError(f"MCP request {method} timed out") from err
                 if message.get("id") == request_id:
                     break
-        if "error" in message:
-            raise MCPError(f"MCP {method} failed: {message['error'].get('message', message['error'])}")
-        return message.get("result") or {}
+        return response_result(method, message)
 
-    def initialize(self) -> None:
-        self.request("initialize", {"protocolVersion": PROTOCOL_VERSION, "capabilities": {},
-                                    "clientInfo": CLIENT_INFO})
-        self.send({"jsonrpc": JSONRPC_VERSION, "method": "notifications/initialized"})
-
-    def list_tools(self) -> list[MCPTool]:
-        tools = self.request("tools/list", {}).get("tools", [])
-        return [
-            MCPTool(t["name"], t.get("description", ""), t.get("inputSchema") or {"type": "object"})
-            for t in tools if isinstance(t, dict) and isinstance(t.get("name"), str)
-        ]
-
-    def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
-        result = self.request("tools/call", {"name": name, "arguments": arguments})
-        text = "\n".join(
-            part.get("text", "") for part in result.get("content", []) if part.get("type") == TEXT_CONTENT
-        )
-        if result.get("isError"):
-            raise MCPError(text or f"MCP tool {name} reported an error")
-        return text
+    def notify(self, method: str) -> None:
+        self.send({"jsonrpc": JSONRPC_VERSION, "method": method})
 
     def close(self) -> None:
         if self.process.poll() is None:

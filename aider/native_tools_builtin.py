@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from aider.native_sensitive import is_sensitive
+from aider.native_documents import document_text
 from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolError, NativeToolRegistry
 
@@ -78,7 +79,8 @@ def read_file(
     target = resolve_in_root(root, path)
     if not target.is_file():
         raise ToolPathError(f"Not a file: {path!r}")
-    full = target.read_text(encoding=FILE_ENCODING, errors="replace")
+    document = document_text(target, path)
+    full = document if document is not None else target.read_text(encoding=FILE_ENCODING, errors="replace")
     total_lines = len(full.splitlines())
     if start_line is None and end_line is None and total_lines > DEFAULT_MAX_LINES:
         # Whole large files flood every later prompt; return the start and say how to read on.
@@ -121,7 +123,8 @@ def register_read_tools(registry: NativeToolRegistry, ctx: ToolContext) -> None:
     """Add read_file and list_files, bound to `ctx`, to `registry`."""
     registry.register(
         "read_file",
-        "Read a text file from the project, optionally only a range of lines.",
+        "Read a file from the project, optionally only a range of lines. Notebooks (.ipynb) come back as cells "
+        "with outputs and PDFs as text.",
         READ_PARAMETERS,
         lambda path, start_line=None, end_line=None: guarded_read(ctx, path, start_line, end_line),
     )

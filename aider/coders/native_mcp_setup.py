@@ -1,4 +1,4 @@
-"""Starts the MCP servers listed in .aider-agent.json and registers their tools on the agent's registry.
+"""Starts or connects to the MCP servers in .aider-agent.json (stdio or HTTP) and registers their tools.
 Each tool is exposed as mcp__<server>__<tool> with the server's input schema; a call asks the user first unless
 the server is marked trusted, because an MCP tool can do anything its server can.
 A server that fails to start is reported once and skipped, and every started server is closed when Aider exits.
@@ -10,7 +10,8 @@ import os
 import re
 from typing import Any
 
-from aider.native_mcp_client import MCPClient, MCPTool
+from aider.native_mcp_client import MCPClient, MCPSession, MCPTool
+from aider.native_mcp_http import MCPHttpClient
 from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolRegistry
 
@@ -33,7 +34,7 @@ def object_schema(schema: dict[str, Any]) -> dict[str, Any]:
     return schema if schema.get("type") == "object" else dict(OBJECT_SCHEMA)
 
 
-def call_mcp(ctx: ToolContext, server: MCPServerConfig, client: MCPClient, tool: MCPTool, **arguments: Any) -> str:
+def call_mcp(ctx: ToolContext, server: MCPServerConfig, client: MCPSession, tool: MCPTool, **arguments: Any) -> str:
     if not server.trusted and not ctx.approve(
         ToolPermission.MCP, f"Call MCP tool {server.name}/{tool.name}?", json.dumps(arguments, indent=2)
     ):
@@ -41,8 +42,12 @@ def call_mcp(ctx: ToolContext, server: MCPServerConfig, client: MCPClient, tool:
     return client.call_tool(tool.name, arguments)
 
 
-def start_server(server: MCPServerConfig, cwd: str) -> MCPClient:
-    client = MCPClient(list(server.command), {**os.environ, **dict(server.env)}, cwd)
+def start_server(server: MCPServerConfig, cwd: str) -> MCPSession:
+    """A stdio server is started as a process; an HTTP server is only connected to."""
+    if server.url:
+        client: MCPSession = MCPHttpClient(server.url, dict(server.headers))
+    else:
+        client = MCPClient(list(server.command), {**os.environ, **dict(server.env)}, cwd)
     try:
         client.initialize()
     except Exception:
@@ -54,7 +59,7 @@ def start_server(server: MCPServerConfig, cwd: str) -> MCPClient:
 
 def register_mcp_tools(
     registry: NativeToolRegistry, ctx: ToolContext, servers: tuple[MCPServerConfig, ...], warn: Any
-) -> list[MCPClient]:
+) -> list[MCPSession]:
     """Start each server and register its tools; returns the running clients."""
     clients = []
     for server in servers:
