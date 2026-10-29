@@ -11,6 +11,7 @@ from aider.io import ConfirmGroup
 from aider.native_command_policy import PolicyDecision, decide
 from aider.native_sandbox import sandbox_available, sandboxed_argv, shell_argv
 from aider.native_snapshots import SnapshotStore
+from aider.native_tools_ask import register_ask_tool
 from aider.native_todo import TodoList, register_todo_tool
 from aider.native_tool_context import ToolContext, ToolPermission
 from aider.native_tool_ledger import OperationLedger, OperationStatus
@@ -29,6 +30,7 @@ from .native_agent_config import load_agent_config
 from .native_mcp_setup import register_mcp_tools
 from .native_subtask import register_research_tool
 from .native_rule_offer import offer_allow_rule
+from .native_user_io import answer_question, ask_text, confirm_plan
 
 SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache"})
 HIDDEN_PREFIX = "."
@@ -161,7 +163,13 @@ def build_native_tools(coder: Any, include_actions: bool) -> NativeToolRegistry:
     registry = read_only_registry(ctx)
     if include_actions:
         register_research_tool(registry, coder, read_only_registry(ctx))
-        register_todo_tool(registry, ctx.todos)
+        plan_check = coder.native_agent_config.plan_approval
+        register_todo_tool(
+            registry, ctx.todos,
+            confirm=(lambda plan: confirm_plan(coder, plan)) if plan_check else None,
+            note=lambda question: ask_text(coder, question),
+        )
+        register_ask_tool(registry, lambda question, choices: answer_question(coder, question, choices))
         register_edit_tools(registry, ctx)
         register_shell_tools(registry, ctx)
         register_background_tools(registry, ctx, coder.native_processes)

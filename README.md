@@ -59,7 +59,8 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 | `edit_file`, `multi_edit`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
 | `git` (status, diff, log, show, blame) | `--agent`, `--native-tools` | none (read-only, allow-listed flags) |
 | `read_spreadsheet` | `--agent`, `--native-tools` | none (read-only; .xlsx/.xlsm sheets as text, in pages) |
-| `todo_write` | `--agent` | none (the agent's task list) |
+| `todo_write` | `--agent` | none (the agent's task list); the first plan of a request is shown for approval unless `"plan_approval": false` |
+| `ask_user` | `--agent` | none (asks you one question, with numbered choices; unattended runs get no answer) |
 | `research` | `--agent` | none (a read-only sub-conversation that returns only its answer) |
 | `run_command`, `start_background`, `read_background`, `stop_background` | `--agent` | command policy: refused, asked with risk labels, or allowed by a rule (trusted, or any rule inside the sandbox); `--yes-always` never approves a command |
 | `fetch_url` | `--agent` | asked for every URL; `--yes-always` never approves it |

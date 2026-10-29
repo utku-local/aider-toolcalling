@@ -4,6 +4,7 @@ a missing file means no rules and no sandbox, and a malformed file is reported o
 Instruction files such as AGENTS.md are found here too, so the AgentCoder can add them read-only to the chat.
 """
 
+import dataclasses
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,11 +30,12 @@ class MCPServerConfig:
 
 @dataclass(frozen=True)
 class AgentConfig:
-    """Project settings; defaults: no command rules, no sandbox, no MCP servers."""
+    """Project settings; defaults: no command rules, no sandbox, no MCP servers, plans shown for approval."""
 
     rules: CommandRules = CommandRules()
     sandbox: bool = False
     mcp_servers: tuple[MCPServerConfig, ...] = ()
+    plan_approval: bool = True
 
 
 class AgentConfigError(ValueError):
@@ -77,7 +79,11 @@ def parse_config(data: Any) -> AgentConfig:
     servers = data.get("mcp_servers", {})
     if not isinstance(servers, dict):
         raise AgentConfigError('"mcp_servers" must be an object')
-    return AgentConfig(rules, sandbox, tuple(parse_mcp_server(name, raw) for name, raw in servers.items()))
+    plan_approval = data.get("plan_approval", True)
+    if not isinstance(plan_approval, bool):
+        raise AgentConfigError('"plan_approval" must be true or false')
+    return AgentConfig(rules, sandbox, tuple(parse_mcp_server(name, raw) for name, raw in servers.items()),
+                       plan_approval)
 
 
 def load_agent_config(root: str, io: Any) -> AgentConfig:
@@ -107,7 +113,7 @@ def add_allow_rule(root: str, config: AgentConfig, rule: CommandRule) -> AgentCo
     data.setdefault("commands", {}).setdefault("allow", []).append(rule_as_json(rule))
     path.write_text(json.dumps(data, indent=2) + "\n", encoding=CONFIG_ENCODING)
     rules = CommandRules(allow=config.rules.allow + (rule,), deny=config.rules.deny)
-    return AgentConfig(rules, config.sandbox, config.mcp_servers)
+    return dataclasses.replace(config, rules=rules)
 
 
 def instruction_files(root: str) -> list[str]:
