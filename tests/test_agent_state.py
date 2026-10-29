@@ -275,6 +275,15 @@ class RepeatLoopTest(unittest.TestCase):
         ledger.start_request()
         self.assertEqual(edit("e3"), "Edited")
 
+    def test_starting_a_background_process_resets_the_repeat_count(self) -> None:
+        ledger = OperationLedger()
+        ledger.start_request()
+        client = {"command": "python client.py"}
+        record(ledger, "run_command", client, "exit 1", OperationStatus.EXECUTED)
+        record(ledger, "run_command", client, "exit 1", OperationStatus.EXECUTED)
+        record(ledger, "start_background", {"command": "python server.py"}, "Started bg1", OperationStatus.EXECUTED)
+        self.assertEqual(ledger.times_run("run_command", json.dumps(client)), 0)
+
 class RetryResumeTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()

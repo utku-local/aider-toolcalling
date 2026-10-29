@@ -26,6 +26,8 @@ all dependencies.
 
 `docs/LOCAL_SETUP.md` walks through the full local setup (model servers, LaunchAgents, aider configuration,
 `aider-agent`), with templates in `docs/examples/`, including which model to run on a 32 GB Mac.
+`docs/MODEL_COMPARISON.md` records why the 27B is the agent model, how Coder-Next compared, and that the 32 GB
+M4 Air uses only the 27B (4-bit).
 
 ## Install as a command
 
@@ -134,6 +136,7 @@ installed copy instead.
 | `aider/native_sandbox.py`, `native_tools_background.py`, `native_tools_fetch.py` | Sandbox, background commands, `fetch_url` |
 | `aider/native_environment.py` | What the agent is told about its command environment, and hints on connection errors |
 | `aider/native_task_gates.py` | Plan-first and verify-before-finishing checks, read from the operation ledger |
+| `evals/scenarios.py`, `scenario_scoring.py`, `run_scenarios.py`, `compare_models.py` | Behaviour scenarios, their scoring, runner and model comparison |
 | `aider/coders/native_session.py`, `aider/agent_main.py`, `pyproject.toml` | Session save and `--resume`, the `aider-agent` command, packaging |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
 | `evals/` | Evaluation tasks (basic, hard, mined from real commits), metrics and runner |
@@ -168,6 +171,18 @@ python -m evals.run_evals --real evals/real/<repo>.json --sandbox
 
 The task project has no git history and the fix's non-test changes undone, so the agent cannot read the answer;
 the check runs the fix's tests and requires them to be unchanged.
+
+Behaviour scenarios check how the agent works, not only whether it passes: planning, re-testing after a failure,
+and a stopped service.
+
+```
+python -m evals.run_scenarios [--model M] [--repeat 3]       # writes evals/results/scenarios-<time>/
+python -m evals.compare_models --run 27B:hard:<stamp> --scenarios 27B:evals/results/scenarios-<time>
+```
+
+Each run is scored on order (plan, inspect, test, verify), what followed each failed call, success judged from the
+project, time and tokens. `scripts/coder_next_server.sh start|stop|status` swaps the 8080 and 8083 servers for
+Coder-Next on 8084 (64 GB Mac only).
 
 ## Faster agent rounds with mlx_lm
 
