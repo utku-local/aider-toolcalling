@@ -7,7 +7,7 @@ normal edit pipeline.
 
 ## Status
 
-Working agent: read, search, git, edit, shell, background and fetch tools; command policy and sandbox; operation ledger, working state, sessions; streaming. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
+Working agent: read, search, git, edit, shell, background and fetch tools; command policy and sandbox; plan-first and verify-before-finishing checks; operation ledger, working state, sessions; streaming. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
 all dependencies.
 
 ## Setup
@@ -133,6 +133,7 @@ installed copy instead.
 | `aider/native_tools_git.py`, `native_todo.py`, `native_snapshots.py`, `native_undo.py` | Git tool, task list, snapshots and `/undo-agent` |
 | `aider/native_sandbox.py`, `native_tools_background.py`, `native_tools_fetch.py` | Sandbox, background commands, `fetch_url` |
 | `aider/native_environment.py` | What the agent is told about its command environment, and hints on connection errors |
+| `aider/native_task_gates.py` | Plan-first and verify-before-finishing checks, read from the operation ledger |
 | `aider/coders/native_session.py`, `aider/agent_main.py`, `pyproject.toml` | Session save and `--resume`, the `aider-agent` command, packaging |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
 | `evals/` | Evaluation tasks (basic, hard, mined from real commits), metrics and runner |

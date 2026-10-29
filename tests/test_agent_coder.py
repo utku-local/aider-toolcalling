@@ -66,6 +66,8 @@ class AgentCoderTest(unittest.TestCase):
                 make_completion(tool_calls=tool_call("e1", "edit_file", fix)),
                 make_completion(tool_calls=tool_call("r1", "run_command", {"command": "touch ran"})),
                 make_completion(FINAL_TEXT),
+                # The change was never verified, so the answer is sent back once.
+                make_completion(FINAL_TEXT),
             ]
         )
         with patch("aider.models.litellm.completion", side_effect=scripted):
