@@ -3,7 +3,8 @@ While the model replies with tool calls, it executes them through the operation 
 to the caller's message list (so an API retry resumes after the rounds already done) and queries the model again.
 Each request is sent with old tool results compacted and the ledger's working state attached; at the round budget
 the user may extend it, otherwise the model is asked once more with tool_choice "none" and a user message to answer.
-A round with a repeated call gets a user message that pushes the model to the next step.
+A round with a repeated call gets a user message that pushes the model to the next step; after several refused
+repeats it is told once more to move on, and only then asked for its answer.
 """
 
 import time
@@ -15,6 +16,7 @@ from aider.native_tool_loop import (
     FINAL_ANSWER_CHOICE,
     FINAL_ANSWER_NUDGE,
     REPEAT_NUDGE,
+    REPEAT_STOP_NUDGE,
     REPEAT_REFUSAL_MARKER,
     build_tool_round_messages,
     drop_orphan_tool_messages,
@@ -30,8 +32,10 @@ from .native_context import maybe_summarize
 from .native_tool_log import append_operation_log
 
 MAX_CONTINUATIONS = 3
-# After this many refused repeats in one request the loop stops and the model must answer.
+# After this many refused repeats in one request the model is told to move on; after as many again, the loop stops
+# and the model must answer.
 MAX_REPEAT_REFUSALS = 3
+REPEAT_STOP_CHANCES = 1
 RESULT_INDENT = "  -> "
 BACKGROUND_HEADING = "## Background update\n"
 
@@ -188,8 +192,8 @@ def run_native_tool_rounds(
 ) -> Generator[str, None, Any]:
     """Execute requested tools and re-query the model until it answers without tools."""
     started = time.monotonic()
-    rounds = calls = continuations = 0
-    budget = coder.max_tool_rounds
+    rounds = calls = continuations = chances = 0
+    budget, refusal_limit = coder.max_tool_rounds, MAX_REPEAT_REFUSALS
     while True:
         executed = run_tool_round(coder, messages, completion)
         if not executed:
@@ -199,9 +203,13 @@ def run_native_tool_rounds(
                 return completion
             send_back(coder, messages, completion, nudge)
         rounds, calls = rounds + 1, calls + executed
-        if coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER) >= MAX_REPEAT_REFUSALS:
-            coder.io.tool_warning("The model keeps repeating identical tool calls; asking it to answer now.")
-            break
+        if coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER) >= refusal_limit:
+            if chances >= REPEAT_STOP_CHANCES:
+                coder.io.tool_warning("The model keeps repeating identical tool calls; asking it to answer now.")
+                break
+            coder.io.tool_warning("The model keeps repeating identical tool calls; telling it to move on.")
+            messages.append({"role": "user", "content": REPEAT_STOP_NUDGE})
+            chances, refusal_limit = chances + 1, refusal_limit + MAX_REPEAT_REFUSALS
         if rounds >= budget:
             if not may_continue(coder, rounds, continuations):
                 break

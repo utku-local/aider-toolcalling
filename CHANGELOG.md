@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- After three refused repeats the model gets one more chance: a user message tells it to stop looking for what a search did not find and go on with the open tasks and the tests. Only after three more refusals is it asked for its answer. In a long session the first stop came before the model had run its tests.
+
 ## [0.8.1] - 2026-10-30
 
 ### Changed

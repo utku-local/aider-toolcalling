@@ -51,6 +51,13 @@ REPEAT_NUDGE = (
     "nothing because the code does not exist yet, that is the answer. Take the next step of the task now "
     "(write the plan with todo_write, or make the change)."
 )
+# Measured: the repeat stop ended a long task before the model ran its tests, which then failed; one more chance
+# with this message lets it go on with the remaining steps.
+REPEAT_STOP_NUDGE = (
+    "Several of your repeated calls were refused. Stop looking for that: if a search found nothing, it does not "
+    "exist. Go on with the remaining steps of the task (the open tasks in the working state), and run the tests "
+    "after changing code. If you cannot go further, give your answer."
+)
 # Measured: asked to answer with tool_choice "none", a local model still wrote a tool call, which left the answer
 # empty; an explicit user message got a plain-text summary.
 FINAL_ANSWER_NUDGE = (

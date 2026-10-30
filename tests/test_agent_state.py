@@ -23,6 +23,7 @@ from aider.native_tool_ledger import OperationLedger, OperationStatus
 from aider.native_tool_loop import (
     REPEAT_NOTE,
     REPEAT_REFUSAL_MARKER,
+    REPEAT_STOP_NUDGE,
     REPLAYED_NOTE,
     build_tool_round_messages,
     repeated_in_round,
@@ -225,23 +226,35 @@ class RepeatLoopTest(unittest.TestCase):
         os.chdir(self.cwd)
         self.tmp.cleanup()
 
-    def test_identical_reads_are_refused_and_the_loop_ends(self) -> None:
+    def run_reads(self, reads: int) -> tuple[Coder, ScriptedModel]:
         coder = Coder.create(
             main_model=Model(MODEL_NAME), edit_format="agent", io=InputOutput(yes=True, pretty=False),
             fnames=[], use_git=False, map_tokens=0, auto_lint=False, stream=False,
         )
         same_read = [make_completion(tool_calls=tool_call(f"r{i}", "read_file", {"path": "calc.py"}))
-                     for i in range(5)]
+                     for i in range(reads)]
         scripted = ScriptedModel(same_read + [make_completion(FINAL_TEXT)])
         with patch("aider.models.litellm.completion", side_effect=scripted):
             coder.run(with_message="Look at calc.py.")
+        return coder, scripted
+
+    def test_refused_repeats_get_one_more_chance(self) -> None:
+        coder, scripted = self.run_reads(5)
+
+        self.assertEqual(coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 3)
+        user_texts = [m["content"] for m in scripted.requests[-1]["messages"] if m["role"] == "user"]
+        self.assertIn(REPEAT_STOP_NUDGE, user_texts)
+        self.assertNotEqual(scripted.requests[-1].get("tool_choice"), "none")
+        self.assertEqual(coder.partial_response_content, FINAL_TEXT)
+
+    def test_identical_reads_are_refused_and_the_loop_ends(self) -> None:
+        coder, scripted = self.run_reads(8)
 
         statuses = [r.status for r in coder.native_ledger.records]
         self.assertEqual(statuses.count(OperationStatus.EXECUTED), 2)
-        self.assertEqual(coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 3)
+        self.assertEqual(coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 6)
         self.assertEqual(scripted.requests[-1]["tool_choice"], "none")
         self.assertEqual(coder.partial_response_content, FINAL_TEXT)
-
 
     def test_a_file_change_resets_the_repeat_count(self) -> None:
         ledger = OperationLedger()
