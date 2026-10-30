@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-30
+
 ### Changed
 
 - Shorter agent system prompt and tool descriptions: the fixed part of every request drops from about 3,560 to 2,610 tokens (v0.6.2 sent 2,850). On the hard set with the 27B (2 x 10 tasks), both sides pass 20/20; mean time per task drops from 183 to 141 s and tokens sent from 16.5k to 8.6k.
