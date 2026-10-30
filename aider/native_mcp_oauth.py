@@ -16,6 +16,7 @@ from aider.native_mcp_client import MCPError
 PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource"
 AUTH_SERVER_PATHS = ("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration")
 RESOURCE_METADATA_PARAM = re.compile(r'resource_metadata="([^"]+)"')
+SCOPE_PARAM = re.compile(r'(?<![A-Za-z_])scope="([^"]*)"')
 CHALLENGE_METHOD = "S256"
 RESPONSE_TYPE = "code"
 EXPIRY_MARGIN_SECONDS = 60
@@ -52,6 +53,14 @@ def resource_metadata_urls(server_url: str, www_authenticate: str) -> list[str]:
         urls.append(origin(server_url) + PROTECTED_RESOURCE_PATH + path)
     urls.append(origin(server_url) + PROTECTED_RESOURCE_PATH)
     return urls
+
+
+def challenge_scope(www_authenticate: str, configured: str) -> str:
+    """The configured scope, else the one the server's 401 asks for, else none."""
+    if configured:
+        return configured
+    match = SCOPE_PARAM.search(www_authenticate or "")
+    return match.group(1) if match else ""
 
 
 def auth_server_metadata_urls(issuer: str) -> list[str]:

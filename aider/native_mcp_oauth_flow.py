@@ -22,6 +22,7 @@ from aider.native_mcp_oauth import (
     OAuthSettings,
     TokenSet,
     auth_server_metadata_urls,
+    challenge_scope,
     authorize_url,
     origin,
     parse_token_set,
@@ -188,7 +189,7 @@ class OAuthProvider(HttpAuth):
         verifier, code_challenge = pkce_pair(secrets.token_bytes(PKCE_BYTES))
         state = secrets.token_urlsafe(STATE_BYTES)
         url = authorize_url(meta["authorization_endpoint"], client_id, redirect_uri, code_challenge, state,
-                            resource, self.settings.scope)
+                            resource, challenge_scope(challenge, self.settings.scope))
         threading.Thread(target=self.open_browser, args=(url,), daemon=True).start()
         code = wait_for_redirect(callback, state)
         form = {"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri,

@@ -32,7 +32,7 @@ TASK_PARAMETERS = {
     "properties": {
         "brief": {
             "type": "string",
-            "description": "A self-contained job: the goal, the files or area involved, and how to verify it.",
+            "description": "The goal, the files involved, and how to verify it.",
         },
     },
     "required": ["brief"],
@@ -43,8 +43,7 @@ RESEARCH_PARAMETERS = {
     "properties": {
         "question": {
             "type": "string",
-            "description": "A self-contained question about the project, e.g. where something is defined or how "
-            "a component works.",
+            "description": "Self-contained, e.g. where something is defined or how a component works.",
         },
     },
     "required": ["question"],
@@ -93,8 +92,7 @@ def register_research_tool(registry: NativeToolRegistry, coder: Any, read_regist
     """Add research, which runs sub-conversations with `read_registry`'s tools, to `registry`."""
     registry.register(
         "research",
-        "Answer a question about the project in a separate conversation with read-only tools and get back only "
-        "the answer. Use it for exploration that would need many reads, to keep this conversation short.",
+        "Answer a project question in a separate read-only conversation; only the answer comes back.",
         RESEARCH_PARAMETERS,
         lambda question: run_subtask(coder, read_registry, question),
     )
@@ -105,9 +103,8 @@ def register_task_tool(registry: NativeToolRegistry, coder: Any, task_registry: 
     """Add task, which runs a delegated job in a sub-conversation with `task_registry`'s tools."""
     registry.register(
         "task",
-        "Delegate a self-contained job (for example: update every caller of a renamed function and run the "
-        "tests) to a sub-agent with all your tools; you get back only its report. Use it for side work that "
-        "would fill this conversation.",
+        "Delegate a self-contained job (e.g. update every caller of a renamed function and run the tests) to a "
+        "sub-agent with your tools; only its report comes back.",
         TASK_PARAMETERS,
         lambda brief: run_subtask(coder, task_registry, brief, TASK_SYSTEM, TASK_MAX_ROUNDS, TASK_PREFIX, options),
     )

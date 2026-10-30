@@ -1,6 +1,7 @@
 # ~/.aider.model.settings.yml: both Qwen3.8 27B variants are served by the mlx_lm server on 8083.
 # extra_body.chat_template_kwargs is ignored by mlx_lm (thinking is turned off by the server's
 # --chat-template-args) and keeps replies in message.content if a model is served by mlx_lm without it.
+# repetition_penalty 1.05 stops a loop where the model repeats one line inside a tool call until max_tokens.
 - name: openai/lmstudio-community/Qwen3.8-27B-MLX-4bit
   edit_format: diff
   weak_model_name: openai/lmstudio-community/Qwen3.8-27B-MLX-4bit
@@ -15,6 +16,7 @@
     top_p: 0.95
     api_base: http://127.0.0.1:8083/v1
     extra_body:
+      repetition_penalty: 1.05
       chat_template_kwargs:
         enable_thinking: false
   cache_control: false
@@ -38,6 +40,7 @@
     top_p: 0.95
     api_base: http://127.0.0.1:8083/v1
     extra_body:
+      repetition_penalty: 1.05
       chat_template_kwargs:
         enable_thinking: false
   cache_control: false

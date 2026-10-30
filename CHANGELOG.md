@@ -5,6 +5,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-30
+
+### Changed
+
+- Shorter agent system prompt and tool descriptions: the fixed part of every request drops from about 3,560 to 2,610 tokens (v0.6.2 sent 2,850). On the hard set with the 27B (2 x 10 tasks), both sides pass 20/20; mean time per task drops from 183 to 141 s and tokens sent from 16.5k to 8.6k.
+- The example model settings add `repetition_penalty: 1.05` for the Qwen3.8 27B: without it the model can repeat one line forever inside a tool call, which the server buffers, so the agent waits until `max_tokens` (about an hour at 32k).
+
+### Fixed
+
+- A model that repeats a call it already made now gets a user message telling it to take the next step: the note and refusal in the tool result did not stop the 27B from searching again and again for functions it had not written yet, and a user message did.
+- The forced answer after the round limit or repeated calls adds a user message asking for a plain-text answer: with `tool_choice: "none"` alone the 27B still wrote a tool call and the answer came out empty.
+- A repeated search showed "2 results" for "No matches." in the terminal; the repeat note is no longer counted.
+- The environment note and skill list were added to the system reminder as well, so they reached the model twice.
+- MCP OAuth asks for the scope a server's 401 names (`scope="..."` in `WWW-Authenticate`) when the config sets none; Notion and Linear name one.
+
 ## [0.8.0] - 2026-10-30
 
 ### Added

@@ -22,7 +22,7 @@ NO_SKILLS = "No skills found. Add Markdown files to .aider-agent/skills/ or ~/.a
 NO_REQUEST = "Apply this skill to the project now."
 REMEMBER_PARAMETERS = {
     "type": "object",
-    "properties": {"note": {"type": "string", "description": "One durable fact about this project, in one line."}},
+    "properties": {"note": {"type": "string", "description": "One line."}},
     "required": ["note"],
 }
 SKILL_PARAMETERS = {
@@ -90,8 +90,8 @@ def skill_message(skills: dict[str, Path], args: str) -> tuple[str, str]:
 def register_memory_skill_tools(registry: NativeToolRegistry, root: Path, skills: dict[str, Path]) -> None:
     registry.register(
         "remember",
-        "Save one durable fact about this project for later sessions (a convention, a command that works, a "
-        "pitfall). Do not save secrets or anything true only for this task.",
+        "Save one durable project fact (a convention, a working command, a pitfall) for later sessions; no "
+        "secrets.",
         REMEMBER_PARAMETERS,
         lambda note: remember(root, note, date.today()),
     )

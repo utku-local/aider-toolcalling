@@ -15,7 +15,7 @@ from aider.native_hooks import after_notes, blocked_by
 from aider.native_loop_options import NO_OPTIONS, LoopOptions
 from aider.native_output_spill import OutputSpill
 from aider.native_task_gates import PLAN_FIRST, needs_plan
-from aider.native_tool_summary import exit_code
+from aider.native_tool_summary import REPEAT_NOTE, exit_code
 from aider.native_toolcalling import (
     NativeToolRegistry,
     ToolResult,
@@ -38,16 +38,25 @@ REPEAT_HINT_TOOLS = frozenset({"read_file", "list_files", "find_files", "search_
 # Measured: a local model ran the same passing test command 100 times without changing a file in between.
 # Measured: Qwen3-Coder-Next sent the same todo_write 98 times in one request.
 REPEAT_GUARD_TOOLS = REPEAT_HINT_TOOLS | {"run_command", "todo_write"}
-REPEAT_NOTE = (
-    "Note: you already made this exact call in this request and got the same result; use it and move on "
-    "to the next step instead of repeating it.\n"
-)
 REPEAT_REFUSE_AFTER = 2
 REPEAT_REFUSAL = (
     "Error: refused, this exact call already ran {count} times in this request and its result is unchanged "
     "in the conversation above and no file changed since. Do not repeat it: edit the code, or give your answer."
 )
 REPEAT_REFUSAL_MARKER = "Error: refused, this exact call already ran"
+# Measured: a local model kept searching for functions it had not written yet; the refusal and note in the tool
+# result did not stop it, a user message did (it wrote its plan next).
+REPEAT_NUDGE = (
+    "You are repeating a call whose result has not changed, so repeating it again will not change it. If it found "
+    "nothing because the code does not exist yet, that is the answer. Take the next step of the task now "
+    "(write the plan with todo_write, or make the change)."
+)
+# Measured: asked to answer with tool_choice "none", a local model still wrote a tool call, which left the answer
+# empty; an explicit user message got a plain-text summary.
+FINAL_ANSWER_NUDGE = (
+    "Stop using tools now. Answer the user in plain text: what you found, what you changed (if anything), and what "
+    "is left to do. Do not write a tool call."
+)
 # Measured: a local model sent one edit 70 times; its new_string contained old_string, so every call succeeded
 # and added the same line again. Applying an identical edit twice is never what the model meant.
 REPEAT_EDIT_REFUSAL = (
@@ -178,6 +187,15 @@ def execute_tool_call(
         # Local models can loop on re-reading; say plainly that this exact result is already in the conversation.
         return ToolResult(result.tool_call_id, result.name, REPEAT_NOTE + result.content)
     return result
+
+
+def repeated_in_round(round_messages: list[dict[str, Any]]) -> bool:
+    """Whether any tool result of a round says the call repeated an earlier one."""
+    return any(
+        message.get("role") == "tool"
+        and str(message.get("content", "")).startswith((REPEAT_NOTE, REPEAT_REFUSAL_MARKER))
+        for message in round_messages
+    )
 
 
 def runs_in_parallel(call: ToolCall) -> bool:

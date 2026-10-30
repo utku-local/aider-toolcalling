@@ -27,14 +27,14 @@ FILE_ENCODING = "utf-8"
 READ_PARAMETERS = {
     "type": "object",
     "properties": {
-        "path": {"type": "string", "description": "Path relative to the project root."},
+        "path": {"type": "string"},
         "start_line": {
             "type": "integer",
-            "description": "First line to return (1-based, inclusive). Defaults to the first line.",
+            "description": "1-based, inclusive.",
         },
         "end_line": {
             "type": "integer",
-            "description": "Last line to return (1-based, inclusive). Defaults to the last line.",
+            "description": "1-based, inclusive.",
         },
     },
     "required": ["path"],
@@ -44,7 +44,7 @@ LIST_PARAMETERS = {
     "properties": {
         "path": {
             "type": "string",
-            "description": "Directory relative to the project root. Defaults to the root.",
+            "description": "Defaults to the root.",
         },
     },
 }
@@ -123,8 +123,7 @@ def register_read_tools(registry: NativeToolRegistry, ctx: ToolContext) -> None:
     """Add read_file and list_files, bound to `ctx`, to `registry`."""
     registry.register(
         "read_file",
-        "Read a file from the project, optionally only a range of lines. Notebooks (.ipynb) come back as cells "
-        "with outputs and PDFs as text.",
+        "Read a file, optionally a line range. Notebooks (.ipynb) and PDFs come back as text.",
         READ_PARAMETERS,
         lambda path, start_line=None, end_line=None: guarded_read(ctx, path, start_line, end_line),
     )
