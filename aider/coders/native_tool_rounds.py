@@ -20,6 +20,7 @@ from aider.native_tool_loop import (
     REPEAT_REFUSAL_MARKER,
     build_tool_round_messages,
     drop_orphan_tool_messages,
+    drop_refused_repeats,
     repeated_in_round,
 )
 from aider.native_loop_options import LoopOptions
@@ -41,15 +42,15 @@ BACKGROUND_HEADING = "## Background update\n"
 
 
 def prepare_request_messages(coder: Any, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """What is actually sent: the working state added to the live list when it changed, then a copy with valid
-    tool pairs and compacted old results. Each request extends the previous one, which keeps prefix caches warm."""
+    """What is actually sent: the working state added to the live list when it changed, then a copy without refused
+    repeats, with valid tool pairs and compacted old results. Each request extends the previous one, which keeps prefix caches warm."""
     if not coder.native_tools:
         return messages
     maybe_summarize(coder, messages)
     add_background_notices(coder, messages)
     tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
     add_working_state(messages, render_working_state(coder.native_ledger.records, tasks))
-    return compact_tool_history(drop_orphan_tool_messages(messages))
+    return compact_tool_history(drop_orphan_tool_messages(drop_refused_repeats(messages)))
 
 
 def add_background_notices(coder: Any, messages: list[dict[str, Any]]) -> None:

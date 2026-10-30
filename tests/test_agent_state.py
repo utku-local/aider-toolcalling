@@ -26,6 +26,7 @@ from aider.native_tool_loop import (
     REPEAT_STOP_NUDGE,
     REPLAYED_NOTE,
     build_tool_round_messages,
+    drop_refused_repeats,
     repeated_in_round,
 )
 from aider.native_tool_summary import exit_code, summarize_result
@@ -88,6 +89,30 @@ class RepeatHintTest(unittest.TestCase):
         ledger.start_request()
         fresh = build_tool_round_messages(registry, "", [ToolCall("f", "read_file", '{"path": "x"}')], ledger)
         self.assertEqual(fresh[1]["content"], "content")
+
+
+class DropRefusedRepeatsTest(unittest.TestCase):
+    def test_refused_pairs_and_stale_notes_are_left_out(self) -> None:
+        def call(call_id: str) -> dict:
+            return {"role": "assistant", "content": "",
+                    "tool_calls": [{"id": call_id, "type": "function",
+                                    "function": {"name": "search_code", "arguments": "{}"}}]}
+
+        refusal = REPEAT_REFUSAL_MARKER + " 2 times."
+        state = STATE_HEADING + "\nFiles read: a.py"
+        messages = [
+            {"role": "user", "content": "task"},
+            call("a"), {"role": "tool", "tool_call_id": "a", "content": "No matches."},
+            {"role": "user", "content": "nudge"}, {"role": "user", "content": state},
+            call("b"), {"role": "tool", "tool_call_id": "b", "content": refusal},
+            {"role": "user", "content": "nudge"}, {"role": "user", "content": state + "\nRecent tool errors: x"},
+        ]
+        kept = drop_refused_repeats(messages)
+
+        self.assertEqual([m.get("tool_call_id") for m in kept if m["role"] == "tool"], ["a"])
+        self.assertEqual([m["content"] for m in kept[-2:]], ["nudge", state + "\nRecent tool errors: x"])
+        self.assertEqual(len(kept), 5)
+        self.assertEqual(drop_refused_repeats(messages[:4]), messages[:4])
 
 
 class SummaryAndStateTest(unittest.TestCase):
