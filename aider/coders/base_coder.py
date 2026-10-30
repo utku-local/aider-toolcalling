@@ -521,6 +521,8 @@ class Coder:
         )
 
         self.summarizer_thread = None
+        # Off for a one-shot --message run: the process exits before a background summary could finish or be used.
+        self.summarize_history = True
         self.summarized_done_messages = []
         self.summarizing_messages = None
 
@@ -1012,7 +1014,7 @@ class Coder:
         self.last_keyboard_interrupt = now
 
     def summarize_start(self):
-        if not self.summarizer.too_big(self.done_messages):
+        if not self.summarize_history or not self.summarizer.too_big(self.done_messages):
             return
 
         self.summarize_end()
