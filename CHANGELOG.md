@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- A one-shot `--message` run no longer starts the background chat-history summary as it exits: the thread outlived the process and printed "Summarization failed ... cannot schedule new futures after shutdown" after long agent sessions.
+
 ## [0.8.1] - 2026-10-30
 
 ### Changed
