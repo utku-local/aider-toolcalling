@@ -23,6 +23,7 @@ from aider.native_mcp_oauth import (
     OAuthSettings,
     TokenSet,
     auth_server_metadata_urls,
+    challenge_scope,
     pkce_pair,
     redirect_code,
     resource_metadata_urls,
@@ -45,6 +46,7 @@ class FakeServer:
         self.challenges: dict[str, str] = {}
         self.registered: list[dict[str, Any]] = []
         self.resources: list[str] = []
+        self.scopes: list[str] = []
         self.issued = 0
 
     def issue(self) -> dict[str, Any]:
@@ -79,6 +81,7 @@ class FakeHandler(BaseHTTPRequestHandler):
             query = {k: v[0] for k, v in parse_qs(parts.query).items()}
             self.state.challenges["code-1"] = query["code_challenge"]
             self.state.resources.append(query["resource"])
+            self.state.scopes.append(query.get("scope", ""))
             target = query["redirect_uri"] + "?" + urlencode({"code": "code-1", "state": query["state"]})
             self.send_response(302)
             self.send_header("Location", target)
@@ -95,7 +98,8 @@ class FakeHandler(BaseHTTPRequestHandler):
         elif path == "/token":
             self.token(dict(parse_qs(body)))
         elif self.headers.get("Authorization", "").removeprefix("Bearer ") not in self.state.valid_tokens:
-            metadata = f'Bearer resource_metadata="{self.base[0]}/.well-known/oauth-protected-resource/mcp"'
+            metadata = (f'Bearer resource_metadata="{self.base[0]}/.well-known/oauth-protected-resource/mcp", '
+                        'scope="tools"')
             self.reply(401, {}, {"WWW-Authenticate": metadata})
         else:
             self.mcp(json.loads(body))
@@ -159,6 +163,7 @@ class OAuthFlowTest(unittest.TestCase):
         self.assertEqual([t.name for t in first.list_tools()], ["whoami"])
         self.assertEqual(self.state.registered[0]["token_endpoint_auth_method"], "none")
         self.assertEqual(self.state.resources, [self.url])
+        self.assertEqual(self.state.scopes, ["tools"])
         self.assertEqual(self.store.get(self.url).access_token, "access-1")
         self.assertEqual(oct(self.store.path.stat().st_mode & 0o777), "0o600")
 
@@ -181,6 +186,12 @@ class OAuthHelperTest(unittest.TestCase):
         self.assertEqual(auth_server_metadata_urls("https://auth.dev/tenant"),
                          ["https://auth.dev/.well-known/oauth-authorization-server/tenant",
                           "https://auth.dev/.well-known/openid-configuration/tenant"])
+
+    def test_scope_from_the_challenge(self) -> None:
+        challenge = 'Bearer realm="OAuth", resource_metadata="https://x.dev/m", scope="read write"'
+        self.assertEqual(challenge_scope(challenge, ""), "read write")
+        self.assertEqual(challenge_scope(challenge, "admin"), "admin")
+        self.assertEqual(challenge_scope('Bearer realm="OAuth"', ""), "")
 
     def test_redirect_and_tokens(self) -> None:
         self.assertEqual(redirect_code("code=c&state=s", "s"), "c")
