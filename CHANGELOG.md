@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- MCP OAuth asks for the scope a server's 401 names (`scope="..."` in `WWW-Authenticate`) when the config sets none; Notion and Linear name one.
+
 ## [0.8.0] - 2026-10-30
 
 ### Added
