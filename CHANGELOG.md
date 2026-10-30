@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `docs/TECH_DEBT.md`: open work, known limits and how the 27B loops were debugged, so work can resume on another machine.
+
 ### Fixed
 
 - A one-shot `--message` run no longer starts the background chat-history summary as it exits: the thread outlived the process and printed "Summarization failed ... cannot schedule new futures after shutdown" after long agent sessions.
