@@ -12,6 +12,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- A model that repeats a call it already made now gets a user message telling it to take the next step: the note and refusal in the tool result did not stop the 27B from searching again and again for functions it had not written yet, and a user message did.
+- The forced answer after the round limit or repeated calls adds a user message asking for a plain-text answer: with `tool_choice: "none"` alone the 27B still wrote a tool call and the answer came out empty.
+- A repeated search showed "2 results" for "No matches." in the terminal; the repeat note is no longer counted.
 - The environment note and skill list were added to the system reminder as well, so they reached the model twice.
 - MCP OAuth asks for the scope a server's 401 names (`scope="..."` in `WWW-Authenticate`) when the config sets none; Notion and Linear name one.
 

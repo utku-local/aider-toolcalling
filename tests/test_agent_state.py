@@ -20,7 +20,13 @@ from aider.models import Model
 from aider.native_tool_calls import ToolCall
 from aider.native_tool_compaction import COMPACTED_PREFIX, add_working_state, compact_tool_history
 from aider.native_tool_ledger import OperationLedger, OperationStatus
-from aider.native_tool_loop import REPEAT_NOTE, REPEAT_REFUSAL_MARKER, REPLAYED_NOTE, build_tool_round_messages
+from aider.native_tool_loop import (
+    REPEAT_NOTE,
+    REPEAT_REFUSAL_MARKER,
+    REPLAYED_NOTE,
+    build_tool_round_messages,
+    repeated_in_round,
+)
 from aider.native_tool_summary import exit_code, summarize_result
 from aider.native_toolcalling import NativeToolRegistry
 from aider.native_working_state import STATE_HEADING, render_working_state
@@ -77,6 +83,7 @@ class RepeatHintTest(unittest.TestCase):
         self.assertEqual(first[1]["content"], "content")
         self.assertTrue(again[1]["content"].startswith(REPEAT_NOTE))
         self.assertEqual(other[1]["content"], "content")
+        self.assertEqual([repeated_in_round(m) for m in (first, again, third, other)], [False, True, True, False])
         ledger.start_request()
         fresh = build_tool_round_messages(registry, "", [ToolCall("f", "read_file", '{"path": "x"}')], ledger)
         self.assertEqual(fresh[1]["content"], "content")
@@ -86,6 +93,7 @@ class SummaryAndStateTest(unittest.TestCase):
     def test_summaries(self) -> None:
         self.assertEqual(summarize_result("read_file", "a\nb\nc\n"), "3 lines")
         self.assertEqual(summarize_result("search_code", "x:1: a\ny:2: b"), "2 results")
+        self.assertEqual(summarize_result("search_code", REPEAT_NOTE + "No matches."), "No matches.")
         self.assertEqual(summarize_result("run_command", "Exit code: 1\nok\nFAILED t"), "exit 1: FAILED t")
         self.assertEqual(summarize_result("edit_file", "Error: old_string was not found\nmore"),
                          "Error: old_string was not found")
