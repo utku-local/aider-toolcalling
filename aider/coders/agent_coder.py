@@ -39,9 +39,14 @@ class AgentCoder(Coder):
         self.abs_read_only_fnames.update(instruction_files(self.root))
 
     def fmt_system_prompt(self, prompt: str) -> str:
-        """The mode's prompt plus where commands run, so connection and permission errors are not read as bugs."""
-        base = super().fmt_system_prompt(prompt) + environment_note(getattr(self, "native_sandboxed", False))
-        return base + skills_listing(getattr(self, "native_skills", {}))
+        """The main prompt plus where commands run (so connection and permission errors are not read as bugs) and the
+        skills; Aider formats the system reminder through here too, and that gets neither, or it would repeat them."""
+        base = super().fmt_system_prompt(prompt)
+        if prompt != self.gpt_prompts.main_system:
+            return base
+        return base + environment_note(getattr(self, "native_sandboxed", False)) + skills_listing(
+            getattr(self, "native_skills", {})
+        )
 
     def build_native_tools(self) -> NativeToolRegistry:
         return build_native_tools(self, include_actions=True)

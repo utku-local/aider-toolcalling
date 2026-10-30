@@ -41,8 +41,7 @@ GIT_PARAMETERS = {
         "subcommand": {"type": "string", "description": "One of: status, diff, log, show, blame."},
         "args": {
             "type": "array",
-            "description": "Extra arguments: allowed flags (e.g. --stat, --cached, --oneline, -n 5), "
-            "refs, and paths after '--'.",
+            "description": "Flags (e.g. --stat, --cached, -n 5), refs, and paths after '--'.",
         },
     },
     "required": ["subcommand"],

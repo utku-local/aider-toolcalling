@@ -41,8 +41,8 @@ TODO_PARAMETERS = {
     "properties": {
         "items": {
             "type": "array",
-            "description": "The complete task list, replacing the previous one. Each item is "
-            '{"content": "<step>", "status": "pending" | "in_progress" | "done"}.',
+            "description": 'The whole list, replacing the last: [{"content", "status": "pending" | "in_progress" | '
+            '"done"}].',
         },
     },
     "required": ["items"],
@@ -108,9 +108,7 @@ def register_todo_tool(
     """Add todo_write, bound to `todos`; `confirm` None means plans are never shown for approval."""
     registry.register(
         "todo_write",
-        "Write your task list for multi-step work and keep it updated: mark one item in_progress at a time "
-        "and mark items done as you finish them. The first plan of a request may be shown to the user for "
-        "approval.",
+        "Write and update your task list for multi-step work, with one item in_progress at a time.",
         TODO_PARAMETERS,
         lambda items: todo_write(todos, items, confirm, note),
     )

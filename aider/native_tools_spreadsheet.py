@@ -40,9 +40,9 @@ MORE_ROWS_NOTE = "[{shown} of {total} rows shown; ask with start_row to read mor
 SPREADSHEET_PARAMETERS = {
     "type": "object",
     "properties": {
-        "path": {"type": "string", "description": "Workbook path relative to the project root (.xlsx or .xlsm)."},
-        "sheet": {"type": "string", "description": "Sheet name. Defaults to the first sheet."},
-        "start_row": {"type": "integer", "description": "First row to return (1-based). Defaults to 1."},
+        "path": {"type": "string"},
+        "sheet": {"type": "string", "description": "Defaults to the first sheet."},
+        "start_row": {"type": "integer", "description": "1-based."},
         "max_rows": {"type": "integer", "description": f"Rows to return (default {DEFAULT_MAX_ROWS}, "
                                                        f"max {MAX_ROWS_LIMIT})."},
     },
@@ -177,7 +177,7 @@ def register_spreadsheet_tool(registry: NativeToolRegistry, ctx: ToolContext) ->
     """Add read_spreadsheet, bound to `ctx`, to `registry`."""
     registry.register(
         "read_spreadsheet",
-        "Read an Excel workbook (.xlsx/.xlsm): lists its sheets and returns rows of one sheet as text, in pages.",
+        "Read an Excel workbook (.xlsx/.xlsm): its sheet names and one sheet's rows, in pages.",
         SPREADSHEET_PARAMETERS,
         lambda path, sheet=None, start_row=1, max_rows=DEFAULT_MAX_ROWS: read_spreadsheet(
             ctx, path, sheet, start_row, max_rows
