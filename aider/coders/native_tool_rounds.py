@@ -2,7 +2,8 @@
 While the model replies with tool calls, it executes them through the operation ledger, appends the tool messages
 to the caller's message list (so an API retry resumes after the rounds already done) and queries the model again.
 Each request is sent with old tool results compacted and the ledger's working state attached; at the round budget
-the user may extend it, otherwise the model is asked once more with tool_choice "none".
+the user may extend it, otherwise the model is asked once more with tool_choice "none" and a user message to answer.
+A round with a repeated call gets a user message that pushes the model to the next step.
 """
 
 import time
@@ -12,9 +13,12 @@ from aider.native_tool_calls import describe_call, normalize_tool_calls, visible
 from aider.native_tool_compaction import add_working_state, compact_tool_history
 from aider.native_tool_loop import (
     FINAL_ANSWER_CHOICE,
+    FINAL_ANSWER_NUDGE,
+    REPEAT_NUDGE,
     REPEAT_REFUSAL_MARKER,
     build_tool_round_messages,
     drop_orphan_tool_messages,
+    repeated_in_round,
 )
 from aider.native_loop_options import LoopOptions
 from aider.native_task_gates import completion_nudge
@@ -125,6 +129,8 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     )
     show_results(coder, round_messages)
     append_operation_log(coder, coder.native_ledger.records[logged:])
+    if repeated_in_round(round_messages):
+        round_messages.append({"role": "user", "content": REPEAT_NUDGE})
     messages.extend(round_messages)
     # Keep the exchange in the chat history so later turns remember what the tools returned.
     coder.cur_messages += round_messages
@@ -203,6 +209,7 @@ def run_native_tool_rounds(
         completion = yield from request(coder, model, messages, functions, None)
 
     coder.io.tool_warning(f"Stopped after {rounds} tool rounds; asking the model to answer without tools.")
+    messages.append({"role": "user", "content": FINAL_ANSWER_NUDGE})
     completion = yield from request(coder, model, messages, functions, FINAL_ANSWER_CHOICE)
     coder.partial_response_function_call = dict()
     coder.partial_response_content = visible_content(current_message(coder, completion))

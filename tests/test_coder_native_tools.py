@@ -17,6 +17,7 @@ from aider.coders import Coder
 from aider.io import InputOutput
 from aider.models import Model
 from aider.coders.native_tool_rounds import MAX_CONTINUATIONS
+from aider.native_tool_loop import FINAL_ANSWER_NUDGE, REPEAT_NUDGE
 
 ROUND_BUDGET = 2
 
@@ -140,6 +141,21 @@ class CoderNativeToolsTest(unittest.TestCase):
         tool_ids = [m["tool_call_id"] for m in scripted.requests[-1]["messages"] if m["role"] == "tool"]
         self.assertEqual(tool_ids, [f"c{i}" for i in range(ROUND_BUDGET)])
         self.assertFalse(coder.partial_response_function_call)
+        self.assertEqual(coder.partial_response_content, FINAL_TEXT)
+        user_texts = [m["content"] for m in scripted.requests[-1]["messages"] if m["role"] == "user"]
+        self.assertIn(FINAL_ANSWER_NUDGE, user_texts)
+
+    def test_a_repeated_call_gets_a_user_nudge(self) -> None:
+        coder = self.make_coder(native_tools=True)
+        scripted = ScriptedModel([make_completion(tool_calls=list_files_call("c0")),
+                                  make_completion(tool_calls=list_files_call("c1")), make_completion(FINAL_TEXT)])
+        self.run_coder(coder, scripted)
+
+        def user_texts(request: dict) -> list[str]:
+            return [m["content"] for m in request["messages"] if m["role"] == "user"]
+
+        self.assertNotIn(REPEAT_NUDGE, user_texts(scripted.requests[1]))
+        self.assertIn(REPEAT_NUDGE, user_texts(scripted.requests[2]))
         self.assertEqual(coder.partial_response_content, FINAL_TEXT)
 
     def test_approved_continuations_are_capped(self) -> None:

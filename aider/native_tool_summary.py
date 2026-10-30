@@ -15,6 +15,10 @@ LINE_COUNT_TOOLS = frozenset({"read_file"})
 RESULT_COUNT_TOOLS = frozenset({"list_files", "find_files", "search_code", "find_symbol"})
 NO_MATCHES = "No matches."
 COMMAND_TOOL = "run_command"
+REPEAT_NOTE = (
+    "Note: you already made this exact call in this request and got the same result; use it and move on "
+    "to the next step instead of repeating it.\n"
+)
 
 
 def exit_code(result: str) -> Optional[int]:
@@ -34,6 +38,7 @@ def last_line(text: str) -> str:
 
 def summarize_result(tool: str, result: str) -> str:
     """A short, factual description of `result`; never longer than one line."""
+    result = result.removeprefix(REPEAT_NOTE)
     if result.startswith(ERROR_PREFIX):
         return first_line(result)
     if tool in LINE_COUNT_TOOLS:
