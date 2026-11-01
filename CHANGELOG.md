@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-01
+
 ### Added
 
 - `docs/TECH_DEBT.md`: open work, known limits and how the 27B loops were debugged, so work can resume on another machine.
