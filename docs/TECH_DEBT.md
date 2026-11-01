@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-10-30 (after v0.8.1; develop also has #81).
+Last updated: 2026-11-01 (after v0.8.1; develop also has #81 and the approval fixes).
 
 ## Open
 
@@ -37,8 +37,19 @@ Last updated: 2026-10-30 (after v0.8.1; develop also has #81).
 
 ### 3. Release v0.8.2
 
-- develop has #81, which removes the one-shot summary warning at exit. Item 1 may join it.
+- develop has #81, which removes the one-shot summary warning at exit, and the approval and repeat fixes from the Heretic session (item 4). Item 1 may join it.
 - **Next:** release once item 1 is decided.
+
+### 4. Heretic (Qwen3.6 35B-A3B) wandered on a debugging task
+
+- A session asked to fix a provider blocked by a Cloudflare check spent 25+ rounds and changed nothing.
+- Fixed in the harness: the prompt that read `a` as "no", messages typed at prompts, noisy risks for `2>/dev/null` and `| grep`, the missing working directory and venv, late repeat refusals, the grep exit 1 hint, and the search setup notice.
+- **Still the model's:**
+  - It said the challenge page returns HTTP 200 when its own curl showed 403.
+  - It sent `Accept-Encoding: br` again after getting binary output.
+  - It called `fetch_url` "with a proper User-Agent", though the tool takes no headers.
+  - It read files one by one without a plan. Given a roadmap from the user, it went straight to a plan.
+- **Next:** rerun the same task with the fixes. If it still reads without a plan, try a one-line "plan first for debugging tasks" in the system prompt and measure its token cost (see v0.8.1).
 
 ## Known limits (not planned)
 

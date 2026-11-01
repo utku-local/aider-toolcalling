@@ -36,6 +36,7 @@ from rich.text import Text
 
 from aider.mdstream import MarkdownStream
 
+from .confirm_answers import ReplyKind, classify_reply, offered_answers
 from .dump import dump  # noqa: F401
 from .editor import pipe_editor
 from .utils import is_image_file
@@ -268,6 +269,8 @@ class InputOutput:
         self.placeholder = None
         self.interrupted = False
         self.never_prompts = set()
+        # Messages for the model typed at a confirmation prompt; the agent loop delivers and clears them.
+        self.pending_user_notes: list[str] = []
         self.editingmode = editingmode
         self.multiline_mode = multiline_mode
         self.bell_on_next_input = False
@@ -830,7 +833,8 @@ class InputOutput:
             # Upstream: a group always offers "don't ask again", which answers no. Agent edits pass False.
             allow_never = bool(group)
 
-        valid_responses = ["yes", "no", "skip", "all"]
+        # Only the answers shown are accepted: "a" at a bare (Y)es/(N)o prompt used to be read as a silent no.
+        valid_responses = offered_answers(bool(group), explicit_yes_required, allow_never)
         options = " (Y)es/(N)o"
         if group:
             if not explicit_yes_required:
@@ -838,7 +842,6 @@ class InputOutput:
             options += "/(S)kip all"
         if allow_never:
             options += "/(D)on't ask again"
-            valid_responses.append("don't")
 
         if default.lower().startswith("y"):
             question += options + " [Yes]: "
@@ -859,11 +862,6 @@ class InputOutput:
                 self.tool_output(subject, bold=True)
 
         style = self._get_style()
-
-        def is_valid_response(text):
-            if not text:
-                return True
-            return text.lower() in valid_responses
 
         if self.yes is True:
             res = "n" if explicit_yes_required else "y"
@@ -888,13 +886,17 @@ class InputOutput:
                     res = default
                     break
 
-                if not res:
+                if not res.strip():
                     res = default
                     break
-                res = res.lower()
-                good = any(valid_response.startswith(res) for valid_response in valid_responses)
-                if good:
+                kind, value = classify_reply(res, valid_responses)
+                if kind is ReplyKind.ANSWER:
+                    res = value
                     break
+                if kind is ReplyKind.NOTE:
+                    self.pending_user_notes.append(value)
+                    self.tool_output("Noted: this message goes to the model after this step. Now answer the question.")
+                    continue
 
                 error_message = f"Please answer with one of: {', '.join(valid_responses)}"
                 self.tool_error(error_message)

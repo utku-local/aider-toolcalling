@@ -94,6 +94,15 @@ class OperationLedger:
                 count += 1
         return count
 
+    def repeats_last(self, tool: str, arguments: str) -> bool:
+        """True when the latest finished call of the current request executed and was this exact call."""
+        for r in reversed(self.records):
+            if r.request != self.request:
+                return False
+            if r.final:
+                return r.status is OperationStatus.EXECUTED and r.tool == tool and r.arguments == arguments
+        return False
+
     def applied_before(self, tool: str, arguments: str) -> bool:
         """True when this exact call already executed in the current request, regardless of later changes."""
         return any(
