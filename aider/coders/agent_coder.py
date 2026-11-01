@@ -4,10 +4,12 @@ post-edit flow, so linting, auto-commits and tests behave as they do for any oth
 Write approvals are grouped per request, so answering "All" approves the remaining edits of that request only.
 """
 
+import platform
+from pathlib import Path
 from typing import Any, Iterator
 
 from aider.io import ConfirmGroup
-from aider.native_environment import environment_note
+from aider.native_environment import detect_environment, environment_note
 from aider.native_memory_skills import skills_listing
 from aider.native_toolcalling import NativeToolRegistry
 
@@ -44,7 +46,8 @@ class AgentCoder(Coder):
         base = super().fmt_system_prompt(prompt)
         if prompt != self.gpt_prompts.main_system:
             return base
-        return base + environment_note(getattr(self, "native_sandboxed", False)) + skills_listing(
+        facts = detect_environment(Path(self.root).resolve(), platform.system())
+        return base + environment_note(getattr(self, "native_sandboxed", False), facts) + skills_listing(
             getattr(self, "native_skills", {})
         )
 

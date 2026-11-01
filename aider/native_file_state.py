@@ -38,6 +38,11 @@ class FileState:
         if current is not None:
             self.seen[str(path.resolve())] = current
 
+    def unchanged(self, path: Path) -> bool:
+        """True when `path` was read or written before and is the same on disk now."""
+        known = self.seen.get(str(path.resolve()))
+        return known is not None and known == stamp(path)
+
     def check_before_change(self, path: Path, shown: str) -> None:
         """Raise unless `path` is new, or was read and is unchanged since; `shown` names it in the message."""
         current = stamp(path)

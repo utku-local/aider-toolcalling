@@ -54,6 +54,27 @@ class CommandPolicyTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIs(self.action(command, sandboxed=True), PolicyAction.ASK)
 
+    def test_null_redirects_and_read_only_filters_add_no_risk(self) -> None:
+        for command in (
+            "pytest -q 2>/dev/null",
+            "pytest -q >/dev/null 2>&1",
+            "pytest -q 2>&1 | tail -20",
+            'pytest -q | grep -E "passed|failed" | head -5',
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(decide(command, ROOT, CommandRules(), False).risks, frozenset())
+                self.assertIs(self.action(command), PolicyAction.ALLOW)
+
+    def test_risks_of_every_pipeline_stage_count(self) -> None:
+        decision = decide("curl -s -o /dev/null https://x | head -1", ROOT, CommandRules(), False)
+        self.assertEqual(decision.risks, frozenset({Risk.NETWORK}))
+        self.assertIn(Risk.OUTSIDE_ROOT, decide("pytest | grep x /etc/passwd", ROOT, TRUSTED, False).risks)
+
+    def test_pipes_into_writers_or_runners_stay_compound(self) -> None:
+        for command in ("pytest | sh", "pytest | sort -o out", "pytest | rg --pre=cat x", "pytest 2>/dev/null; ls"):
+            with self.subTest(command=command):
+                self.assertIn(Risk.COMPOUND, decide(command, ROOT, TRUSTED, False).risks)
+
     def test_risks_are_classified(self) -> None:
         cases = {
             "curl https://x": Risk.NETWORK,

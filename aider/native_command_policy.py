@@ -1,10 +1,12 @@
 """Command policy for run_command: parses a shell command into argv and decides ALLOW, ASK or DENY.
-Decisions use the parsed program, subcommand and arguments, never a text pattern: compound commands (pipes, lists,
-redirects, substitutions, env prefixes) are never auto-allowed, path arguments outside the project are flagged, and
-network, deletion, remote git, package installs and privilege escalation are separate risks.
+Decisions use the parsed program, subcommand and arguments: compound commands (lists, redirects, substitutions,
+env prefixes, pipes into anything but a read-only filter) are never auto-allowed, path arguments outside the project
+are flagged, and network, deletion, remote git, package installs and privilege escalation are separate risks.
+Redirects to /dev/null and pipes into filters such as head or grep add no risk, so they do not trigger a prompt.
 Allow rules auto-approve only inside a sandbox unless a rule explicitly trusts unsandboxed runs.
 """
 
+import re
 import shlex
 from dataclasses import dataclass, field
 from enum import Enum
@@ -67,6 +69,17 @@ SUBCOMMAND_PROGRAMS = frozenset({"git", "npm", "yarn", "pnpm", "uv", "pip", "pip
 
 
 STDERR_MERGE = "2>&1"
+NULL_DEVICE = "/dev/null"
+PIPE = "|"
+# Redirects that only discard or merge output; removed before the command is judged (it still runs unchanged).
+# Measured: `2>/dev/null` was flagged as a compound command and a path outside the project on every call.
+HARMLESS_REDIRECT = re.compile(r"(?<!\S)(?:[12]?>|&>)\s*/dev/null(?=\s|$|[|;&])|(?<!\S)2>&1(?=\s|$|[|;&])")
+# Programs that only read their input and print; a pipe into them adds no risk.
+READ_ONLY_FILTERS = frozenset(
+    {"head", "tail", "grep", "egrep", "fgrep", "rg", "wc", "cut", "uniq", "sort", "tr", "jq", "nl", "column"}
+)
+# Filter flags that write a file or run a program.
+UNSAFE_FILTER_FLAGS = {"sort": ("-o", "--output"), "rg": ("--pre",)}
 
 
 def without_stderr_merge(command: str) -> str:
@@ -86,10 +99,38 @@ def tokenize(command: str) -> Optional[list[str]]:
         return None
 
 
+def without_harmless_redirects(command: str) -> str:
+    """`command` without redirects to /dev/null and `2>&1`; used only to judge the command, never to run it."""
+    return HARMLESS_REDIRECT.sub(" ", command).strip()
+
+
+def pipeline_stages(tokens: list[str]) -> list[list[str]]:
+    """The argv of each stage of a plain pipeline; a single stage when there is no pipe."""
+    stages: list[list[str]] = [[]]
+    for token in tokens:
+        if token == PIPE:
+            stages.append([])
+        else:
+            stages[-1].append(token)
+    return stages
+
+
+def is_read_only_filter(argv: list[str]) -> bool:
+    if not argv:
+        return False
+    program = PurePosixPath(argv[0]).name
+    unsafe = UNSAFE_FILTER_FLAGS.get(program, ())
+    return program in READ_ONLY_FILTERS and not any(arg.startswith(unsafe) for arg in argv[1:] if unsafe)
+
+
 def is_compound(command: str, tokens: list[str]) -> bool:
-    operators = any(token and set(token) <= OPERATOR_CHARS for token in tokens)
+    """True for anything but one plain command, optionally piped into read-only filters."""
+    stages = pipeline_stages(tokens)
+    operators = any(token and set(token) <= OPERATOR_CHARS for stage in stages for token in stage)
+    filters_only = all(is_read_only_filter(stage) for stage in stages[1:])
     env_prefix = bool(tokens) and "=" in tokens[0] and not tokens[0].startswith("-")
-    return operators or env_prefix or bool(EXPANSION_CHARS & set(command)) or "\n" in command
+    return operators or not filters_only or not stages[0] or env_prefix or bool(EXPANSION_CHARS & set(command)) \
+        or "\n" in command
 
 
 def program_and_args(argv: list[str]) -> tuple[str, list[str]]:
@@ -103,7 +144,7 @@ def program_and_args(argv: list[str]) -> tuple[str, list[str]]:
 def outside_root(args: list[str], root: Path) -> bool:
     for arg in args:
         value = arg.split("=", 1)[1] if arg.startswith("-") and "=" in arg else arg
-        if value.startswith("-") or not value:
+        if value.startswith("-") or not value or value == NULL_DEVICE:
             continue
         if value.startswith(("/", "~", "..")) or "/.." in value:
             target = (root / Path(value).expanduser()).resolve()
@@ -150,7 +191,7 @@ def rule_for_command(command: str, root: Path, trust_unsandboxed: bool) -> Optio
     Programs whose first argument selects an action (git, npm, uv, ...) get a rule for that subcommand only.
     """
     tokens = tokenize(command)
-    if not tokens or is_compound(command, tokens):
+    if not tokens or is_compound(command, tokens) or PIPE in tokens:
         return None
     program, args = program_and_args(tokens)
     if risks_of(program, args, root) or denial(program, args, set()):
@@ -162,14 +203,18 @@ def rule_for_command(command: str, root: Path, trust_unsandboxed: bool) -> Optio
 
 
 def decide(command: str, root: Path, rules: CommandRules, sandboxed: bool) -> PolicyDecision:
-    """The policy decision for one run_command call."""
+    """The policy decision for one run_command call; rules match the first stage of a pipeline."""
+    command = without_harmless_redirects(command)
     tokens = tokenize(command)
-    if not tokens:
+    if not tokens or not tokens[0] or tokens[0] == PIPE:
         return PolicyDecision(PolicyAction.ASK, frozenset({Risk.UNPARSEABLE}))
-    program, args = program_and_args(tokens)
-    risks = risks_of(program, args, root)
+    stages = pipeline_stages(tokens)
     if is_compound(command, tokens):
-        risks.add(Risk.COMPOUND)
+        program, args = program_and_args(tokens)
+        risks = risks_of(program, args, root) | {Risk.COMPOUND}
+    else:
+        program, args = program_and_args(stages[0])
+        risks = set().union(*(risks_of(*program_and_args(stage), root) for stage in stages))
     reason = denial(program, args, risks)
     if reason:
         return PolicyDecision(PolicyAction.DENY, frozenset(risks), reason)
