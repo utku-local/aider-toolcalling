@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-01 (after v0.8.1; develop also has #81 and the approval fixes).
+Last updated: 2026-11-01 (after v0.8.2).
 
 ## Open
 
@@ -35,15 +35,10 @@ Last updated: 2026-11-01 (after v0.8.1; develop also has #81 and the approval fi
 - Defensive settings applied in `~/.aider.model.settings.yml`: max_tokens 8192, temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.5.
 - **Next:** watch for it in a long real `/ask` session; if it comes back, capture the request and replay it the way the 27B loop was found (see below).
 
-### 3. Release v0.8.2
-
-- develop has #81, which removes the one-shot summary warning at exit, and the approval and repeat fixes from the Heretic session (item 4). Item 1 may join it.
-- **Next:** release once item 1 is decided.
-
-### 4. Heretic (Qwen3.6 35B-A3B) wandered on a debugging task
+### 3. Heretic (Qwen3.6 35B-A3B) wandered on a debugging task
 
 - A session asked to fix a provider blocked by a Cloudflare check spent 25+ rounds and changed nothing.
-- Fixed in the harness: the prompt that read `a` as "no", messages typed at prompts, noisy risks for `2>/dev/null` and `| grep`, the missing working directory and venv, late repeat refusals, the grep exit 1 hint, and the search setup notice.
+- Fixed in the harness (v0.8.2): the prompt that read `a` as "no", messages typed at prompts, noisy risks for `2>/dev/null` and `| grep`, the missing working directory and venv, late repeat refusals, the grep exit 1 hint, and the search setup notice.
 - **Still the model's:**
   - It said the challenge page returns HTTP 200 when its own curl showed 403.
   - It sent `Accept-Encoding: br` again after getting binary output.
