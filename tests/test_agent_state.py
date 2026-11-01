@@ -20,8 +20,12 @@ from aider.models import Model
 from aider.native_tool_calls import ToolCall
 from aider.native_tool_compaction import COMPACTED_PREFIX, add_working_state, compact_tool_history
 from aider.native_tool_ledger import OperationLedger, OperationStatus
+from aider.native_loop_options import LoopOptions
 from aider.native_tool_loop import (
+    REPEAT_COMMAND_REFUSAL,
     REPEAT_NOTE,
+    REPEAT_READ_REFUSAL,
+    REPEAT_REFUSAL,
     REPEAT_REFUSAL_MARKER,
     REPLAYED_NOTE,
     build_tool_round_messages,
@@ -231,13 +235,15 @@ class RepeatLoopTest(unittest.TestCase):
             fnames=[], use_git=False, map_tokens=0, auto_lint=False, stream=False,
         )
         same_read = [make_completion(tool_calls=tool_call(f"r{i}", "read_file", {"path": "calc.py"}))
-                     for i in range(5)]
+                     for i in range(4)]
         scripted = ScriptedModel(same_read + [make_completion(FINAL_TEXT)])
         with patch("aider.models.litellm.completion", side_effect=scripted):
             coder.run(with_message="Look at calc.py.")
 
+        # The file never changes, so the first re-read is already refused.
         statuses = [r.status for r in coder.native_ledger.records]
-        self.assertEqual(statuses.count(OperationStatus.EXECUTED), 2)
+        self.assertEqual(statuses.count(OperationStatus.EXECUTED), 1)
+        self.assertTrue(coder.native_ledger.records[1].result.startswith(REPEAT_READ_REFUSAL))
         self.assertEqual(coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 3)
         self.assertEqual(scripted.requests[-1]["tool_choice"], "none")
         self.assertEqual(coder.partial_response_content, FINAL_TEXT)
@@ -255,18 +261,54 @@ class RepeatLoopTest(unittest.TestCase):
 
     def test_identical_commands_are_refused_until_a_file_changes(self) -> None:
         registry = NativeToolRegistry()
-        registry.register("run_command", "Run", {"type": "object", "properties": {}}, lambda: "Exit code: 0")
+        schema = {"type": "object", "properties": {"command": {"type": "string"}}}
+        registry.register("run_command", "Run", schema, lambda **_: "Exit code: 0")
         registry.register("edit_file", "Edit", {"type": "object", "properties": {}}, lambda: "Edited")
         ledger = OperationLedger()
         ledger.start_request()
 
-        def run(call_id: str, tool: str) -> str:
-            return build_tool_round_messages(registry, "", [ToolCall(call_id, tool, "{}")], ledger)[1]["content"]
+        def run(call_id: str, tool: str, arguments: str = "{}") -> str:
+            return build_tool_round_messages(registry, "", [ToolCall(call_id, tool, arguments)], ledger)[1]["content"]
 
-        self.assertEqual([run(f"c{i}", "run_command") for i in range(2)], ["Exit code: 0"] * 2)
-        self.assertTrue(run("c2", "run_command").startswith(REPEAT_REFUSAL_MARKER))
+        other = '{"command": "ls"}'
+        self.assertEqual([run("c0", "run_command"), run("o0", "run_command", other)], ["Exit code: 0"] * 2)
+        self.assertEqual(run("c1", "run_command"), "Exit code: 0")
+        run("o1", "run_command", other)
+        self.assertEqual(run("c2", "run_command"), REPEAT_REFUSAL.format(count=2))
         run("e", "edit_file")
         self.assertEqual(run("c3", "run_command"), "Exit code: 0")
+
+    def test_a_command_repeated_back_to_back_is_refused_at_once(self) -> None:
+        registry = NativeToolRegistry()
+        registry.register("run_command", "Run", {"type": "object", "properties": {}}, lambda: "Exit code: 1")
+        ledger = OperationLedger()
+        ledger.start_request()
+
+        def run(call_id: str) -> str:
+            calls = [ToolCall(call_id, "run_command", "{}")]
+            return build_tool_round_messages(registry, "", calls, ledger)[1]["content"]
+
+        self.assertEqual(run("c0"), "Exit code: 1")
+        self.assertEqual(run("c1"), REPEAT_COMMAND_REFUSAL)
+
+    def test_a_reread_is_refused_only_while_the_file_is_unchanged(self) -> None:
+        registry = NativeToolRegistry()
+        registry.register("read_file", "Read", {"type": "object", "properties": {}}, lambda: "x = 1")
+        registry.register("search_code", "Search", {"type": "object", "properties": {}}, lambda: "No matches.")
+        ledger = OperationLedger()
+        ledger.start_request()
+        unchanged = [True]
+        options = LoopOptions(file_unchanged=lambda arguments: unchanged[0])
+
+        def call(call_id: str, tool: str = "read_file") -> str:
+            calls = [ToolCall(call_id, tool, "{}")]
+            return build_tool_round_messages(registry, "", calls, ledger, options)[1]["content"]
+
+        self.assertEqual(call("r0"), "x = 1")
+        call("s0", "search_code")
+        self.assertEqual(call("r1"), REPEAT_READ_REFUSAL)
+        unchanged[0] = False
+        self.assertTrue(call("r2").endswith("x = 1"))
 
     def test_an_identical_edit_is_applied_only_once(self) -> None:
         registry = NativeToolRegistry()

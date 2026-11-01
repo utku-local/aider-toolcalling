@@ -63,6 +63,16 @@ REPEAT_EDIT_REFUSAL = (
     REPEAT_REFUSAL_MARKER + " and this edit is already applied. Read the file to see its current content "
     "before changing it again."
 )
+# Measured: a local model re-read two unchanged files and ran `pip list | grep` twice in a row; the guard above
+# only stopped the third run. A re-read of an unchanged file and a command repeated back to back are refused at once.
+REPEAT_READ_REFUSAL = (
+    REPEAT_REFUSAL_MARKER + " in this request and the file has not changed since, so its content above is current. "
+    "Use it; if it is no longer shown in full, read only the lines you need with start_line and end_line."
+)
+REPEAT_COMMAND_REFUSAL = (
+    REPEAT_REFUSAL_MARKER + " as the call right before this one, so its result above still holds. Use it: run a "
+    "different command, change the code, or give your answer."
+)
 # Measured: a local model sent the same declined command more than 30 times; declined calls were never counted.
 REPEAT_DENIED_REFUSAL = (
     REPEAT_REFUSAL_MARKER + " and the user declined it. Do not ask again: use another approach, or stop and ask "
@@ -88,6 +98,18 @@ def repeat_refusal(ledger: OperationLedger, call: ToolCall, has_plan: Optional[H
         return REPEAT_DENIED_REFUSAL
     if call.name in CHANGE_TOOLS and ledger.applied_before(call.name, call.arguments):
         return REPEAT_EDIT_REFUSAL
+    return ""
+
+
+def early_repeat_refusal(call: ToolCall, repeats: int, back_to_back: bool, options: LoopOptions) -> str:
+    """Refusal for the first repeat of a read whose file is unchanged, or of the command run just before; empty
+    otherwise. `repeats` counts earlier runs since the last change, `back_to_back` says the previous call matched."""
+    if not repeats:
+        return ""
+    if call.name == READ_FILE_TOOL and options.file_unchanged is not None and options.file_unchanged(call.arguments):
+        return REPEAT_READ_REFUSAL
+    if call.name == COMMAND_TOOL and back_to_back:
+        return REPEAT_COMMAND_REFUSAL
     return ""
 
 
@@ -157,6 +179,7 @@ def execute_tool_call(
     if previous is not None:
         return ToolResult(call.id, call.name, REPLAYED_NOTE + previous.result)
     repeats = ledger.times_run(call.name, call.arguments) if call.name in REPEAT_GUARD_TOOLS else 0
+    back_to_back = ledger.repeats_last(call.name, call.arguments)
     refusal = repeat_refusal(ledger, call, options.has_plan)
     if not refusal and options.hooks is not None:
         refusal = blocked_by(options.hooks, call.name, call.arguments)
@@ -164,9 +187,11 @@ def execute_tool_call(
     if refusal:
         ledger.finish(record, refusal, failed=True)
         return ToolResult(call.id, call.name, refusal)
-    if repeats >= REPEAT_REFUSE_AFTER:
+    refusal = early_repeat_refusal(call, repeats, back_to_back, options)
+    if not refusal and repeats >= REPEAT_REFUSE_AFTER:
         # Measured: a local model re-read one file range 66 times despite the note; stop feeding the loop.
         refusal = REPEAT_REFUSAL.format(count=repeats)
+    if refusal:
         ledger.finish(record, refusal, failed=True)
         return ToolResult(call.id, call.name, refusal)
     try:
@@ -226,7 +251,7 @@ def build_tool_round_messages(
     parallel = [i for i, call in enumerate(calls) if runs_in_parallel(call)]
     if len(parallel) > 1:
         with ThreadPoolExecutor(max_workers=min(len(parallel), MAX_PARALLEL_CALLS)) as pool:
-            read_only = LoopOptions(spill=options.spill, hooks=options.hooks)
+            read_only = LoopOptions(spill=options.spill, hooks=options.hooks, file_unchanged=options.file_unchanged)
             futures = {i: pool.submit(execute_tool_call, registry, calls[i], ledger, read_only) for i in parallel}
             results = {i: future.result() for i, future in futures.items()}
     for i, call in enumerate(calls):

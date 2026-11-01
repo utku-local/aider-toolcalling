@@ -28,6 +28,7 @@ all dependencies.
 `aider-agent`), with templates in `docs/examples/`, including which model to run on a 32 GB Mac.
 `docs/MODEL_COMPARISON.md` records why the 27B is the agent model, how Coder-Next compared, and that the 32 GB
 M4 Air uses only the 27B (4-bit).
+`docs/TECH_DEBT.md` lists open work and known limits; check it before starting something new.
 
 ## Install as a command
 
@@ -129,6 +130,19 @@ poppler`); images and other binary files are refused with a short reason, since 
 A rule matches the parsed program (`python -m pytest` counts as `pytest`) and optional `subcommands`. Compound
 commands, paths outside the project and risky programs are asked even when a rule matches. Without
 `trust_unsandboxed`, an allow rule does not auto-approve, because the agent can change the code the command runs.
+Redirects to `/dev/null`, `2>&1`, and pipes into read-only filters (`head`, `tail`, `grep`, `rg`, `wc`, `cut`,
+`sort`, `uniq`, `tr`, `jq`, `nl`, `column`) are not compound: `pytest -q 2>&1 | tail -20` matches a `pytest` rule,
+and the risks of every stage still count.
+
+An approval prompt accepts only the answers it shows (`(Y)es/(N)o` takes yes or no) and asks again for anything else.
+A reply of several words typed at a prompt is not an answer: it is passed to the model as a message from you after
+that step, and the question is asked again. After you decline a command, the agent asks what to do instead; your
+reply reaches the model the same way (Enter skips it).
+
+The system prompt names the working directory, the OS and how to run the project's Python (`uv run python` with
+`uv.lock`, `poetry run python` with `poetry.lock`, or `.venv/bin/python`), so the model does not guess paths or use
+the system pip. An identical `read_file` of a file that has not changed, or the same command run twice in a row, is
+refused at the first repeat.
 
 `PYTHONPATH` is required: launching the `aider` command or running a script from elsewhere imports the unpatched
 installed copy instead.
