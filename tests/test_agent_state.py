@@ -98,10 +98,19 @@ class SummaryAndStateTest(unittest.TestCase):
         self.assertEqual(summarize_result("read_file", "a\nb\nc\n"), "3 lines")
         self.assertEqual(summarize_result("search_code", "x:1: a\ny:2: b"), "2 results")
         self.assertEqual(summarize_result("search_code", REPEAT_NOTE + "No matches."), "No matches.")
-        self.assertEqual(summarize_result("run_command", "Exit code: 1\nok\nFAILED t"), "exit 1: FAILED t")
+        self.assertEqual(summarize_result("run_command", "Exit code: 1\nok\nFAILED t"), "exit 1, 2 lines: FAILED t")
         self.assertEqual(summarize_result("edit_file", "Error: old_string was not found\nmore"),
                          "Error: old_string was not found")
         self.assertEqual(exit_code("no code here"), None)
+
+    def test_command_summary_counts_output_lines(self) -> None:
+        self.assertEqual(summarize_result("run_command", "Exit code: 0\nonly line"), "exit 0: only line")
+        self.assertEqual(summarize_result("run_command", "Exit code: 0\n"), "exit 0")
+        loop = "Exit code: 0\na -> 200\n\nb -> 403\nc -> 403\n"
+        self.assertEqual(summarize_result("run_command", loop), "exit 0, 3 lines: c -> 403")
+        spilled = ("Exit code: 0\nhead\n[... output too long: 90000 characters, 1200 lines. The full text is in "
+                   "x.txt; read parts of it with read_file and start_line/end_line ...]\ntail line\n")
+        self.assertEqual(summarize_result("run_command", spilled), "exit 0, 1200 lines: tail line")
 
     def test_working_state_uses_only_finished_operations(self) -> None:
         ledger = OperationLedger()

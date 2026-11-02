@@ -20,7 +20,9 @@ ASK_PARAMETERS = {
         "question": {"type": "string"},
         "options": {
             "type": "array",
-            "description": f"Up to {MAX_CHOICES} short choices; omit for a free-text answer.",
+            "items": {"type": "string"},
+            "maxItems": MAX_CHOICES,
+            "description": f"Up to {MAX_CHOICES} short choices, each a plain string; omit for a free-text answer.",
         },
     },
     "required": ["question"],
@@ -40,12 +42,25 @@ def resolve_choice(reply: str, choices: list[str]) -> str:
     return matching[0] if matching else text
 
 
+def choices_problem(choices: list) -> Optional[str]:
+    """What is wrong with `choices`, stated so the model can fix its next call; None when they are valid."""
+    if len(choices) > MAX_CHOICES:
+        return f"got {len(choices)} options, at most {MAX_CHOICES} are allowed"
+    for number, choice in enumerate(choices, start=1):
+        if not isinstance(choice, str):
+            return f"option {number} is a {type(choice).__name__}; each option must be a plain string"
+        if not choice.strip():
+            return f"option {number} is empty"
+    return None
+
+
 def ask_user(answer: Answer, question: str, options: Optional[list] = None) -> str:
     choices = list(options or [])
     if not question.strip():
         raise AskError("question must not be empty")
-    if len(choices) > MAX_CHOICES or not all(isinstance(c, str) and c.strip() for c in choices):
-        raise AskError(f"options must be at most {MAX_CHOICES} non-empty strings")
+    problem = choices_problem(choices)
+    if problem:
+        raise AskError(problem)
     reply = answer(question.strip(), choices)
     if reply is None:
         return NO_USER
