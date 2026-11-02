@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- Starting `aider-agent` without `--resume` overwrote the saved session on its first request, so a session could be lost by re-running the original command: in the v0.8.4 Heretic rerun, a 30-call, 33k-token session was replaced by a 3-call one before `--resume` was run. The first save of a new session now moves the old file to `.aider.agent-session.previous.json` and says so; a resumed session still saves in place.
+
 ## [0.8.4] - 2026-11-02
 
 ### Changed

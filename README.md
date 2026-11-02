@@ -103,7 +103,8 @@ is told this in its system prompt, and a refused connection or a sandbox denial 
 the likely cause, so the model reports a stopped service instead of debugging the code. Inside the sandbox every allow rule auto-approves; compound commands and risky programs are still asked.
 
 Agent sessions are saved to `.aider.agent-session.json` after each request; `--resume` continues one with its tool
-history, operation log and task list.
+history, operation log and task list. Starting without `--resume` keeps the saved session as
+`.aider.agent-session.previous.json` on the first save; rename it back to resume it.
 
 After you approve a plain command, Aider offers to remember it as a rule ("Always allow `pytest` in this
 project?"); answering yes writes the rule to `.aider-agent.json`.
