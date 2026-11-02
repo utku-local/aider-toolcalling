@@ -28,6 +28,7 @@ all dependencies.
 `aider-agent`), with templates in `docs/examples/`, including which model to run on a 32 GB Mac.
 `docs/MODEL_COMPARISON.md` records why the 27B is the agent model, how Coder-Next compared, and that the 32 GB
 M4 Air uses only the 27B (4-bit).
+`docs/TECH_DEBT.md` lists open work and known limits; check it before starting something new.
 
 ## Install as a command
 

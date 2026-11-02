@@ -5,10 +5,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `docs/TECH_DEBT.md`: open work, known limits and how the 27B loops were debugged, so work can resume on another machine.
+
 ### Changed
 
 - After three refused repeats the model gets one more chance: a user message tells it to stop looking for what a search did not find and go on with the open tasks and the tests. Only after three more refusals is it asked for its answer. In a long session the first stop came before the model had run its tests.
 - Refused repeat calls and their refusals are no longer sent back to the model, and an older copy of a note or working state is dropped where they meet. With several identical call/refusal pairs in its context the 27B kept making the same call whatever it was told; without them it wrote its plan and went on.
+
+### Fixed
+
+- A one-shot `--message` run no longer starts the background chat-history summary as it exits: the thread outlived the process and printed "Summarization failed ... cannot schedule new futures after shutdown" after long agent sessions.
 
 ## [0.8.1] - 2026-10-30
 
