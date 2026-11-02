@@ -9,10 +9,15 @@ laptop) can be brought to the same state. Every file it installs has a template 
 |---|---|---|---|---|
 | 8083 | `mlx_lm.server` | your text model (see "Choose the model") | at login | `aider` and `aider-agent` |
 | 8081 | `mlx_vlm.server` | same model, optional | by hand | anything that needs image input |
+| 8080 | `mlx_lm.server` | Heretic (Qwen3.6 35B-A3B MoE, 4-bit), optional, 64 GB Mac | at login when installed | `aider --model heretic` |
 
 `mlx_lm.server` reuses its prompt cache when a request extends the previous one, which is what every agent round
 does; `mlx_vlm.server` does not. Measured on the same 27B model, a real agent task took 237 s on `mlx_lm` and
 1,060 s on `mlx_vlm`. `mlx_vlm` is only needed for images.
+
+Heretic was served by `mlx_vlm` on 8080 until 2026-11-03, and none of its 4,970 logged requests reused the cache.
+On `mlx_lm`, a 12,614-token prompt took 31 s cold, and the next round (12,857 tokens) re-processed 217 tokens and took
+3.5 s. Its template is `docs/examples/launchagents/local.mlx-serve.plist`; run one model server at a time.
 
 Both servers load their model **when they start**, not on the first request, and keep it in memory. Check real
 usage with `footprint -p <pid>` (RSS does not show GPU memory).
