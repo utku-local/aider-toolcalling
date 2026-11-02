@@ -15,6 +15,7 @@ from aider.native_hooks import after_notes, blocked_by
 from aider.native_loop_options import NO_OPTIONS, LoopOptions
 from aider.native_output_spill import OutputSpill
 from aider.native_task_gates import PLAN_FIRST, needs_plan
+from aider.native_tool_compaction import is_state_message
 from aider.native_tool_summary import REPEAT_NOTE, exit_code
 from aider.native_toolcalling import (
     NativeToolRegistry,
@@ -50,6 +51,13 @@ REPEAT_NUDGE = (
     "You are repeating a call whose result has not changed, so repeating it again will not change it. If it found "
     "nothing because the code does not exist yet, that is the answer. Take the next step of the task now "
     "(write the plan with todo_write, or make the change)."
+)
+# Measured: the repeat stop ended a long task before the model ran its tests, which then failed; one more chance
+# with this message lets it go on with the remaining steps.
+REPEAT_STOP_NUDGE = (
+    "Several of your repeated calls were refused. Stop looking for that: if a search found nothing, it does not "
+    "exist. Go on with the remaining steps of the task (the open tasks in the working state), and run the tests "
+    "after changing code. If you cannot go further, give your answer."
 )
 # Measured: asked to answer with tool_choice "none", a local model still wrote a tool call, which left the answer
 # empty; an explicit user message got a plain-text summary.
@@ -295,3 +303,43 @@ def drop_orphan_tool_messages(messages: list[dict[str, Any]]) -> list[dict[str, 
                 message["tool_calls"] = calls
         cleaned.append(message)
     return cleaned
+
+
+def drop_refused_repeats(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The request without refused repeat calls, their refusals and repeated user messages between two replies.
+
+    Measured: once the context held several identical call/refusal pairs, a local model kept making the same call
+    whatever it was told; with the pairs removed it went on with the task.
+    """
+    refused = {
+        message.get("tool_call_id")
+        for message in messages
+        if message.get("role") == "tool" and str(message.get("content", "")).startswith(REPEAT_REFUSAL_MARKER)
+    }
+    kept: list[dict[str, Any]] = []
+    for message in messages:
+        role = message.get("role")
+        if role == "tool" and message.get("tool_call_id") in refused:
+            continue
+        if role == "assistant" and message.get("tool_calls"):
+            calls = [call for call in message["tool_calls"] if call.get("id") not in refused]
+            if not calls and not message.get("content"):
+                continue
+            message = {**message, "tool_calls": calls} if calls else {
+                k: v for k, v in message.items() if k != "tool_calls"}
+        if role == "user":
+            drop_earlier_copy(kept, message)
+        kept.append(message)
+    return kept
+
+
+def drop_earlier_copy(kept: list[dict[str, Any]], message: dict[str, Any]) -> None:
+    """Remove an older copy of `message` (same text, or an older working state) from the user messages that end
+    `kept`; two copies only meet there once refused repeats between them were removed."""
+    index = len(kept) - 1
+    while index >= 0 and kept[index].get("role") == "user":
+        older = kept[index]
+        if older.get("content") == message.get("content") or (is_state_message(older) and is_state_message(message)):
+            del kept[index]
+            return
+        index -= 1
