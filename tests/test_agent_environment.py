@@ -16,11 +16,18 @@ from aider.coders import Coder
 from aider.io import InputOutput
 from aider.models import Model
 from aider.native_environment import (
+    NO_MATCH_HINT,
+    NO_PYTHON_NOTE,
     REFUSED_HINT,
     SANDBOX_HINT,
     UNSANDBOXED_NOTE,
+    EnvironmentFacts,
     command_hint,
+    detect_environment,
     environment_note,
+    location_note,
+    no_match_hint,
+    python_runner,
 )
 from aider.native_sandbox import sandbox_available, sandbox_profile, sandboxed_argv
 from aider.native_tool_calls import ToolCall
@@ -60,7 +67,37 @@ class EnvironmentNoteTest(unittest.TestCase):
         self.assertNotIn(UNSANDBOXED_NOTE, reminder)
 
 
+class LocationNoteTest(unittest.TestCase):
+    def test_runner_follows_the_lock_or_venv_in_the_root(self) -> None:
+        self.assertEqual(python_runner(frozenset({"uv.lock", ".venv/bin/python"})), "uv run python")
+        self.assertEqual(python_runner(frozenset({"poetry.lock"})), "poetry run python")
+        self.assertEqual(python_runner(frozenset({".venv/bin/python"})), ".venv/bin/python")
+        self.assertIsNone(python_runner(frozenset({"pyproject.toml"})))
+
+    def test_note_names_the_directory_and_python(self) -> None:
+        note = environment_note(False, EnvironmentFacts("/p/app", "macOS", True, "uv run python"))
+        self.assertIn("Working directory: /p/app (macOS)", note)
+        self.assertIn("`uv run python`", note)
+
+    def test_python_project_without_venv_says_to_ask(self) -> None:
+        self.assertIn(NO_PYTHON_NOTE, location_note(EnvironmentFacts("/p", "Linux", python_project=True)))
+        self.assertNotIn("Python", location_note(EnvironmentFacts("/p", "Linux")))
+
+    def test_detect_reads_marker_files(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "pyproject.toml").write_text("")
+            Path(root, "uv.lock").write_text("")
+            facts = detect_environment(Path(root), "Darwin")
+        self.assertEqual((facts.os_name, facts.python_runner), ("macOS", "uv run python"))
+
+
 class CommandHintTest(unittest.TestCase):
+    def test_grep_without_matches_is_explained(self) -> None:
+        self.assertEqual(no_match_hint("pip list | grep -i httpx", 1, ""), NO_MATCH_HINT)
+        self.assertEqual(no_match_hint("rg foo", 1, ""), NO_MATCH_HINT)
+        self.assertEqual(no_match_hint("grep foo missing.txt", 1, "No such file"), "")
+        self.assertEqual(no_match_hint("pytest", 1, ""), "")
+
     def test_refused_connection_points_at_a_stopped_service(self) -> None:
         self.assertEqual(command_hint("ConnectionRefusedError: [Errno 61] Connection refused", False), REFUSED_HINT)
 

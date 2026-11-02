@@ -3,6 +3,7 @@ Read and search tools are always included; edit and shell tools only when the ca
 Approvals go through Aider's io.confirm_ask: writes share a per-request confirm group, commands are asked every time.
 """
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -20,7 +21,7 @@ from aider.native_todo import TodoList, register_todo_tool
 from aider.native_tool_context import ToolContext, ToolPermission
 from aider.native_tool_ledger import OperationLedger, OperationStatus
 from aider.native_toolcalling import NativeToolRegistry
-from aider.native_tools_builtin import register_read_tools
+from aider.native_tools_builtin import ToolPathError, register_read_tools, resolve_in_root
 from aider.native_tools_background import ProcessManager, register_background_tools
 from aider.native_tools_edit import register_edit_tools
 from aider.native_tools_fetch import register_fetch_tool
@@ -36,7 +37,7 @@ from .native_mcp_setup import register_mcp_tools
 from .native_subtask import register_research_tool, register_task_tool
 from .native_hook_setup import project_hooks
 from .native_rule_offer import offer_allow_rule
-from .native_user_io import answer_question, ask_text, confirm_plan
+from .native_user_io import answer_question, ask_after_decline, ask_text, confirm_plan
 
 SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache"})
 HIDDEN_PREFIX = "."
@@ -78,11 +79,15 @@ def symbol_tags(coder: Any, abs_path: str, rel_path: str) -> list[Any]:
 
 
 def ask_user(coder: Any, permission: ToolPermission, title: str, details: str) -> bool:
-    """Writes share the request's confirm group; commands and network access are asked every time."""
+    """Writes share the request's confirm group; commands and network access are asked every time, and a decline
+    asks what to do instead."""
     if permission is ToolPermission.WRITE:
         # No "(D)on't ask again": in Aider it means "never, answer no", which users read as "always yes".
         return coder.io.confirm_ask(title, subject=details, group=coder.native_write_group, allow_never=False)
-    return coder.io.confirm_ask(title, subject=details, explicit_yes_required=True)
+    approved = coder.io.confirm_ask(title, subject=details, explicit_yes_required=True)
+    if not approved:
+        ask_after_decline(coder)
+    return approved
 
 
 def approve(coder: Any, permission: ToolPermission, title: str, details: str) -> bool:
@@ -95,6 +100,15 @@ def approve(coder: Any, permission: ToolPermission, title: str, details: str) ->
     if approved and permission is ToolPermission.EXECUTE:
         offer_allow_rule(coder, details)
     return approved
+
+
+def read_unchanged(coder: Any, arguments: str) -> bool:
+    """True when the file a read_file call names was read or written before and has not changed on disk."""
+    try:
+        path = json.loads(arguments).get("path")
+        return isinstance(path, str) and coder.native_file_state.unchanged(resolve_in_root(Path(coder.root), path))
+    except (ValueError, AttributeError, ToolPathError):
+        return False
 
 
 def record_edit(coder: Any, abs_path: str) -> None:

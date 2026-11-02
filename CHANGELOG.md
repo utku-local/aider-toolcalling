@@ -5,10 +5,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-### Added
-
-- `docs/TECH_DEBT.md`: open work, known limits and how the 27B loops were debugged, so work can resume on another machine.
-
 ### Changed
 
 - The one-line `run_command` summary in the terminal (and in compacted history) now states how many lines the output had, e.g. `exit 0, 9 lines: <last line>`, so a loop over several targets no longer looks like a single result. For output spilled to a file, the count is that of the full output.
@@ -16,6 +12,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Fixed
 
 - `ask_user` declares its options as at most 6 plain strings in the tool schema, and a refused call says exactly what was wrong (too many options, which one is not a string, which one is empty). A 27B session sent invalid options on its first call and got only "options must be at most 6 non-empty strings".
+
+## [0.8.2] - 2026-11-01
+
+### Added
+
+- `docs/TECH_DEBT.md`: open work, known limits and how the 27B loops were debugged, so work can resume on another machine.
+- After you decline a command or network access, the agent asks what it should do instead; your reply goes to the model as a user message. Before, the tool result told the model to ask you, and a local model tried another approach instead.
+- A reply of several words typed at an approval prompt (for example "I did not decline this, carry on") is passed to the model after that step, and the question is asked again. Before, a message typed while the agent was working landed in the next prompt and never reached the model.
+- The system prompt names the working directory, the OS and how to run the project's Python (`uv run python`, `poetry run python` or `.venv/bin/python`). A model without it tried `cd /home/user` and checked the system pip, which lacks the project's packages.
+- `grep` or `rg` that exits 1 with no output gets a note saying this means "no matches", not an error.
+- "Web search is not set up" is shown to you in full, instead of only to the model.
+
+### Changed
+
+- Redirects to `/dev/null`, `2>&1`, and pipes into read-only filters such as `head`, `grep` or `wc` no longer make a command compound, and `/dev/null` no longer counts as a path outside the project. `pip list 2>/dev/null | grep x` was flagged with two risks; it now has none, so the prompt only appears for real risks.
+- A repeat of an identical `read_file` on a file that has not changed, and a command run twice in a row, are refused at the first repeat instead of the third run.
+
+### Fixed
+
+- Typing `a` at a `(Y)es/(N)o` command prompt counted as a silent "no": the prompt accepted `all` and `skip` though it did not offer them. Each prompt now accepts only the answers it shows and asks again for anything else.
 
 - A one-shot `--message` run no longer starts the background chat-history summary as it exits: the thread outlived the process and printed "Summarization failed ... cannot schedule new futures after shutdown" after long agent sessions.
 
