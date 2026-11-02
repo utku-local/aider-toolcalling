@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- A leading `cd <project root> &&` (or `;`) is dropped from `run_command` and `start_background` commands, since they already run in the root. Heretic prefixed every command with it, which made each one compound and outside the project, so `cd /root && pip list 2>/dev/null | grep curl` was asked with two risks; it now has none. A `cd` anywhere else is kept.
+- Tool arguments with a stray-quoted key (`items"`) or an array or object sent as a JSON string are repaired before validation when the intended parameter is unambiguous. Heretic sent `todo_write` as `{"items\"": "[...]"}` twice in one run and lost a round each time.
+
 ## [0.8.3] - 2026-11-02
 
 ### Changed

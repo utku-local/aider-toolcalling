@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO
 
+from aider.native_root_cd import without_root_cd
 from aider.native_tool_context import ToolContext
 from aider.native_toolcalling import NativeToolError, NativeToolRegistry
 from aider.native_tools_shell import authorize, output_tail
@@ -115,6 +116,7 @@ class ProcessManager:
 
 
 def start_background(ctx: ToolContext, manager: ProcessManager, command: str) -> str:
+    command = without_root_cd(command, ctx.root)
     refusal = authorize(ctx, command)
     if refusal:
         return refusal
