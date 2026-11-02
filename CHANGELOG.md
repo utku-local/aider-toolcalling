@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- The agent system prompt asks the model to reproduce a bug or failure with a command and read its real output before changing code (30 more tokens on Heretic's tokenizer, about 1% of the fixed prompt). In the v0.8.4 rerun of the 1337x Cloudflare task, Heretic rewrote the site's headers after 14 reads, without sending a single request to the site, and called it fixed.
+
 ## [0.8.4] - 2026-11-02
 
 ### Changed
