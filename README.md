@@ -240,7 +240,7 @@ model name, `extra_params.api_base` set to that port); plain `aider` keeps using
 
 ## Upstream updates
 
-New Aider releases are imported into the `upstream` branch and merged into `develop`; see `docs/UPSTREAM.md`.
+New Aider releases are imported as `upstream-X.Y.Z` tags and merged into `develop`; see `docs/UPSTREAM.md`.
 
 ## License
 

@@ -39,6 +39,7 @@ from aider.mdstream import MarkdownStream
 from .confirm_answers import ReplyKind, classify_reply, offered_answers
 from .dump import dump  # noqa: F401
 from .editor import pipe_editor
+from .prompt_fallback import read_reply
 from .utils import is_image_file
 
 # Constants
@@ -874,10 +875,13 @@ class InputOutput:
             while True:
                 try:
                     if self.prompt_session:
-                        res = self.prompt_session.prompt(
+                        res = read_reply(
+                            lambda: self.prompt_session.prompt(
+                                question,
+                                style=style,
+                                complete_while_typing=False,
+                            ),
                             question,
-                            style=style,
-                            complete_while_typing=False,
                         )
                     else:
                         res = input(question)
@@ -948,11 +952,14 @@ class InputOutput:
         else:
             try:
                 if self.prompt_session:
-                    res = self.prompt_session.prompt(
+                    res = read_reply(
+                        lambda: self.prompt_session.prompt(
+                            question + " ",
+                            default=default,
+                            style=style,
+                            complete_while_typing=True,
+                        ),
                         question + " ",
-                        default=default,
-                        style=style,
-                        complete_while_typing=True,
                     )
                 else:
                     res = input(question + " ")

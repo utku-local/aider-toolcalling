@@ -9,6 +9,7 @@ from typing import Union
 
 from aider.native_environment import command_hint, no_match_hint
 from aider.native_command_policy import PolicyAction, Risk, without_stderr_merge
+from aider.native_root_cd import without_root_cd
 from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolRegistry
 
@@ -71,7 +72,7 @@ def authorize(ctx: ToolContext, command: str) -> str:
 
 
 def run_command(ctx: ToolContext, command: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> str:
-    command = without_stderr_merge(command)
+    command = without_stderr_merge(without_root_cd(command, ctx.root))
     refusal = authorize(ctx, command)
     if refusal:
         return refusal

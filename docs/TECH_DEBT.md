@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-02 (after v0.8.3).
+Last updated: 2026-11-02 (after v0.8.4).
 
 ## Open
 
@@ -49,7 +49,15 @@ Last updated: 2026-11-02 (after v0.8.3).
   - It sent `Accept-Encoding: br` again after getting binary output.
   - It called `fetch_url` "with a proper User-Agent", though the tool takes no headers.
   - It read files one by one without a plan. Given a roadmap from the user, it went straight to a plan.
-- **Next:** rerun the same task with the fixes. If it still reads without a plan, try a one-line "plan first for debugging tasks" in the system prompt and measure its token cost (see v0.8.1).
+- **Rerun on v0.8.3 (2026-11-02, same prompt, unattended, every prompt approved; stopped by the user at 15 min):**
+  - Planning is inconsistent: one run read and searched 32 times before its first plan, another planned first.
+  - It never ran a request against 1337x. After 11 reads it added browser headers to `html_sites.json`, including `Accept-Encoding: gzip, deflate, br` (brotli is not in the project's requirements), and called them "Cloudflare-bypassing headers" without evidence. The earlier session had shown that a full browser header set still gets 403.
+  - It searched for 1337x-specific code that does not exist (`def.*1337x`, `register_provider.*1337x`, `1337x.*cloudflare`); the site is a JSON entry built by a generic loader.
+  - Harness issues found and fixed: a `cd <project root> &&` prefix on every command (compound and outside-the-project risks for nothing) and a garbled `todo_write` key `items"` (#91); every prompt failing with Errno 22 when stdin is `/dev/null` (#90).
+- **Next:**
+  1. Rerun on v0.8.4 (which has #90 and #91), with the run's commands seeing the user's normal `PATH` (an earlier attempt resolved `python` to the aider tool venv, without pytest).
+  2. If it still edits before any probe, try a one-line "reproduce the failure before changing code" in the system prompt and measure its token cost (see v0.8.1).
+  3. The "No matches" hint idea from item 1 also fits here: suggest searching the plain name, which may be data or config rather than code.
 
 ## Known limits (not planned)
 
