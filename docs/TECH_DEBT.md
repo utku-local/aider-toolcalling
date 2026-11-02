@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-02 (after v0.8.2, with #86 and #87 merged for v0.8.3).
+Last updated: 2026-11-02 (after v0.8.3).
 
 ## Open
 
@@ -22,7 +22,7 @@ Last updated: 2026-11-02 (after v0.8.2, with #86 and #87 merged for v0.8.3).
     - develop: 953, 750, 551 s; 32, 49, 29 tool calls; 243k, 532k, 240k tokens sent.
     - branch: 549, 516, 509 s; 24, 27, 25 tool calls; 152k, 215k, 169k tokens sent.
     - The branch's mechanisms never fired, so its lower time is not attributable to it; develop always ran first, so the branch may have reused a warm prompt cache.
-    - Both sides predate #83 (v0.8.2), which refuses the first repeat of an unchanged read or of the command just run. Combined with this branch, the move-on message now comes after fewer identical calls (4 identical reads instead of 5). The combination is unit-tested but was not run on the long task.
+    - Both sides predate #83 (v0.8.2), which refuses the first repeat of an unchanged read or of the command just run. Combined with this branch, the move-on message now comes after fewer identical calls (4 identical reads instead of 5). The combination is unit-tested and completed one long run (2026-11-02, before v0.8.3): 520 s, 23 tool calls, 173k tokens, 5 files, tests pass, no repeat stop or move-on.
   - Counting the 3 finished runs from 2026-10-30, 9 runs in a row completed without a loop. The loop is real but rare and depends on sampling.
 - **Remaining failure mode:**
   - The model searched for `def root(` while `root` is an attribute (`self.root = ...`), and retried near-identical patterns.
