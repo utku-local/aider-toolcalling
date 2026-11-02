@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- With stdin from `/dev/null` (a script or scheduled run without `--yes-always`), every approval prompt failed on macOS with `[Errno 22] Invalid argument`, which the model got as the tool result, so no command or plan was approved. prompt_toolkit cannot watch `/dev/null`; prompts now fall back to plain input, and end of input takes the prompt's default as it already did for piped input.
+
 ## [0.8.3] - 2026-11-02
 
 ### Changed
