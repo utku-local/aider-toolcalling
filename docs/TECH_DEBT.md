@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-02 (after v0.8.3).
+Last updated: 2026-11-02 (after v0.8.4).
 
 ## Open
 
@@ -55,7 +55,7 @@ Last updated: 2026-11-02 (after v0.8.3).
   - It searched for 1337x-specific code that does not exist (`def.*1337x`, `register_provider.*1337x`, `1337x.*cloudflare`); the site is a JSON entry built by a generic loader.
   - Harness issues found and fixed: a `cd <project root> &&` prefix on every command (compound and outside-the-project risks for nothing) and a garbled `todo_write` key `items"` (#91); every prompt failing with Errno 22 when stdin is `/dev/null` (#90).
 - **Next:**
-  1. Rerun after #90 and #91 merge, with the run's commands seeing the user's normal `PATH` (an earlier attempt resolved `python` to the aider tool venv, without pytest).
+  1. Rerun on v0.8.4 (which has #90 and #91), with the run's commands seeing the user's normal `PATH` (an earlier attempt resolved `python` to the aider tool venv, without pytest).
   2. If it still edits before any probe, try a one-line "reproduce the failure before changing code" in the system prompt and measure its token cost (see v0.8.1).
   3. The "No matches" hint idea from item 1 also fits here: suggest searching the plain name, which may be data or config rather than code.
 

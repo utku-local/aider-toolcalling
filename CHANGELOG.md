@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-11-02
+
 ### Changed
 
 - Imported upstream Aider releases are kept as `upstream-X.Y.Z` tags instead of an `upstream` branch, so the repository has only `main` and `develop`. `docs/UPSTREAM.md` describes the import with a temporary branch; `upstream-0.86.2` points at the old branch's last commit.
