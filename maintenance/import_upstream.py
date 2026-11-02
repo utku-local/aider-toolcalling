@@ -1,5 +1,5 @@
 """Downloads an aider-chat release wheel from PyPI and imports its aider package and dependencies.
-`--into DIR` replaces DIR/aider with the release's package (for the upstream branch); `--pyproject FILE` rewrites
+`--into DIR` replaces DIR/aider with the release's package (for an upstream import); `--pyproject FILE` rewrites
 that file's dependencies with the release's runtime requirements. Only the standard library is used.
 Run it as: python -m maintenance.import_upstream VERSION [--into DIR] [--pyproject FILE].
 """
