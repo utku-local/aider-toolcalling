@@ -2,12 +2,15 @@
 A summary keeps what matters later (line counts, match counts, exit codes, the first line of an error) and drops
 the bulk, so old rounds stay understandable without their full output.
 Exit codes are parsed from the run_command result text; the parser is shared with the working state.
+Multi-line command output is summarized with its line count, so a reader knows there is more than the last line.
 """
 
 import re
 from typing import Optional
 
 EXIT_CODE = re.compile(r"^Exit code: (-?\d+)", re.MULTILINE)
+# Matches the note native_output_spill puts in a shortened output, which states the full line count.
+SPILLED_LINES = re.compile(r"output too long: \d+ characters, (\d+) lines")
 TIMED_OUT = "timed out"
 ERROR_PREFIX = "Error: "
 MAX_SUMMARY_CHARS = 160
@@ -36,6 +39,27 @@ def last_line(text: str) -> str:
     return first_line(lines[-1]) if lines else ""
 
 
+def output_line_count(output: str) -> int:
+    """Non-empty lines in command output, or the full count stated by a spill note."""
+    spilled = SPILLED_LINES.search(output)
+    if spilled:
+        return int(spilled.group(1))
+    return len([line for line in output.splitlines() if line.strip()])
+
+
+def summarize_command(result: str) -> str:
+    """`exit N: last line`, with the line count added when the output has more than one line."""
+    code = exit_code(result)
+    if code is None:
+        return first_line(result)
+    output = result.split("\n", 1)[1] if "\n" in result else ""
+    tail = last_line(output)
+    if not tail:
+        return f"exit {code}"
+    lines = output_line_count(output)
+    return f"exit {code}, {lines} lines: {tail}" if lines > 1 else f"exit {code}: {tail}"
+
+
 def summarize_result(tool: str, result: str) -> str:
     """A short, factual description of `result`; never longer than one line."""
     result = result.removeprefix(REPEAT_NOTE)
@@ -46,9 +70,5 @@ def summarize_result(tool: str, result: str) -> str:
     if tool in RESULT_COUNT_TOOLS:
         return NO_MATCHES if result.strip() == NO_MATCHES else f"{len(result.splitlines())} results"
     if tool == COMMAND_TOOL:
-        code = exit_code(result)
-        if code is None:
-            return first_line(result)
-        tail = last_line(result.split("\n", 1)[1] if "\n" in result else "")
-        return f"exit {code}: {tail}" if tail else f"exit {code}"
+        return summarize_command(result)
     return first_line(result)

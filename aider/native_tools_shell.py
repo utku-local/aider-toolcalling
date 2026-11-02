@@ -7,7 +7,7 @@ The user must approve every command; Aider's --yes-always does not approve comma
 import subprocess
 from typing import Union
 
-from aider.native_environment import command_hint
+from aider.native_environment import command_hint, no_match_hint
 from aider.native_command_policy import PolicyAction, Risk, without_stderr_merge
 from aider.native_tool_context import DENIED_ACTION, ToolContext, ToolPermission
 from aider.native_toolcalling import NativeToolRegistry
@@ -93,6 +93,7 @@ def run_command(ctx: ToolContext, command: str, timeout_seconds: int = DEFAULT_T
         else output_tail(combined)
     result = f"Exit code: {completed.returncode}\n{shown}"
     hint = command_hint(combined, ctx.sandboxed) if completed.returncode else ""
+    hint = hint or no_match_hint(command, completed.returncode, combined)
     return f"{result}\n{hint}" if hint else result
 
 

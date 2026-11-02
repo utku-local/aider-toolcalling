@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-02 (after v0.8.1; develop also has #81, and #86 and the repeat-second-chance PR are open).
+Last updated: 2026-11-02 (after v0.8.2, with #86 and #87 merged for v0.8.3).
 
 ## Open
 
@@ -22,6 +22,7 @@ Last updated: 2026-11-02 (after v0.8.1; develop also has #81, and #86 and the re
     - develop: 953, 750, 551 s; 32, 49, 29 tool calls; 243k, 532k, 240k tokens sent.
     - branch: 549, 516, 509 s; 24, 27, 25 tool calls; 152k, 215k, 169k tokens sent.
     - The branch's mechanisms never fired, so its lower time is not attributable to it; develop always ran first, so the branch may have reused a warm prompt cache.
+    - Both sides predate #83 (v0.8.2), which refuses the first repeat of an unchanged read or of the command just run. Combined with this branch, the move-on message now comes after fewer identical calls (4 identical reads instead of 5). The combination is unit-tested but was not run on the long task.
   - Counting the 3 finished runs from 2026-10-30, 9 runs in a row completed without a loop. The loop is real but rare and depends on sampling.
 - **Remaining failure mode:**
   - The model searched for `def root(` while `root` is an attribute (`self.root = ...`), and retried near-identical patterns.
@@ -39,10 +40,16 @@ Last updated: 2026-11-02 (after v0.8.1; develop also has #81, and #86 and the re
 - Defensive settings applied in `~/.aider.model.settings.yml`: max_tokens 8192, temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.5.
 - **Next:** watch for it in a long real `/ask` session; if it comes back, capture the request and replay it the way the 27B loop was found (see below).
 
-### 3. Release v0.8.2
+### 3. Heretic (Qwen3.6 35B-A3B) wandered on a debugging task
 
-- develop has #81, which removes the one-shot summary warning at exit. #86 (command summary line counts, clearer `ask_user` refusals) and the item 1 PR are open.
-- **Next:** release once both PRs are merged.
+- A session asked to fix a provider blocked by a Cloudflare check spent 25+ rounds and changed nothing.
+- Fixed in the harness (v0.8.2): the prompt that read `a` as "no", messages typed at prompts, noisy risks for `2>/dev/null` and `| grep`, the missing working directory and venv, late repeat refusals, the grep exit 1 hint, and the search setup notice.
+- **Still the model's:**
+  - It said the challenge page returns HTTP 200 when its own curl showed 403.
+  - It sent `Accept-Encoding: br` again after getting binary output.
+  - It called `fetch_url` "with a proper User-Agent", though the tool takes no headers.
+  - It read files one by one without a plan. Given a roadmap from the user, it went straight to a plan.
+- **Next:** rerun the same task with the fixes. If it still reads without a plan, try a one-line "plan first for debugging tasks" in the system prompt and measure its token cost (see v0.8.1).
 
 ## Known limits (not planned)
 

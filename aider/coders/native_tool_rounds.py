@@ -4,7 +4,8 @@ to the caller's message list (so an API retry resumes after the rounds already d
 Each request is sent with old tool results compacted and the ledger's working state attached; at the round budget
 the user may extend it, otherwise the model is asked once more with tool_choice "none" and a user message to answer.
 A round with a repeated call gets a user message that pushes the model to the next step; after several refused
-repeats it is told once more to move on, and only then asked for its answer.
+repeats it is told once more to move on, and only then asked for its answer. Messages the user typed at a prompt
+during the round follow as a user message of their own.
 """
 
 import time
@@ -27,10 +28,13 @@ from aider.native_loop_options import LoopOptions
 from aider.native_task_gates import completion_nudge
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_tool_summary import summarize_result
+from aider.native_tools_websearch import NOT_SET_UP
 from aider.native_working_state import render_working_state
 
 from .native_context import maybe_summarize
 from .native_tool_log import append_operation_log
+from .native_tool_setup import read_unchanged
+from .native_user_io import take_user_notes
 
 MAX_CONTINUATIONS = 3
 # After this many refused repeats in one request the model is told to move on; after as many again, the loop stops
@@ -39,6 +43,8 @@ MAX_REPEAT_REFUSALS = 3
 REPEAT_STOP_CHANCES = 1
 RESULT_INDENT = "  -> "
 BACKGROUND_HEADING = "## Background update\n"
+# Tool results meant for the user, shown in full instead of as a one-line summary.
+USER_NOTICES = frozenset({NOT_SET_UP})
 
 
 def prepare_request_messages(coder: Any, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -109,7 +115,10 @@ def show_results(coder: Any, round_messages: list[dict[str, Any]]) -> None:
     for message in round_messages[1:]:
         content = message["content"]
         coder.io.tool_output(RESULT_INDENT + summarize_result(message["name"], content))
-        if coder.verbose:
+        if content in USER_NOTICES:
+            # Measured: told to pass this setup message on, a local model went on without mentioning it.
+            coder.io.tool_warning(content)
+        elif coder.verbose:
             coder.io.tool_output(content)
 
 
@@ -130,12 +139,16 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     round_messages = build_tool_round_messages(
         coder.native_tools, visible_content(message), calls, coder.native_ledger,
         LoopOptions(has_plan=lambda: bool(coder.native_todos.items), spill=getattr(coder, "native_spill", None),
-                    hooks=getattr(coder, "native_hooks", None)),
+                    hooks=getattr(coder, "native_hooks", None),
+                    file_unchanged=lambda arguments: read_unchanged(coder, arguments)),
     )
     show_results(coder, round_messages)
     append_operation_log(coder, coder.native_ledger.records[logged:])
     if repeated_in_round(round_messages):
         round_messages.append({"role": "user", "content": REPEAT_NUDGE})
+    note = take_user_notes(coder)
+    if note is not None:
+        round_messages.append(note)
     messages.extend(round_messages)
     # Keep the exchange in the chat history so later turns remember what the tools returned.
     coder.cur_messages += round_messages
