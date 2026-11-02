@@ -4,13 +4,13 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-01 (after v0.8.2).
+Last updated: 2026-11-02 (after v0.8.3).
 
 ## Open
 
 ### 1. Agent loops on searches for code that does not exist (27B)
 
-- **Branch:** `feature/repeat-second-chance` (pushed, no PR yet). It changes two things:
+- **Merged as a safety net, not a proven fix:** `feature/repeat-second-chance` changes two things:
   - After 3 refused repeats, the model gets one more chance: a user message tells it to move on to the open tasks and the tests.
   - Refused call/refusal pairs are left out of the request.
 - **Evidence:**
@@ -18,16 +18,21 @@ Last updated: 2026-11-01 (after v0.8.2).
     - v0.8.0 and develop before #78 looped and changed nothing.
     - With the #78 nudge, one run changed 3 files.
     - Two runs with this branch looped and changed nothing.
-  - In the 3x3 comparison (develop vs branch, 3 runs each), the first 3 finished runs (develop 2, branch 1) all completed the task: 5 files changed, tests passed, no loop. The loop depends on sampling.
+  - Full 3x3 comparison on 2026-11-02 (develop vs branch, alternating, develop first in each pair): all 6 runs completed the task (5 files changed, tests passed). No repeat stop, move-on, forced answer, timeout or "say the word" in any run.
+    - develop: 953, 750, 551 s; 32, 49, 29 tool calls; 243k, 532k, 240k tokens sent.
+    - branch: 549, 516, 509 s; 24, 27, 25 tool calls; 152k, 215k, 169k tokens sent.
+    - The branch's mechanisms never fired, so its lower time is not attributable to it; develop always ran first, so the branch may have reused a warm prompt cache.
+    - Both sides predate #83 (v0.8.2), which refuses the first repeat of an unchanged read or of the command just run. Combined with this branch, the move-on message now comes after fewer identical calls (4 identical reads instead of 5). The combination is unit-tested and completed one long run (2026-11-02, before v0.8.3): 520 s, 23 tool calls, 173k tokens, 5 files, tests pass, no repeat stop or move-on.
+  - Counting the 3 finished runs from 2026-10-30, 9 runs in a row completed without a loop. The loop is real but rare and depends on sampling.
 - **Remaining failure mode:**
   - The model searched for `def root(` while `root` is an attribute (`self.root = ...`), and retried near-identical patterns.
   - Twice it ended with "say the word and I'll proceed" even under `--yes-always`.
 - **Next:**
-  1. Rerun the comparison to completion: `compare_long.sh` (3 runs of each ref). It lived in the session scratchpad; recreate it from this description if it is gone.
-  2. Merge the branch only if it is not worse than develop.
-  3. Ideas to try:
+  1. Watch for the loop in real sessions; when it happens, capture the request and replay it (see the end of this file).
+  2. Ideas to try if it comes back:
      - A "No matches" hint for `def X` searches: search for `X =` or use `find_symbol`.
      - Treat near-identical search patterns as repeats.
+  3. To rerun the comparison, recreate `compare_long.sh` from this description: per ref, a fresh detached worktree, `python -m aider.agent_main --yes-always --no-auto-commits --message "<the /memory task>"` with `PYTHONPATH` set to the worktree, then the task's tests; alternate the order of the refs to avoid the prompt-cache bias.
 
 ### 2. Heretic (8080) repetition in long /ask sessions
 

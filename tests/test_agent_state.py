@@ -27,8 +27,10 @@ from aider.native_tool_loop import (
     REPEAT_READ_REFUSAL,
     REPEAT_REFUSAL,
     REPEAT_REFUSAL_MARKER,
+    REPEAT_STOP_NUDGE,
     REPLAYED_NOTE,
     build_tool_round_messages,
+    drop_refused_repeats,
     repeated_in_round,
 )
 from aider.native_tool_summary import exit_code, summarize_result
@@ -93,15 +95,48 @@ class RepeatHintTest(unittest.TestCase):
         self.assertEqual(fresh[1]["content"], "content")
 
 
+class DropRefusedRepeatsTest(unittest.TestCase):
+    def test_refused_pairs_and_stale_notes_are_left_out(self) -> None:
+        def call(call_id: str) -> dict:
+            return {"role": "assistant", "content": "",
+                    "tool_calls": [{"id": call_id, "type": "function",
+                                    "function": {"name": "search_code", "arguments": "{}"}}]}
+
+        refusal = REPEAT_REFUSAL_MARKER + " 2 times."
+        state = STATE_HEADING + "\nFiles read: a.py"
+        messages = [
+            {"role": "user", "content": "task"},
+            call("a"), {"role": "tool", "tool_call_id": "a", "content": "No matches."},
+            {"role": "user", "content": "nudge"}, {"role": "user", "content": state},
+            call("b"), {"role": "tool", "tool_call_id": "b", "content": refusal},
+            {"role": "user", "content": "nudge"}, {"role": "user", "content": state + "\nRecent tool errors: x"},
+        ]
+        kept = drop_refused_repeats(messages)
+
+        self.assertEqual([m.get("tool_call_id") for m in kept if m["role"] == "tool"], ["a"])
+        self.assertEqual([m["content"] for m in kept[-2:]], ["nudge", state + "\nRecent tool errors: x"])
+        self.assertEqual(len(kept), 5)
+        self.assertEqual(drop_refused_repeats(messages[:4]), messages[:4])
+
+
 class SummaryAndStateTest(unittest.TestCase):
     def test_summaries(self) -> None:
         self.assertEqual(summarize_result("read_file", "a\nb\nc\n"), "3 lines")
         self.assertEqual(summarize_result("search_code", "x:1: a\ny:2: b"), "2 results")
         self.assertEqual(summarize_result("search_code", REPEAT_NOTE + "No matches."), "No matches.")
-        self.assertEqual(summarize_result("run_command", "Exit code: 1\nok\nFAILED t"), "exit 1: FAILED t")
+        self.assertEqual(summarize_result("run_command", "Exit code: 1\nok\nFAILED t"), "exit 1, 2 lines: FAILED t")
         self.assertEqual(summarize_result("edit_file", "Error: old_string was not found\nmore"),
                          "Error: old_string was not found")
         self.assertEqual(exit_code("no code here"), None)
+
+    def test_command_summary_counts_output_lines(self) -> None:
+        self.assertEqual(summarize_result("run_command", "Exit code: 0\nonly line"), "exit 0: only line")
+        self.assertEqual(summarize_result("run_command", "Exit code: 0\n"), "exit 0")
+        loop = "Exit code: 0\na -> 200\n\nb -> 403\nc -> 403\n"
+        self.assertEqual(summarize_result("run_command", loop), "exit 0, 3 lines: c -> 403")
+        spilled = ("Exit code: 0\nhead\n[... output too long: 90000 characters, 1200 lines. The full text is in "
+                   "x.txt; read parts of it with read_file and start_line/end_line ...]\ntail line\n")
+        self.assertEqual(summarize_result("run_command", spilled), "exit 0, 1200 lines: tail line")
 
     def test_working_state_uses_only_finished_operations(self) -> None:
         ledger = OperationLedger()
@@ -229,25 +264,37 @@ class RepeatLoopTest(unittest.TestCase):
         os.chdir(self.cwd)
         self.tmp.cleanup()
 
-    def test_identical_reads_are_refused_and_the_loop_ends(self) -> None:
+    def run_reads(self, reads: int) -> tuple[Coder, ScriptedModel]:
         coder = Coder.create(
             main_model=Model(MODEL_NAME), edit_format="agent", io=InputOutput(yes=True, pretty=False),
             fnames=[], use_git=False, map_tokens=0, auto_lint=False, stream=False,
         )
         same_read = [make_completion(tool_calls=tool_call(f"r{i}", "read_file", {"path": "calc.py"}))
-                     for i in range(4)]
+                     for i in range(reads)]
         scripted = ScriptedModel(same_read + [make_completion(FINAL_TEXT)])
         with patch("aider.models.litellm.completion", side_effect=scripted):
             coder.run(with_message="Look at calc.py.")
+        return coder, scripted
+
+    def test_refused_repeats_get_one_more_chance(self) -> None:
+        coder, scripted = self.run_reads(4)
+
+        self.assertEqual(coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 3)
+        user_texts = [m["content"] for m in scripted.requests[-1]["messages"] if m["role"] == "user"]
+        self.assertIn(REPEAT_STOP_NUDGE, user_texts)
+        self.assertNotEqual(scripted.requests[-1].get("tool_choice"), "none")
+        self.assertEqual(coder.partial_response_content, FINAL_TEXT)
+
+    def test_identical_reads_are_refused_and_the_loop_ends(self) -> None:
+        coder, scripted = self.run_reads(7)
 
         # The file never changes, so the first re-read is already refused.
         statuses = [r.status for r in coder.native_ledger.records]
         self.assertEqual(statuses.count(OperationStatus.EXECUTED), 1)
         self.assertTrue(coder.native_ledger.records[1].result.startswith(REPEAT_READ_REFUSAL))
-        self.assertEqual(coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 3)
+        self.assertEqual(coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER), 6)
         self.assertEqual(scripted.requests[-1]["tool_choice"], "none")
         self.assertEqual(coder.partial_response_content, FINAL_TEXT)
-
 
     def test_a_file_change_resets_the_repeat_count(self) -> None:
         ledger = OperationLedger()
