@@ -9,7 +9,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - `docs/TECH_DEBT.md`: open work, known limits and how the 27B loops were debugged, so work can resume on another machine.
 
+### Changed
+
+- The one-line `run_command` summary in the terminal (and in compacted history) now states how many lines the output had, e.g. `exit 0, 9 lines: <last line>`, so a loop over several targets no longer looks like a single result. For output spilled to a file, the count is that of the full output.
+
 ### Fixed
+
+- `ask_user` declares its options as at most 6 plain strings in the tool schema, and a refused call says exactly what was wrong (too many options, which one is not a string, which one is empty). A 27B session sent invalid options on its first call and got only "options must be at most 6 non-empty strings".
 
 - A one-shot `--message` run no longer starts the background chat-history summary as it exits: the thread outlived the process and printed "Summarization failed ... cannot schedule new futures after shutdown" after long agent sessions.
 

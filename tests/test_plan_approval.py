@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from aider.coders.native_agent_config import AgentConfigError, parse_config
 from aider.coders.native_user_io import answer_question, confirm_plan
 from aider.native_todo import PLAN_APPROVED, TodoList, todo_write
-from aider.native_tools_ask import NO_USER, AskError, ask_user, resolve_choice
+from aider.native_tools_ask import ASK_PARAMETERS, MAX_CHOICES, NO_USER, AskError, ask_user, resolve_choice
 
 PLAN = [{"content": "Read the code", "status": "in_progress"}, {"content": "Run the tests"}]
 
@@ -57,6 +57,21 @@ class AskUserTest(unittest.TestCase):
             ask_user(lambda q, c: "x", "  ")
         with self.assertRaises(AskError):
             ask_user(lambda q, c: "x", "Which?", ["ok", ""])
+
+    def test_refusal_names_the_problem(self) -> None:
+        cases = [
+            (["o"] * (MAX_CHOICES + 1), f"got {MAX_CHOICES + 1} options, at most {MAX_CHOICES}"),
+            (["ok", {"label": "b"}], "option 2 is a dict; each option must be a plain string"),
+            (["ok", " "], "option 2 is empty"),
+        ]
+        for options, message in cases:
+            with self.subTest(options=options), self.assertRaisesRegex(AskError, message):
+                ask_user(lambda q, c: "x", "Which?", options)
+
+    def test_schema_declares_option_shape(self) -> None:
+        options = ASK_PARAMETERS["properties"]["options"]
+        self.assertEqual(options["items"], {"type": "string"})
+        self.assertEqual(options["maxItems"], MAX_CHOICES)
 
 
 class UserIoTest(unittest.TestCase):
