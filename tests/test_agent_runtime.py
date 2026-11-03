@@ -18,7 +18,7 @@ from test_coder_native_tools import FINAL_TEXT, MODEL_NAME, ScriptedModel, make_
 from aider import agent_main
 from aider.coders import Coder
 from aider.coders.native_agent_config import parse_config
-from aider.coders.native_session import SESSION_FILE_NAME, resume_session
+from aider.coders.native_session import PREVIOUS_FILE_NAME, SESSION_FILE_NAME, resume_session
 from aider.io import InputOutput
 from aider.models import Model
 from aider.native_sandbox import sandbox_available, sandbox_profile, sandboxed_argv, shell_argv
@@ -133,6 +133,31 @@ class SessionTest(unittest.TestCase):
 
     def test_resume_without_a_session_reports_an_error(self) -> None:
         self.assertFalse(resume_session(self.make_coder()))
+
+    def run_one_request(self, coder: Coder, call_id: str) -> None:
+        read = tool_call(call_id, "read_file", {"path": "calc.py"})
+        scripted = ScriptedModel([make_completion(tool_calls=read), make_completion(FINAL_TEXT)])
+        with patch("aider.models.litellm.completion", side_effect=scripted):
+            coder.run(with_message="Look at calc.py.")
+
+    def ledger_ids(self, name: str) -> list:
+        return [r["call_id"] for r in json.loads(Path(name).read_text())["ledger"]]
+
+    def test_a_new_session_keeps_the_previous_one(self) -> None:
+        self.run_one_request(self.make_coder(), "old")
+        fresh = self.make_coder()
+        self.run_one_request(fresh, "new1")
+        self.run_one_request(fresh, "new2")
+        self.assertEqual(self.ledger_ids(PREVIOUS_FILE_NAME), ["old"])
+        self.assertEqual(self.ledger_ids(SESSION_FILE_NAME), ["new1", "new2"])
+
+    def test_a_resumed_session_saves_in_place(self) -> None:
+        self.run_one_request(self.make_coder(), "old")
+        resumed = self.make_coder()
+        self.assertTrue(resume_session(resumed))
+        self.run_one_request(resumed, "more")
+        self.assertFalse(Path(PREVIOUS_FILE_NAME).exists())
+        self.assertEqual(self.ledger_ids(SESSION_FILE_NAME), ["old", "more"])
 
 
 class AgentMainTest(unittest.TestCase):

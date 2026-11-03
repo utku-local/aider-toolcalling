@@ -13,6 +13,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - The agent system prompt asks the model to reproduce a bug or failure with a command and read its real output before changing code (30 more tokens on Heretic's tokenizer, about 1% of the fixed prompt). In the v0.8.4 rerun of the 1337x Cloudflare task, Heretic rewrote the site's headers after 14 reads, without sending a single request to the site, and called it fixed.
 
+### Fixed
+
+- Starting `aider-agent` without `--resume` overwrote the saved session on its first request, so a session could be lost by re-running the original command: in the v0.8.4 Heretic rerun, a 30-call, 33k-token session was replaced by a 3-call one before `--resume` was run. The first save of a new session now moves the old file to `.aider.agent-session.previous.json` and says so; a resumed session still saves in place.
+
 ## [0.8.4] - 2026-11-02
 
 ### Changed
