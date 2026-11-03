@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Heretic (Qwen3.6 35B-A3B MoE, 4-bit) for aider --model heretic: mlx_lm.server on 8080, 64 GB Mac only.
+     It was served by mlx_vlm.server until 2026-11-03, which never reused its prompt cache (cached_tokens=0 on every
+     request), so each agent round re-processed the whole conversation. Fill in __HOME__ (see docs/LOCAL_SETUP.md).
+     Run one model server at a time: stop 8083 before loading this one. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.mlx-serve</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.venvs/mlx-vlm/bin/python</string>
+    <string>-m</string><string>mlx_lm</string><string>server</string>
+    <string>--model</string><string>froggeric/Qwen3.6-35B-A3B-Uncensored-Heretic-MLX-4bit</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>8080</string>
+    <string>--chat-template-args</string><string>{"enable_thinking": false}</string>
+    <string>--prompt-cache-bytes</string><string>8589934592</string>
+    <string>--log-level</string><string>INFO</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>__HOME__</string>
+    <key>PATH</key><string>__HOME__/.venvs/mlx-vlm/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>StandardOutPath</key><string>__HOME__/.cache/mlx-serve.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/.cache/mlx-serve.log</string>
+</dict>
+</plist>
