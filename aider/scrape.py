@@ -7,6 +7,7 @@ import pypandoc
 
 from aider import __version__, urls, utils
 from aider.dump import dump  # noqa: F401
+from aider.extra_packages import PLAYWRIGHT_PACKAGES
 
 aider_user_agent = f"Aider/{__version__} +{urls.website}"
 
@@ -42,7 +43,7 @@ def install_playwright(io):
     if has_pip and has_chromium:
         return True
 
-    pip_cmd = utils.get_pip_install(["aider-chat[playwright]"])
+    pip_cmd = utils.get_pip_install(list(PLAYWRIGHT_PACKAGES))
     chromium_cmd = "-m playwright install --with-deps chromium"
     chromium_cmd = [sys.executable] + chromium_cmd.split()
 
