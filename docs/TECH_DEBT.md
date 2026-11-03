@@ -72,6 +72,7 @@ Last updated: 2026-11-03 (after v0.8.5).
   - Each machine's own `~/.aider.model.settings.yml` must carry it.
   - If a request hangs anyway, restart 8083 (`launchctl kickstart -k gui/$(id -u)/local.mlx-lm-agent`). The server keeps generating after the client gives up.
 - **mlx_vlm (8081; Heretic's 8080 until 2026-11-03)** sometimes returns HTTP 500 "Thread group size (1024) is greater than the maximum allowed threads per threadgroup (896)". This is an upstream mlx bug.
+- **mlx_lm 0.31.3 batching**: when two clients' requests arrived together (Heretic's agent and another repo's session, 2026-11-03), the server batched them and its generation thread died with `TypeError: 'NoneType' object is not iterable` in `logits_processors`; `/v1/models` still answered, but every later request hung until a restart. Both LaunchAgent templates now set `--decode-concurrency 1 --prompt-concurrency 1`, so a second client waits instead. Drop them only after checking a newer mlx_lm with two concurrent clients.
 - **MCP OAuth** was checked against real Notion up to the browser step: discovery, registration, PKCE, and the scope from the 401. The code exchange and refresh are covered only by the fake server in `tests/test_mcp_oauth.py`.
 - **Parallel `research` sub-agents** were measured slower than sequential ones (prompt cache reuse) and were not merged. Do not retry without a new reason.
 

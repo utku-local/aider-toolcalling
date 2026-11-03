@@ -2,7 +2,8 @@
 <!-- Heretic (Qwen3.6 35B-A3B MoE, 4-bit) for aider --model heretic: mlx_lm.server on 8080, 64 GB Mac only.
      It was served by mlx_vlm.server until 2026-11-03, which never reused its prompt cache (cached_tokens=0 on every
      request), so each agent round re-processed the whole conversation. Fill in __HOME__ (see docs/LOCAL_SETUP.md).
-     Run one model server at a time: stop 8083 before loading this one. -->
+     Run one model server at a time: stop 8083 before loading this one. Concurrency 1: mlx_lm 0.31.3 crashed its
+     generation thread when it batched two clients' requests, and every later request then hung. -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -16,6 +17,8 @@
     <string>--port</string><string>8080</string>
     <string>--chat-template-args</string><string>{"enable_thinking": false}</string>
     <string>--prompt-cache-bytes</string><string>8589934592</string>
+    <string>--decode-concurrency</string><string>1</string>
+    <string>--prompt-concurrency</string><string>1</string>
     <string>--log-level</string><string>INFO</string>
   </array>
   <key>EnvironmentVariables</key>
