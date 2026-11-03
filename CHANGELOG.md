@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- Accepting Aider's offer to install Playwright (also the browser UI and `/help` extras) ran `pip install aider-chat[...]`, which installed upstream aider-chat into the same environment and overwrote this package's patched `aider/io.py`, `main.py`, `args.py` and `coders/__init__.py`, so the next `aider-agent` start lost agent mode. The offers now install only the feature's own packages (`playwright`, `streamlit`, `llama-index-embeddings-huggingface`), listed in `aider/extra_packages.py`.
+
 ## [0.8.6] - 2026-11-03
 
 ### Fixed

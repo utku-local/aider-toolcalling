@@ -21,6 +21,7 @@ from prompt_toolkit.enums import EditingMode
 from aider import __version__, models, urls, utils
 from aider.analytics import Analytics
 from aider.args import get_parser
+from aider.extra_packages import BROWSER_PACKAGES
 from aider.coders import Coder
 from aider.coders.native_session import resume_session
 from aider.model_seed import with_seed
@@ -212,7 +213,7 @@ def check_streamlit_install(io):
         io,
         "streamlit",
         "You need to install the aider browser feature",
-        ["aider-chat[browser]"],
+        list(BROWSER_PACKAGES),
     )
 
 

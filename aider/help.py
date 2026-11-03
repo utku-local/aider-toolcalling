@@ -10,17 +10,14 @@ import importlib_resources
 
 from aider import __version__, utils
 from aider.dump import dump  # noqa: F401
+from aider.extra_packages import HELP_PACKAGES
 from aider.help_pats import exclude_website_pats
 
 warnings.simplefilter("ignore", category=FutureWarning)
 
 
 def install_help_extra(io):
-    pip_install_cmd = [
-        "aider-chat[help]",
-        "--extra-index-url",
-        "https://download.pytorch.org/whl/cpu",
-    ]
+    pip_install_cmd = list(HELP_PACKAGES)
     res = utils.check_pip_install_extra(
         io,
         "llama_index.embeddings.huggingface",
