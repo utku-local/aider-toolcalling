@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-11-03
+
 ### Added
 
 - `docs/examples/launchagents/local.mlx-serve.plist` serves Heretic on 8080 with `mlx_lm.server` instead of `mlx_vlm.server`, which never reused its prompt cache: in the v0.8.4 Heretic rerun every agent round re-processed the whole conversation, up to 103 s per round at 33k tokens (340k tokens sent, 1k received). On `mlx_lm` the round after a 12,614-token prompt re-processed 217 tokens and took 3.5 s instead of 31 s. `docs/LOCAL_SETUP.md` lists the server.

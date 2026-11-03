@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-02 (after v0.8.4).
+Last updated: 2026-11-03 (after v0.8.5).
 
 ## Open
 
@@ -62,7 +62,7 @@ Last updated: 2026-11-02 (after v0.8.4).
   - Harness issues found: a fresh start overwrote the saved session (#97); near-duplicate searches (same terms, other order or case) are not caught by the repeat check; the tool log shows commands before the root `cd` is dropped.
   - Speed: on `mlx_vlm` every round re-processed the whole conversation (up to 103 s per round at 33k tokens; run 2 sent 340k tokens and received 1k). Heretic now runs on `mlx_lm` (#96).
 - **Next:**
-  1. Rerun on `mlx_lm` with #95 and #97, interactive, and compare rounds and wall time with run 2.
+  1. Rerun on v0.8.5 (`mlx_lm`, #95 and #97), interactive, and compare rounds and wall time with run 2.
   2. Try a plan rule for fixes: the step after the probe must test the cheapest candidate (a curl to a mirror, a request to the service) before writing code; measure its token cost as for #95.
   3. The "No matches" hint idea from item 1 also fits here: suggest searching the plain name, which may be data or config rather than code.
 
