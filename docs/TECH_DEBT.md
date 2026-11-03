@@ -54,9 +54,16 @@ Last updated: 2026-11-02 (after v0.8.4).
   - It never ran a request against 1337x. After 11 reads it added browser headers to `html_sites.json`, including `Accept-Encoding: gzip, deflate, br` (brotli is not in the project's requirements), and called them "Cloudflare-bypassing headers" without evidence. The earlier session had shown that a full browser header set still gets 403.
   - It searched for 1337x-specific code that does not exist (`def.*1337x`, `register_provider.*1337x`, `1337x.*cloudflare`); the site is a JSON entry built by a generic loader.
   - Harness issues found and fixed: a `cd <project root> &&` prefix on every command (compound and outside-the-project risks for nothing) and a garbled `todo_write` key `items"` (#91); every prompt failing with Errno 22 when stdin is `/dev/null` (#90).
+- **Reruns on v0.8.4 (2026-11-03, same prompt, fresh detached worktree at the project's `HEAD`):**
+  - Run 1, unattended (`--yes-always`, stdin `/dev/null`), stopped at 6 min: 14 reads, then the 1337x headers rewritten with a browser set including `Accept-Encoding: br`, without any request to the site, and called fixed. Its test command was declined: `--yes-always` never approves commands (`explicit_yes_required`), so an unattended run can run only commands that an allow rule in `.aider-agent.json` admits. Use a person at the prompt, or allow rules, for any run whose result depends on commands.
+  - Run 2, with the "reproduce first" prompt line (#95), interactive: a plan after 15 reads, then `curl -sI` against 1337x before any edit (403, `cf-mitigated: challenge`). It then wrote `providers/cloudflare_bypass.py` (parse the challenge's JavaScript, replay cookies) and a `cloudflare_bypass` field in `spec.py`, and started on `factory.py` without running the bypass once. A managed challenge checks the browser itself, so this cannot work, and the project already raises `SiteDiscoveryError` for it on purpose.
+  - Run 3, given the options (a headless browser service such as FlareSolverr, or a mirror): 13 reads in 9 min and a four-step FlareSolverr plan built on run 2's leftover `cloudflare_bypass` field. It never checked whether FlareSolverr was reachable (it was not running) or tried a mirror.
+  - So the prompt line works (probe before edit), and the remaining gap is the model's: it commits to a fix before checking that the fix can work, and spreads it across files before running it.
+  - Harness issues found: a fresh start overwrote the saved session (#97); near-duplicate searches (same terms, other order or case) are not caught by the repeat check; the tool log shows commands before the root `cd` is dropped.
+  - Speed: on `mlx_vlm` every round re-processed the whole conversation (up to 103 s per round at 33k tokens; run 2 sent 340k tokens and received 1k). Heretic now runs on `mlx_lm` (#96).
 - **Next:**
-  1. Rerun on v0.8.4 (which has #90 and #91), with the run's commands seeing the user's normal `PATH` (an earlier attempt resolved `python` to the aider tool venv, without pytest).
-  2. If it still edits before any probe, try a one-line "reproduce the failure before changing code" in the system prompt and measure its token cost (see v0.8.1).
+  1. Rerun on `mlx_lm` with #95 and #97, interactive, and compare rounds and wall time with run 2.
+  2. Try a plan rule for fixes: the step after the probe must test the cheapest candidate (a curl to a mirror, a request to the service) before writing code; measure its token cost as for #95.
   3. The "No matches" hint idea from item 1 also fits here: suggest searching the plain name, which may be data or config rather than code.
 
 ## Known limits (not planned)
@@ -64,7 +71,7 @@ Last updated: 2026-11-02 (after v0.8.4).
 - **mlx_lm buffers tool-call text**, so a model that loops inside a tool call shows nothing until `max_tokens`. The 27B needs `repetition_penalty: 1.05` (see `docs/examples/aider.model.settings.yml`).
   - Each machine's own `~/.aider.model.settings.yml` must carry it.
   - If a request hangs anyway, restart 8083 (`launchctl kickstart -k gui/$(id -u)/local.mlx-lm-agent`). The server keeps generating after the client gives up.
-- **mlx_vlm (8080)** sometimes returns HTTP 500 "Thread group size (1024) is greater than the maximum allowed threads per threadgroup (896)". This is an upstream mlx bug.
+- **mlx_vlm (8081; Heretic's 8080 until 2026-11-03)** sometimes returns HTTP 500 "Thread group size (1024) is greater than the maximum allowed threads per threadgroup (896)". This is an upstream mlx bug.
 - **MCP OAuth** was checked against real Notion up to the browser step: discovery, registration, PKCE, and the scope from the 401. The code exchange and refresh are covered only by the fake server in `tests/test_mcp_oauth.py`.
 - **Parallel `research` sub-agents** were measured slower than sequential ones (prompt cache reuse) and were not merged. Do not retry without a new reason.
 
