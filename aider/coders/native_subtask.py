@@ -1,18 +1,23 @@
 """Sub-conversations: research answers a question with read-only tools, task carries out a delegated job with all tools.
 Each starts from just its brief, runs its own tool loop on the same model and returns only its final answer, so the
 files it reads never enter the main conversation's prompt; task's edits and commands still need the usual approvals.
-Each is capped in rounds (research 10, task 30), after which the model must answer with what it has.
+Each is capped in rounds (research 10, task 30), after which the model must answer with what it has; it must also
+answer once three of its calls were refused as repeats, as the main loop does.
 """
 
 from typing import Any, Optional
 
 from aider.native_loop_options import NO_OPTIONS, LoopOptions
 from aider.native_tool_calls import describe_call, normalize_tool_calls, visible_content
-from aider.native_tool_loop import FINAL_ANSWER_CHOICE, build_tool_round_messages
+from aider.native_tool_loop import FINAL_ANSWER_CHOICE, REPEAT_REFUSAL_MARKER, build_tool_round_messages
 from aider.native_toolcalling import NativeToolRegistry
 
 SUBTASK_MAX_ROUNDS = 10
 TASK_MAX_ROUNDS = 30
+# Refused repeats (an identical call, or one the user declined) after which the sub-conversation must answer.
+# Measured: a task sub-agent re-sent a declined fetch_url 8 times in a row and only the round cap would end it.
+SUBTASK_MAX_REPEAT_REFUSALS = 3
+REPEAT_STOP_WARNING = "The sub-agent keeps repeating refused tool calls; asking it to answer now."
 NO_STREAM = False
 NO_FUNCTIONS = None
 SUBTASK_PREFIX = "  research: "
@@ -73,8 +78,10 @@ def run_subtask(
         {"role": "system", "content": system},
         {"role": "user", "content": question},
     ]
+    refusals_before = coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER)
+    repeating = False
     for round_index in range(max_rounds + 1):
-        final = round_index == max_rounds
+        final = round_index == max_rounds or repeating
         message = ask_model(coder, registry, messages, FINAL_ANSWER_CHOICE if final else None)
         coder.native_round_serial += 1
         calls = [] if final else normalize_tool_calls(message, coder.native_round_serial)
@@ -85,6 +92,10 @@ def run_subtask(
         messages.extend(
             build_tool_round_messages(registry, visible_content(message), calls, coder.native_ledger, options)
         )
+        refused = coder.native_ledger.repeat_refusals(REPEAT_REFUSAL_MARKER) - refusals_before
+        if refused >= SUBTASK_MAX_REPEAT_REFUSALS:
+            coder.io.tool_warning(REPEAT_STOP_WARNING)
+            repeating = True
     return EMPTY_ANSWER
 
 
