@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Fixed
 
 - The `mlx_lm` LaunchAgent templates (8080 Heretic, 8083 27B) set `--decode-concurrency 1 --prompt-concurrency 1`. When two clients' requests arrived together, mlx_lm 0.31.3 batched them and its generation thread crashed (`'NoneType' object is not iterable` in `logits_processors`); the server kept answering `/v1/models` while every later request hung. A second client now waits its turn.
+- A `research` or `task` sub-agent now answers once three of its calls were refused as repeats, as the main loop already did. A `task` sub-agent re-sent a `fetch_url` the user had declined 8 times in a row, and only its 30-round cap would have ended it.
 
 ## [0.8.5] - 2026-11-03
 
