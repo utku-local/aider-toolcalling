@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-03 (after v0.8.5).
+Last updated: 2026-11-03 (after v0.8.6).
 
 ## Open
 
@@ -61,10 +61,14 @@ Last updated: 2026-11-03 (after v0.8.5).
   - So the prompt line works (probe before edit), and the remaining gap is the model's: it commits to a fix before checking that the fix can work, and spreads it across files before running it.
   - Harness issues found: a fresh start overwrote the saved session (#97); near-duplicate searches (same terms, other order or case) are not caught by the repeat check; the tool log shows commands before the root `cd` is dropped.
   - Speed: on `mlx_vlm` every round re-processed the whole conversation (up to 103 s per round at 33k tokens; run 2 sent 340k tokens and received 1k). Heretic now runs on `mlx_lm` (#96).
+- **Run on v0.8.5 (`mlx_lm`, interactive, same prompt, 48 calls in about 14 min, no edits):**
+  - It probed the site after 4 calls (403), then tested candidates before writing anything: 9 curl commands, a loop over 6 domains, and a `task` sub-agent with `web_search` and `fetch_url`. It ended by listing options (a mirror; accept that 1337x is unusable from scripts; a headless browser; remove the entry), recommended the last two, and asked the user. Rounds took seconds: 50-2,300 new prompt tokens each, the rest from cache.
+  - Still the model's: it took `1337x.unblockit.cat`, which redirects to a Sedo parking page with status 200, for "the actual 1337x content" and never checked the page for results. Its options still list parsing the Cloudflare challenge.
+  - Harness issues found: the `task` sub-agent re-sent a declined `fetch_url` 8 times, because only the main loop stopped after repeated refusals (fixed in #101); a concurrent request from another session crashed the shared `mlx_lm` server (#100).
+  - `--message` runs one request and exits, so a run that ends with a question cannot be answered; start without it to keep the conversation.
 - **Next:**
-  1. Rerun on v0.8.5 (`mlx_lm`, #95 and #97), interactive, and compare rounds and wall time with run 2.
-  2. Try a plan rule for fixes: the step after the probe must test the cheapest candidate (a curl to a mirror, a request to the service) before writing code; measure its token cost as for #95.
-  3. The "No matches" hint idea from item 1 also fits here: suggest searching the plain name, which may be data or config rather than code.
+  1. Try a plan rule for fixes: the step after the probe must test the cheapest candidate (a curl to a mirror, a request to the service) before writing code; measure its token cost as for #95. Also "a 200 status is not proof: check the page shows what you expect".
+  2. The "No matches" hint idea from item 1 also fits here: suggest searching the plain name, which may be data or config rather than code.
 
 ## Known limits (not planned)
 
@@ -72,6 +76,7 @@ Last updated: 2026-11-03 (after v0.8.5).
   - Each machine's own `~/.aider.model.settings.yml` must carry it.
   - If a request hangs anyway, restart 8083 (`launchctl kickstart -k gui/$(id -u)/local.mlx-lm-agent`). The server keeps generating after the client gives up.
 - **mlx_vlm (8081; Heretic's 8080 until 2026-11-03)** sometimes returns HTTP 500 "Thread group size (1024) is greater than the maximum allowed threads per threadgroup (896)". This is an upstream mlx bug.
+- **mlx_lm 0.31.3 batching**: when two clients' requests arrived together (Heretic's agent and another repo's session, 2026-11-03), the server batched them and its generation thread died with `TypeError: 'NoneType' object is not iterable` in `logits_processors`; `/v1/models` still answered, but every later request hung until a restart. Both LaunchAgent templates now set `--decode-concurrency 1 --prompt-concurrency 1`, so a second client waits instead. Drop them only after checking a newer mlx_lm with two concurrent clients.
 - **MCP OAuth** was checked against real Notion up to the browser step: discovery, registration, PKCE, and the scope from the 401. The code exchange and refresh are covered only by the fake server in `tests/test_mcp_oauth.py`.
 - **Parallel `research` sub-agents** were measured slower than sequential ones (prompt cache reuse) and were not merged. Do not retry without a new reason.
 
