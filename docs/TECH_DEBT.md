@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-03 (after v0.8.7).
+Last updated: 2026-11-04.
 
 ## Open
 
@@ -39,7 +39,8 @@ Last updated: 2026-11-03 (after v0.8.7).
 
 - A long `/ask` session on Heretic once produced repeated output. It did not reproduce in short tests: 0 of 6 runs with the old settings, 0 of 6 with the new.
 - Defensive settings applied in `~/.aider.model.settings.yml`: max_tokens 8192, temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.5.
-- **Next:** watch for it in a long real `/ask` session; if it comes back, capture the request and replay it the way the 27B loop was found (see below).
+- **Largely addressed (2026-11-04):** the runaway-repetition failure this describes is now caught from two sides that did not exist when it was filed, the stream repetition guard (#110, trims a reply that collapses into the same line and sends it back) and `repetition_penalty: 1.05` on Heretic (added when `presence_penalty` was lowered to 0.5). Kept open only as a watch-item.
+- **Next:** if it still recurs in a long real `/ask` session despite the guard and penalty, capture the request and replay it the way the 27B loop was found (see below).
 
 ### 3. Heretic (Qwen3.6 35B-A3B) wandered on a debugging task
 
@@ -79,10 +80,11 @@ Last updated: 2026-11-03 (after v0.8.7).
 - **What happened (2026-11-04):** a long agent session on Heretic grew to ~42K prompt tokens; `~/.cache/mlx-serve.log` showed `KV Caches: 10 seq` climbing from 16 GB to 27 GB, then `[METAL] ... Insufficient Memory` and the server crashed. KeepAlive relaunched it with a cold cache, so the next request reprocessed the whole ~32K prompt (the long wait the user saw).
 - **Root cause:** `mlx_lm --prompt-cache-size` defaults to 10 (hold 10 distinct conversation caches); the LaunchAgents never set it, and `--prompt-cache-bytes 8 GB` did not bound the live KV caches in 0.31.3.
 - **Done:** the example templates now pass `--prompt-cache-size 1` (`docs/examples/launchagents/local.mlx-lm-agent.plist`, `local.mlx-serve.plist`), documented in `docs/LOCAL_SETUP.md`. The harness itself is already cache-friendly: `compact_tool_history` changes nothing below ~48K tokens and `add_working_state` appends rather than splicing, so the prefix stays stable.
-- **Pending (needs a server restart, so the user times it):**
-  1. Apply `--prompt-cache-size 1` to the live `~/Library/LaunchAgents/local.mlx-lm-agent.plist` and `local.mlx-serve.plist`, then `launchctl bootout`/`bootstrap`.
-  2. Try `use_repo_map: false` for the agent model: the repo map is a large fixed block re-sent every round, and agent mode already has `search_code`/`find_symbol`/`find_files`. Measure the token drop.
-  3. Revisit `max_tokens: 8192` once thinking is enabled (`/think on`): the reasoning trace shares the output budget and can truncate the answer; try 16384 with thinking on.
+- **Applied (2026-11-04), live config only:**
+  1. `--prompt-cache-size 1` added to the live `~/Library/LaunchAgents/local.mlx-lm-agent.plist` and `local.mlx-serve.plist`; 8083 booted out and back in to pick it up.
+  2. `use_repo_map: false` set for all local models in `~/.aider.model.settings.yml`. The token drop was **not cleanly isolated**: a hard-set rerun sent ~11.2K tokens/task vs ~14K before, but that run also carried the #112/#113 changes, so the repo-map share is not separated. Measure it alone if it matters.
+  3. Heretic `max_tokens` raised 8192 -> 16384 in `~/.aider.model.settings.yml`, for thinking-trace headroom; a hard-set eval at 16384 held 20/20 with no runaway loops.
+- **Not propagated to the repo:** these live in the user's `~/.aider.model.settings.yml`; `docs/examples/aider.model.settings.yml` still ships the old values. Propagate there if a second Mac should inherit them.
 - **Note:** per-round "tokens sent" is the full conversation by design (chat API); the prefix cache saves compute/time, not the displayed token count.
 
 ## Known limits (not planned)
