@@ -7,7 +7,7 @@ normal edit pipeline.
 
 ## Status
 
-Working agent: read, search, git, edit, shell, background and fetch tools; command policy and sandbox; plan-first and verify-before-finishing checks; operation ledger, working state, sessions; streaming. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
+Working agent: read, search, git, edit, shell, background and fetch tools; command policy and sandbox; plan-first and verify-before-finishing checks; operation ledger, working state, sessions; streaming with a runaway-repetition guard; optional extended thinking for reasoning models. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
 all dependencies.
 
 ## Setup
