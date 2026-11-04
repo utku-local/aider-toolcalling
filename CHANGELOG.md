@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-11-04
+
 ### Changed
 
 - The example `docs/examples/aider.model.settings.yml` now sets `use_repo_map: false` for every local model (agent mode explores with its own search tools, so the repo map is a large fixed block re-sent each round for no benefit) and adds a tuned Heretic (Qwen3.6 35B-A3B) entry on 8080 with `repetition_penalty: 1.05`, `presence_penalty: 0.5` and `max_tokens: 16384`, so a second Mac inherits the settings arrived at this cycle. These values previously lived only in the developer's own `~/.aider.model.settings.yml`.
