@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- A stream repetition guard stops a reply that collapses into the same line over and over. A quantized local model on a very long prompt can fall into a decoding loop, emitting one identical line until it hits the token limit (observed on Heretic at ~1.8M cumulative tokens, where `presence_penalty` alone did not stop it). When six or more identical, non-trivial trailing lines accumulate while streaming, the reply is trimmed to a single copy, the stream is cut off, and the model is asked once to answer directly instead of repeating. Detection scans only the last 4,000 characters, so it adds no measurable cost per chunk. It complements, and does not replace, the per-model `repetition_penalty` sampling knob.
 - Extended thinking can be turned on for reasoning models in agent mode. `--agent-think`/`--no-agent-think` sets it at launch, and `/think on | off | status` toggles it live (it flips `extra_body.chat_template_kwargs.enable_thinking`, which mlx_lm reads on every request, so no server restart is needed). The choice persists per project in `.aider-agent.json` (`"thinking": true|false`); precedence is the CLI flag, then the project setting, then the model's own default. When thinking is on and the model returns its answer in the reasoning field with empty content, the agent now shows that reasoning instead of a blank reply.
 
 ### Fixed
