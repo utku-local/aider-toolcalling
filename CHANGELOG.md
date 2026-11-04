@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.9] - 2026-11-04
+
+### Changed
+
+- The install commands in `README.md` and `docs/LOCAL_SETUP.md` now point at the repository's new home, `utku-local/aider-toolcalling`. The old address still redirects, but new setups no longer depend on that.
+
 ## [0.8.8] - 2026-11-04
 
 ### Changed

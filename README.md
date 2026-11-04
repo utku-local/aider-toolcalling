@@ -33,7 +33,7 @@ M4 Air uses only the 27B (4-bit).
 ## Install as a command
 
 ```
-uv tool install --python 3.12 git+https://github.com/UttyWotty/aider-toolcalling.git@main
+uv tool install --python 3.12 git+https://github.com/utku-local/aider-toolcalling.git@main
 aider-agent            # agent mode; any aider option works, e.g. --model, --resume, --chat-mode ask
 ```
 
