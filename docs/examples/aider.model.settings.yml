@@ -1,11 +1,14 @@
-# ~/.aider.model.settings.yml: both Qwen3.8 27B variants are served by the mlx_lm server on 8083.
+# ~/.aider.model.settings.yml: the two Qwen3.8 27B variants are served by the mlx_lm server on 8083; the optional
+# Heretic (Qwen3.6 35B-A3B) entry below points at its own server on 8080 (64 GB Mac; see docs/LOCAL_SETUP.md).
 # extra_body.chat_template_kwargs is ignored by mlx_lm (thinking is turned off by the server's
 # --chat-template-args) and keeps replies in message.content if a model is served by mlx_lm without it.
 # repetition_penalty 1.05 stops a loop where the model repeats one line inside a tool call until max_tokens.
+# use_repo_map is false: agent mode explores with search_code/find_symbol/find_files, so the repo map is a large
+# fixed block re-sent every round for no benefit. Set it true only if you also use these models in non-agent modes.
 - name: openai/lmstudio-community/Qwen3.8-27B-MLX-4bit
   edit_format: diff
   weak_model_name: openai/lmstudio-community/Qwen3.8-27B-MLX-4bit
-  use_repo_map: true
+  use_repo_map: false
   send_undo_reply: false
   lazy: false
   reminder: user
@@ -29,7 +32,7 @@
 - name: openai/ailexleon/Huihui-Qwen3.8-27B-abliterated-mlx-6Bit
   edit_format: diff
   weak_model_name: openai/ailexleon/Huihui-Qwen3.8-27B-abliterated-mlx-6Bit
-  use_repo_map: true
+  use_repo_map: false
   send_undo_reply: false
   lazy: false
   reminder: user
@@ -49,4 +52,33 @@
   use_temperature: true
   streaming: true
   editor_model_name: openai/ailexleon/Huihui-Qwen3.8-27B-abliterated-mlx-6Bit
+  editor_edit_format: editor-diff
+# Heretic (Qwen3.6 35B-A3B, 4-bit) on its own mlx_lm server on 8080 (64 GB Mac; start it with the local.mlx-serve
+# LaunchAgent). repetition_penalty 1.05 is the primary anti-loop control; presence_penalty is kept low at 0.5 so the
+# two do not stack. max_tokens 16384 gives the thinking trace headroom when enable_thinking is turned on.
+- name: openai/froggeric/Qwen3.6-35B-A3B-Uncensored-Heretic-MLX-4bit
+  edit_format: diff
+  weak_model_name: openai/froggeric/Qwen3.6-35B-A3B-Uncensored-Heretic-MLX-4bit
+  use_repo_map: false
+  send_undo_reply: false
+  lazy: false
+  reminder: user
+  examples_as_sys_msg: true
+  extra_params:
+    max_tokens: 16384
+    temperature: 0.7
+    top_p: 0.8
+    api_base: http://127.0.0.1:8080/v1
+    extra_body:
+      top_k: 20
+      presence_penalty: 0.5
+      repetition_penalty: 1.05
+      chat_template_kwargs:
+        enable_thinking: false
+  cache_control: false
+  caches_by_default: false
+  use_system_prompt: true
+  use_temperature: true
+  streaming: true
+  editor_model_name: openai/froggeric/Qwen3.6-35B-A3B-Uncensored-Heretic-MLX-4bit
   editor_edit_format: editor-diff
