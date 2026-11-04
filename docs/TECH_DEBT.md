@@ -68,8 +68,8 @@ Last updated: 2026-11-03 (after v0.8.7).
   - Harness issues found: the `task` sub-agent re-sent a declined `fetch_url` 8 times, because only the main loop stopped after repeated refusals (fixed in #101); a concurrent request from another session crashed the shared `mlx_lm` server (#100).
   - `--message` runs one request and exits, so a run that ends with a question cannot be answered; start without it to keep the conversation.
 - **Next:**
-  1. Try a plan rule for fixes: the step after the probe must test the cheapest candidate (a curl to a mirror, a request to the service) before writing code; measure its token cost as for #95. Also "a 200 status is not proof: check the page shows what you expect".
-  2. The "No matches" hint idea from item 1 also fits here: suggest searching the plain name, which may be data or config rather than code.
+  1. Prompt rule added (2026-11-04), not yet a hard gate: the agent system prompt now says to test the cheapest form of an external dependency with one command before writing code, not to spread a fix across files until one run shows the approach can work, and that a 200 status is not proof (check the response holds what you expect). This is the same prompt-line mechanism as the #95 "reproduce first" line; its effect still needs a live Heretic run to confirm, and its token cost measured as for #95. A mechanical gate is not attempted because "the cheapest candidate" cannot be defined reliably.
+  2. The "No matches" hint from item 1 was added (#112); it suggests the plain name or find_symbol. It does not yet say the name may be data or config rather than code, which is the 1337x case here.
 
 ### 4. Heretic (8080) ran out of GPU memory and used many tokens per round
 

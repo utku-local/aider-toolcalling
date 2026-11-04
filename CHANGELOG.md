@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Changed
 
 - The example mlx_lm LaunchAgent templates (`docs/examples/launchagents/local.mlx-lm-agent.plist`, `local.mlx-serve.plist`) now pass `--prompt-cache-size 1`. The flag's default of 10 let a long agent session accumulate 10 conversation KV caches (27 GB, growing with the ~42K-token prompt) until the Metal backend ran out of memory and the server crashed; `--prompt-cache-bytes` alone did not bound it. Holding one conversation keeps memory bounded, at the cost of a cold reprocess when switching conversations. `docs/LOCAL_SETUP.md` and `docs/TECH_DEBT.md` explain the trade.
+- The agent system prompt now tells the model, when a fix depends on something external working (a site, a service, a mirror), to test the cheapest form of it with one command before writing code, not to spread a fix across files until one run shows the approach can work, and that a 200 status is not proof (check the response holds what you expect). This targets the debugging-task wandering in `docs/TECH_DEBT.md` item 3, where the model committed to a Cloudflare-bypass fix across files without a single successful request and mistook a parking page (status 200) for the real site. It is a prompt nudge, like the earlier "reproduce first" line; its effect is to be confirmed in a live session.
 
 ### Added
 
