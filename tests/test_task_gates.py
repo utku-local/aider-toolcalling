@@ -25,10 +25,11 @@ from aider.native_task_gates import (
     completion_nudge,
     needs_plan,
 )
+from aider.coders.native_tool_rounds import finish_nudge
 from aider.native_tool_calls import ToolCall
 from aider.native_tool_ledger import OperationLedger, OperationStatus
 from aider.native_loop_options import LoopOptions
-from aider.native_tool_loop import build_tool_round_messages
+from aider.native_tool_loop import STREAM_REPETITION_NUDGE, build_tool_round_messages
 from aider.native_toolcalling import NativeToolRegistry
 
 
@@ -131,6 +132,22 @@ class AnnouncesActionTest(unittest.TestCase):
 
     def test_empty_text_is_not_a_promise(self) -> None:
         self.assertFalse(announces_action("   \n  "))
+
+
+class _TrippedCoder:
+    """Minimal stand-in for a coder: only what finish_nudge's repetition branch reads."""
+
+    def __init__(self, tripped: bool) -> None:
+        self.native_ledger = OperationLedger()
+        self.native_repetition_tripped = tripped
+
+
+class RepetitionNudgeTest(unittest.TestCase):
+    def test_a_tripped_stream_guard_sends_the_reply_back(self) -> None:
+        coder = _TrippedCoder(tripped=True)
+        self.assertEqual(finish_nudge(coder, None), STREAM_REPETITION_NUDGE)
+        # The flag is one-shot: it clears so the next reply is judged on its own.
+        self.assertFalse(coder.native_repetition_tripped)
 
 
 class SendBackFlowTest(unittest.TestCase):

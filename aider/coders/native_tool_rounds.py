@@ -19,6 +19,7 @@ from aider.native_tool_loop import (
     REPEAT_NUDGE,
     REPEAT_STOP_NUDGE,
     REPEAT_REFUSAL_MARKER,
+    STREAM_REPETITION_NUDGE,
     build_tool_round_messages,
     drop_orphan_tool_messages,
     drop_refused_repeats,
@@ -160,6 +161,10 @@ def finish_nudge(coder: Any, completion: Any) -> str:
     """The once-per-request reminder to verify, finish open tasks, or stop promising and act; empty when the answer
     may stand. A no-tool-call reply that only announces imminent work is sent back so it acts or reports plainly."""
     ledger = coder.native_ledger
+    if getattr(coder, "native_repetition_tripped", False):
+        # The stream guard cut off a reply that collapsed into a repeated line; always send it back to answer once.
+        coder.native_repetition_tripped = False
+        return STREAM_REPETITION_NUDGE
     if getattr(coder, "native_nudged_request", None) == ledger.request:
         return ""
     open_tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""

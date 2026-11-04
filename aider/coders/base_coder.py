@@ -38,6 +38,7 @@ from aider.linter import Linter
 from aider.llm import litellm
 from aider.models import RETRY_TIMEOUT
 from aider.native_tool_loop import DEFAULT_MAX_TOOL_ROUNDS, get_tool_calls
+from aider.native_stream_guard import collapse_runaway_repetition
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_toolcalling import NativeToolRegistry
 from aider.reasoning_tags import (
@@ -1931,6 +1932,7 @@ class Coder:
 
     def show_send_output_stream(self, completion):
         received_content = False
+        self.native_repetition_tripped = False
 
         for chunk in completion:
             if len(chunk.choices) == 0:
@@ -1989,6 +1991,14 @@ class Coder:
             if received_content:
                 self._stop_waiting_spinner()
             self.partial_response_content += text
+
+            if self.native_tools and "\n" in text:
+                collapsed, tripped = collapse_runaway_repetition(self.partial_response_content)
+                if tripped:
+                    self.partial_response_content = collapsed
+                    self.native_repetition_tripped = True
+                    self.io.tool_warning("Stopped a runaway repetition in the model's reply.")
+                    break
 
             if self.show_pretty():
                 self.live_incremental_response(False)

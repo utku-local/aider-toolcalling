@@ -107,6 +107,12 @@ FAILING_STREAK_NOTE = (
     "and ask the user how to proceed."
 )
 REPLAYED_NOTE = "This call id already ran in this request and was not run again. Previous result:\n"
+# A streamed reply that collapsed into the same line over and over is cut off by the stream guard; this sends it back
+# so the model answers once instead of looping.
+STREAM_REPETITION_NUDGE = (
+    "Your last reply started repeating the same line over and over and was cut off. Do not repeat it: give your "
+    "answer once, directly, or make the next edit."
+)
 
 
 def repeat_refusal(ledger: OperationLedger, call: ToolCall, has_plan: Optional[HasPlan] = None) -> str:
