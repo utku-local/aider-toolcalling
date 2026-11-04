@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Text model server for aider and aider-agent: mlx_lm.server on 8083, started at login.
      mlx_lm reuses its prompt cache when a request extends the previous one, which makes agent rounds fast.
-     Fill in __HOME__, __MODEL__ and __CACHE_BYTES__ (see docs/LOCAL_SETUP.md). The prompt cache is capped in
-     bytes: without a cap it holds 10 conversations and was measured at 14 GB on top of the model. Concurrency 1:
+     Fill in __HOME__, __MODEL__ and __CACHE_BYTES__ (see docs/LOCAL_SETUP.md). prompt-cache-size 1 holds only the
+     current conversation: the default of 10 let a long agent session reach 27 GB of KV cache and crash the server
+     with a Metal out-of-memory error (2026-11-04), and the byte cap alone did not bound it. Concurrency 1:
      mlx_lm 0.31.3 crashed its generation thread when it batched two clients' requests, and every later request
      then hung. -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -17,6 +18,7 @@
     <string>--host</string><string>127.0.0.1</string>
     <string>--port</string><string>8083</string>
     <string>--chat-template-args</string><string>{"enable_thinking": false}</string>
+    <string>--prompt-cache-size</string><string>1</string>
     <string>--prompt-cache-bytes</string><string>__CACHE_BYTES__</string>
     <string>--decode-concurrency</string><string>1</string>
     <string>--prompt-concurrency</string><string>1</string>
