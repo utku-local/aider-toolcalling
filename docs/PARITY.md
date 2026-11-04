@@ -40,6 +40,7 @@ All present, stated in `aider/coders/agent_prompts.py` and enforced in the tool 
 - Read a file before editing it; an edit of an unread or since-changed file is refused.
 - Long command output is spilled to `.aider-agent/outputs` and summarised to head, tail and path.
 - Identical tool calls are refused after repeats, within a request and across turns.
+- An empty model reply is sent back to try again, up to twice per request.
 
 ## Context and session management
 

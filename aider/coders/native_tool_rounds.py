@@ -26,7 +26,13 @@ from aider.native_tool_loop import (
     repeated_in_round,
 )
 from aider.native_loop_options import LoopOptions
-from aider.native_task_gates import ACTION_PROMISE_NUDGE, announces_action, completion_nudge
+from aider.native_task_gates import (
+    ACTION_PROMISE_NUDGE,
+    EMPTY_REPLY_NUDGE,
+    announces_action,
+    completion_nudge,
+    may_retry_empty,
+)
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_tool_summary import summarize_result
 from aider.native_tools_websearch import NOT_SET_UP
@@ -157,14 +163,31 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     return len(calls)
 
 
+def empty_retry_nudge(coder: Any, completion: Any) -> str:
+    """The nudge for an empty reply, while this request still has a retry left; otherwise empty."""
+    message = current_message(coder, completion)
+    if message is None:
+        return ""
+    request_id = coder.native_ledger.request
+    used = getattr(coder, "native_empty_retries", {}).get(request_id, 0)
+    if not may_retry_empty(visible_content(message), used):
+        return ""
+    coder.native_empty_retries = {request_id: used + 1}
+    return EMPTY_REPLY_NUDGE
+
+
 def finish_nudge(coder: Any, completion: Any) -> str:
     """The once-per-request reminder to verify, finish open tasks, or stop promising and act; empty when the answer
-    may stand. A no-tool-call reply that only announces imminent work is sent back so it acts or reports plainly."""
+    may stand. A no-tool-call reply that only announces imminent work is sent back so it acts or reports plainly, and
+    an empty reply is sent back to try again."""
     ledger = coder.native_ledger
     if getattr(coder, "native_repetition_tripped", False):
         # The stream guard cut off a reply that collapsed into a repeated line; always send it back to answer once.
         coder.native_repetition_tripped = False
         return STREAM_REPETITION_NUDGE
+    retry = empty_retry_nudge(coder, completion)
+    if retry:
+        return retry
     if getattr(coder, "native_nudged_request", None) == ledger.request:
         return ""
     open_tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
