@@ -50,7 +50,7 @@ started server re-processed ~2,900 prompt tokens at the start of every task.
 
 ```
 brew install uv gh
-gh auth login            # the account that can read UttyWotty/aider-toolcalling
+gh auth login            # the account that can read utku-local/aider-toolcalling
 gh auth setup-git        # lets uv clone the private repository
 ```
 
@@ -100,7 +100,7 @@ Back up existing files first if you have them. The settings point both Qwen3.8 2
 ## 5. Install aider-agent
 
 ```
-uv tool install --python 3.12 git+https://github.com/UttyWotty/aider-toolcalling.git@main
+uv tool install --python 3.12 git+https://github.com/utku-local/aider-toolcalling.git@main
 which -a aider-agent      # ~/.local/bin/aider-agent must be the first entry
 ```
 
