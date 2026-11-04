@@ -25,7 +25,7 @@ from aider.native_tool_loop import (
     repeated_in_round,
 )
 from aider.native_loop_options import LoopOptions
-from aider.native_task_gates import completion_nudge
+from aider.native_task_gates import ACTION_PROMISE_NUDGE, announces_action, completion_nudge
 from aider.native_tool_stream import ToolCallAccumulator
 from aider.native_tool_summary import summarize_result
 from aider.native_tools_websearch import NOT_SET_UP
@@ -156,13 +156,18 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     return len(calls)
 
 
-def finish_nudge(coder: Any) -> str:
-    """The once-per-request reminder to verify or finish open tasks; empty when the answer may stand."""
+def finish_nudge(coder: Any, completion: Any) -> str:
+    """The once-per-request reminder to verify, finish open tasks, or stop promising and act; empty when the answer
+    may stand. A no-tool-call reply that only announces imminent work is sent back so it acts or reports plainly."""
     ledger = coder.native_ledger
     if getattr(coder, "native_nudged_request", None) == ledger.request:
         return ""
     open_tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
     nudge = completion_nudge(ledger, open_tasks)
+    if not nudge:
+        message = current_message(coder, completion)
+        if message is not None and announces_action(visible_content(message)):
+            nudge = ACTION_PROMISE_NUDGE
     if nudge:
         coder.native_nudged_request = ledger.request
     return nudge
@@ -171,7 +176,8 @@ def finish_nudge(coder: Any) -> str:
 def send_back(coder: Any, messages: list[dict[str, Any]], completion: Any, nudge: str) -> None:
     """Keep the model's answer in the conversation and ask it to close the gaps before finishing."""
     start_new_display(coder)
-    coder.io.tool_output(f"Sending the answer back: {nudge.splitlines()[1]}")
+    lines = nudge.splitlines()
+    coder.io.tool_output(f"Sending the answer back: {lines[1] if len(lines) > 1 else lines[0]}")
     exchange = [
         {"role": "assistant", "content": visible_content(current_message(coder, completion))},
         {"role": "user", "content": nudge},
@@ -211,7 +217,7 @@ def run_native_tool_rounds(
     while True:
         executed = run_tool_round(coder, messages, completion)
         if not executed:
-            nudge = finish_nudge(coder)
+            nudge = finish_nudge(coder, completion)
             if not nudge:
                 report(coder, rounds, calls, started)
                 return completion

@@ -24,8 +24,9 @@ Last updated: 2026-11-03 (after v0.8.7).
     - The branch's mechanisms never fired, so its lower time is not attributable to it; develop always ran first, so the branch may have reused a warm prompt cache.
     - Both sides predate #83 (v0.8.2), which refuses the first repeat of an unchanged read or of the command just run. Combined with this branch, the move-on message now comes after fewer identical calls (4 identical reads instead of 5). The combination is unit-tested and completed one long run (2026-11-02, before v0.8.3): 520 s, 23 tool calls, 173k tokens, 5 files, tests pass, no repeat stop or move-on.
   - Counting the 3 finished runs from 2026-10-30, 9 runs in a row completed without a loop. The loop is real but rare and depends on sampling.
+- **Cross-turn loop fixed (2026-11-04):** the repeat guard was per request, so a model stopped for looping re-ran the same given-up search every time the user asked again ("are you working on this?"), and after the stop it answered in plain text that it was working without calling a tool. A refused code search is now remembered across turns until a file changes (`CROSS_TURN_GUARD_TOOLS` in `native_tool_loop.py`), and a no-tool-call reply that only promises action is sent back once (`announces_action` in `native_task_gates.py`). See the `## [Unreleased]` changelog entries.
 - **Remaining failure mode:**
-  - The model searched for `def root(` while `root` is an attribute (`self.root = ...`), and retried near-identical patterns.
+  - The model searched for `def root(` while `root` is an attribute (`self.root = ...`), and retried near-identical patterns. Near-identical patterns (same terms, other order or case) are still not caught as repeats, so the cross-turn memory does not yet cover them.
   - Twice it ended with "say the word and I'll proceed" even under `--yes-always`.
 - **Next:**
   1. Watch for the loop in real sessions; when it happens, capture the request and replay it (see the end of this file).

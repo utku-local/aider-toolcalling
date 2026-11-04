@@ -21,6 +21,7 @@ from aider.native_task_gates import (
     PLAN_AFTER_CALLS,
     PLAN_FIRST_MARKER,
     VERIFY_HEADING,
+    announces_action,
     completion_nudge,
     needs_plan,
 )
@@ -104,6 +105,32 @@ class CompletionNudgeTest(unittest.TestCase):
         ledger.mark(OperationStatus.DENIED)
         ledger.finish(entry, "declined", failed=False)
         self.assertEqual(completion_nudge(ledger, ""), "")
+
+
+class AnnouncesActionTest(unittest.TestCase):
+    """A no-tool-call reply that only promises work must be caught so the turn is not treated as finished."""
+
+    def test_narrated_next_step_is_a_promise(self) -> None:
+        self.assertTrue(announces_action("Now let me verify my changes and move on to items 4, 5, 6:"))
+
+    def test_the_stuck_in_a_loop_reply_is_a_promise(self) -> None:
+        self.assertTrue(announces_action("Sorry, I got stuck in a loop. I'll work on it now."))
+
+    def test_a_report_is_not_a_promise(self) -> None:
+        self.assertFalse(announces_action("Items 5 and 6 are done; item 7 is left for you to do."))
+
+    def test_let_me_know_is_not_a_promise(self) -> None:
+        self.assertFalse(announces_action("All changes are applied. Let me know if you want anything else."))
+
+    def test_a_trailing_question_is_a_hand_back(self) -> None:
+        self.assertFalse(announces_action("I can take two approaches here. Let me run the slow one?"))
+
+    def test_only_the_last_line_decides(self) -> None:
+        self.assertTrue(announces_action("Here is what I found.\n\nI'll fix it now."))
+        self.assertFalse(announces_action("Let me explain what happened.\nThe tests all pass now."))
+
+    def test_empty_text_is_not_a_promise(self) -> None:
+        self.assertFalse(announces_action("   \n  "))
 
 
 class SendBackFlowTest(unittest.TestCase):
