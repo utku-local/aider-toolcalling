@@ -11,7 +11,7 @@ during the round follow as a user message of their own.
 import time
 from typing import Any, Generator, Optional
 
-from aider.native_tool_calls import describe_call, normalize_tool_calls, visible_content
+from aider.native_tool_calls import answer_text, describe_call, normalize_tool_calls, visible_content
 from aider.native_tool_compaction import add_working_state, compact_tool_history
 from aider.native_tool_loop import (
     FINAL_ANSWER_CHOICE,
@@ -219,6 +219,8 @@ def run_native_tool_rounds(
         if not executed:
             nudge = finish_nudge(coder, completion)
             if not nudge:
+                if not coder.partial_response_content.strip():
+                    coder.partial_response_content = answer_text(current_message(coder, completion))
                 report(coder, rounds, calls, started)
                 return completion
             send_back(coder, messages, completion, nudge)
@@ -240,6 +242,6 @@ def run_native_tool_rounds(
     messages.append({"role": "user", "content": FINAL_ANSWER_NUDGE})
     completion = yield from request(coder, model, messages, functions, FINAL_ANSWER_CHOICE)
     coder.partial_response_function_call = dict()
-    coder.partial_response_content = visible_content(current_message(coder, completion))
+    coder.partial_response_content = answer_text(current_message(coder, completion))
     report(coder, rounds, calls, started)
     return completion

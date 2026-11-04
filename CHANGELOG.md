@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Extended thinking can be turned on for reasoning models in agent mode. `--agent-think`/`--no-agent-think` sets it at launch, and `/think on | off | status` toggles it live (it flips `extra_body.chat_template_kwargs.enable_thinking`, which mlx_lm reads on every request, so no server restart is needed). The choice persists per project in `.aider-agent.json` (`"thinking": true|false`); precedence is the CLI flag, then the project setting, then the model's own default. When thinking is on and the model returns its answer in the reasoning field with empty content, the agent now shows that reasoning instead of a blank reply.
+
 ### Fixed
 
 - The repeat guard reset on every user message, so a model stopped for looping re-ran the same given-up call the moment the user asked again ("are you working on this?"), rebuilding the whole refuse/move-on/stop escalation each turn. A code search (`search_code`, `find_symbol`, `find_files`, `list_files`) refused as a repeat is now remembered across turns until a file changes, so the retry is refused on its first attempt. Reads (the file may have changed), commands (may behave differently) and edits (the user may want them re-applied) keep their per-turn reset.
