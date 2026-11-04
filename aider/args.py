@@ -190,6 +190,15 @@ def get_parser(default_config_files, git_root):
         help="Sampling seed sent with every request; different seeds give independent samples (default: none)",
     )
     group.add_argument(
+        "--agent-think",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Enable the model's thinking trace in agent mode (reasoning models served by mlx_lm); overrides the"
+            " per-project setting. Toggle it live with /think (default: use the project or model setting)"
+        ),
+    )
+    group.add_argument(
         "--resume",
         action="store_true",
         default=False,

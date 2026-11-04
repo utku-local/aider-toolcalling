@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-03 (after v0.8.7).
+Last updated: 2026-11-04.
 
 ## Open
 
@@ -24,21 +24,23 @@ Last updated: 2026-11-03 (after v0.8.7).
     - The branch's mechanisms never fired, so its lower time is not attributable to it; develop always ran first, so the branch may have reused a warm prompt cache.
     - Both sides predate #83 (v0.8.2), which refuses the first repeat of an unchanged read or of the command just run. Combined with this branch, the move-on message now comes after fewer identical calls (4 identical reads instead of 5). The combination is unit-tested and completed one long run (2026-11-02, before v0.8.3): 520 s, 23 tool calls, 173k tokens, 5 files, tests pass, no repeat stop or move-on.
   - Counting the 3 finished runs from 2026-10-30, 9 runs in a row completed without a loop. The loop is real but rare and depends on sampling.
+- **Cross-turn loop fixed (2026-11-04):** the repeat guard was per request, so a model stopped for looping re-ran the same given-up search every time the user asked again ("are you working on this?"), and after the stop it answered in plain text that it was working without calling a tool. A refused code search is now remembered across turns until a file changes (`CROSS_TURN_GUARD_TOOLS` in `native_tool_loop.py`), and a no-tool-call reply that only promises action is sent back once (`announces_action` in `native_task_gates.py`). See the `## [Unreleased]` changelog entries.
 - **Remaining failure mode:**
-  - The model searched for `def root(` while `root` is an attribute (`self.root = ...`), and retried near-identical patterns.
+  - The model searched for `def root(` while `root` is an attribute (`self.root = ...`), and retried near-identical patterns. Near-identical patterns (same terms, other order or case) are still not caught as repeats, so the cross-turn memory does not yet cover them.
   - Twice it ended with "say the word and I'll proceed" even under `--yes-always`.
 - **Next:**
   1. Watch for the loop in real sessions; when it happens, capture the request and replay it (see the end of this file).
   2. Ideas to try if it comes back:
-     - A "No matches" hint for `def X` searches: search for `X =` or use `find_symbol`.
-     - Treat near-identical search patterns as repeats.
+     - ~~A "No matches" hint for `def X` searches: search for `X =` or use `find_symbol`.~~ Done (2026-11-04): `search_code` appends a hint when a `def NAME`/`class NAME` pattern finds nothing, naming the symbol and suggesting `NAME =`, a plain-name search or `find_symbol` (`definition_search_hint` in `aider/native_tools_search.py`). This targets the exact `def root(` → attribute case; watch whether it breaks the loop in a real session.
+     - Treat near-identical search patterns as repeats. Not done: deferred as too likely to refuse distinct, valid searches (the same over-matching that had to be scoped back for the cross-turn guard).
   3. To rerun the comparison, recreate `compare_long.sh` from this description: per ref, a fresh detached worktree, `python -m aider.agent_main --yes-always --no-auto-commits --message "<the /memory task>"` with `PYTHONPATH` set to the worktree, then the task's tests; alternate the order of the refs to avoid the prompt-cache bias.
 
 ### 2. Heretic (8080) repetition in long /ask sessions
 
 - A long `/ask` session on Heretic once produced repeated output. It did not reproduce in short tests: 0 of 6 runs with the old settings, 0 of 6 with the new.
 - Defensive settings applied in `~/.aider.model.settings.yml`: max_tokens 8192, temperature 0.7, top_p 0.8, top_k 20, presence_penalty 1.5.
-- **Next:** watch for it in a long real `/ask` session; if it comes back, capture the request and replay it the way the 27B loop was found (see below).
+- **Largely addressed (2026-11-04):** the runaway-repetition failure this describes is now caught from two sides that did not exist when it was filed, the stream repetition guard (#110, trims a reply that collapses into the same line and sends it back) and `repetition_penalty: 1.05` on Heretic (added when `presence_penalty` was lowered to 0.5). Kept open only as a watch-item.
+- **Next:** if it still recurs in a long real `/ask` session despite the guard and penalty, capture the request and replay it the way the 27B loop was found (see below).
 
 ### 3. Heretic (Qwen3.6 35B-A3B) wandered on a debugging task
 
@@ -67,8 +69,23 @@ Last updated: 2026-11-03 (after v0.8.7).
   - Harness issues found: the `task` sub-agent re-sent a declined `fetch_url` 8 times, because only the main loop stopped after repeated refusals (fixed in #101); a concurrent request from another session crashed the shared `mlx_lm` server (#100).
   - `--message` runs one request and exits, so a run that ends with a question cannot be answered; start without it to keep the conversation.
 - **Next:**
-  1. Try a plan rule for fixes: the step after the probe must test the cheapest candidate (a curl to a mirror, a request to the service) before writing code; measure its token cost as for #95. Also "a 200 status is not proof: check the page shows what you expect".
-  2. The "No matches" hint idea from item 1 also fits here: suggest searching the plain name, which may be data or config rather than code.
+  1. Prompt rule added (2026-11-04, #113), kept but unproven: the agent system prompt now says to test the cheapest form of an external dependency with one command before writing code, not to spread a fix across files until one run shows the approach can work, and that a 200 status is not proof (check the response holds what you expect). Same prompt-line mechanism as the #95 "reproduce first" line; a mechanical gate is not attempted because "the cheapest candidate" cannot be defined reliably.
+     - **A/B validation (2026-11-04, Heretic on mlx_lm, 3 seeds each):** a benign task isolating the rule, an endpoint that returns HTTP 200 with an error body pointing at a moved path (`/prices` -> `/v2/prices`), fix discoverable only by probing the live service (mock kept out of the repo). With the rule: 3/3 probed before editing, 2/3 passed (the one miss was the command policy declining `curl <url>`, not the model). Without the rule (lines stripped): 3/3 probed, 3/3 passed. **The rule made no detectable difference**: Heretic reproduced with pytest, probed with `python -c urlopen`, saw the misleading 200, fixed the path and re-tested either way. Its baseline probe/verify discipline already handles a task with a clean discoverable fix; the rule is kept as a cheap, harmless nudge for genuinely harder cases but is not demonstrated to help.
+     - **Why the benign task does not reproduce the original failure:** the 1337x case flailed because it had *no valid fix* (a managed Cloudflare challenge), so there was nothing a probe could converge on; a task with a real fix lets the model succeed with or without the nudge. A discriminating test would need a tempting-but-wrong obvious fix and a non-obvious real cause.
+     - **Harness friction found:** the command policy declines `curl <url>` (the URL argument reads as risky) while allowing `python -c "...urlopen..."`; the model adapts by falling back to Python. Allow `curl` explicitly if an unattended run should use it.
+  2. The "No matches" hint from item 1 was added (#112); it suggests the plain name or find_symbol. It does not yet say the name may be data or config rather than code, which is the 1337x case here.
+
+### 4. Heretic (8080) ran out of GPU memory and used many tokens per round
+
+- **What happened (2026-11-04):** a long agent session on Heretic grew to ~42K prompt tokens; `~/.cache/mlx-serve.log` showed `KV Caches: 10 seq` climbing from 16 GB to 27 GB, then `[METAL] ... Insufficient Memory` and the server crashed. KeepAlive relaunched it with a cold cache, so the next request reprocessed the whole ~32K prompt (the long wait the user saw).
+- **Root cause:** `mlx_lm --prompt-cache-size` defaults to 10 (hold 10 distinct conversation caches); the LaunchAgents never set it, and `--prompt-cache-bytes 8 GB` did not bound the live KV caches in 0.31.3.
+- **Done:** the example templates now pass `--prompt-cache-size 1` (`docs/examples/launchagents/local.mlx-lm-agent.plist`, `local.mlx-serve.plist`), documented in `docs/LOCAL_SETUP.md`. The harness itself is already cache-friendly: `compact_tool_history` changes nothing below ~48K tokens and `add_working_state` appends rather than splicing, so the prefix stays stable.
+- **Applied (2026-11-04), live config only:**
+  1. `--prompt-cache-size 1` added to the live `~/Library/LaunchAgents/local.mlx-lm-agent.plist` and `local.mlx-serve.plist`; 8083 booted out and back in to pick it up.
+  2. `use_repo_map: false` set for all local models in `~/.aider.model.settings.yml`. The token drop was **not cleanly isolated**: a hard-set rerun sent ~11.2K tokens/task vs ~14K before, but that run also carried the #112/#113 changes, so the repo-map share is not separated. Measure it alone if it matters.
+  3. Heretic `max_tokens` raised 8192 -> 16384 in `~/.aider.model.settings.yml`, for thinking-trace headroom; a hard-set eval at 16384 held 20/20 with no runaway loops.
+- **Not propagated to the repo:** these live in the user's `~/.aider.model.settings.yml`; `docs/examples/aider.model.settings.yml` still ships the old values. Propagate there if a second Mac should inherit them.
+- **Note:** per-round "tokens sent" is the full conversation by design (chat API); the prefix cache saves compute/time, not the displayed token count.
 
 ## Known limits (not planned)
 

@@ -5,6 +5,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-11-04
+
+### Changed
+
+- The example `docs/examples/aider.model.settings.yml` now sets `use_repo_map: false` for every local model (agent mode explores with its own search tools, so the repo map is a large fixed block re-sent each round for no benefit) and adds a tuned Heretic (Qwen3.6 35B-A3B) entry on 8080 with `repetition_penalty: 1.05`, `presence_penalty: 0.5` and `max_tokens: 16384`, so a second Mac inherits the settings arrived at this cycle. These values previously lived only in the developer's own `~/.aider.model.settings.yml`.
+- The example mlx_lm LaunchAgent templates (`docs/examples/launchagents/local.mlx-lm-agent.plist`, `local.mlx-serve.plist`) now pass `--prompt-cache-size 1`. The flag's default of 10 let a long agent session accumulate 10 conversation KV caches (27 GB, growing with the ~42K-token prompt) until the Metal backend ran out of memory and the server crashed; `--prompt-cache-bytes` alone did not bound it. Holding one conversation keeps memory bounded, at the cost of a cold reprocess when switching conversations. `docs/LOCAL_SETUP.md` and `docs/TECH_DEBT.md` explain the trade.
+- The agent system prompt now tells the model, when a fix depends on something external working (a site, a service, a mirror), to test the cheapest form of it with one command before writing code, not to spread a fix across files until one run shows the approach can work, and that a 200 status is not proof (check the response holds what you expect). This targets the debugging-task wandering in `docs/TECH_DEBT.md` item 3, where the model committed to a Cloudflare-bypass fix across files without a single successful request and mistook a parking page (status 200) for the real site. It is a prompt nudge, like the earlier "reproduce first" line; its effect is to be confirmed in a live session.
+
+### Added
+
+- `search_code` now adds a hint when a `def NAME` or `class NAME` pattern finds no matches, instead of a bare "No matches." It names the symbol and points at a productive next step (search `NAME =`, search the plain name, or use `find_symbol`), so a local model that searched for a function that is really an attribute (the observed `def root(` while `root` is `self.root = ...`) is steered off retrying near-identical patterns. The hint fires only for definition-shaped patterns, so other empty searches are unchanged.
+- `docs/PARITY.md` records how agent mode compares to Claude Code's agent, tool by tool and guardrail by guardrail, with a file reference for each capability and a short list of the residual differences (all niche or moot for the locally served text models). It is the checklist that keeps the two differing only in the model behind them.
+- A stream repetition guard stops a reply that collapses into the same line over and over. A quantized local model on a very long prompt can fall into a decoding loop, emitting one identical line until it hits the token limit (observed on Heretic at ~1.8M cumulative tokens, where `presence_penalty` alone did not stop it). When six or more identical, non-trivial trailing lines accumulate while streaming, the reply is trimmed to a single copy, the stream is cut off, and the model is asked once to answer directly instead of repeating. Detection scans only the last 4,000 characters, so it adds no measurable cost per chunk. It complements, and does not replace, the per-model `repetition_penalty` sampling knob.
+- Extended thinking can be turned on for reasoning models in agent mode. `--agent-think`/`--no-agent-think` sets it at launch, and `/think on | off | status` toggles it live (it flips `extra_body.chat_template_kwargs.enable_thinking`, which mlx_lm reads on every request, so no server restart is needed). The choice persists per project in `.aider-agent.json` (`"thinking": true|false`); precedence is the CLI flag, then the project setting, then the model's own default. When thinking is on and the model returns its answer in the reasoning field with empty content, the agent now shows that reasoning instead of a blank reply.
+
+### Fixed
+
+- The repeat guard reset on every user message, so a model stopped for looping re-ran the same given-up call the moment the user asked again ("are you working on this?"), rebuilding the whole refuse/move-on/stop escalation each turn. A code search (`search_code`, `find_symbol`, `find_files`, `list_files`) refused as a repeat is now remembered across turns until a file changes, so the retry is refused on its first attempt. Reads (the file may have changed), commands (may behave differently) and edits (the user may want them re-applied) keep their per-turn reset.
+- After the loop stop, Heretic often answered in plain text that it was working ("sorry, I'm stuck in a loop, I'll fix it now") without calling a tool, which the loop took as a finished answer: the turn ended with nothing done, and the next "are you working?" repeated it. A reply that makes no tool call and only announces imminent action is now sent back once, asking the model to act with a tool call or say plainly what is blocking it.
+
 ## [0.8.7] - 2026-11-03
 
 ### Fixed

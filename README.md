@@ -7,7 +7,7 @@ normal edit pipeline.
 
 ## Status
 
-Working agent: read, search, git, edit, shell, background and fetch tools; command policy and sandbox; plan-first and verify-before-finishing checks; operation ledger, working state, sessions; streaming. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
+Working agent: read, search, git, edit, shell, background and fetch tools; command policy and sandbox; plan-first and verify-before-finishing checks; operation ledger, working state, sessions; streaming with a runaway-repetition guard; optional extended thinking for reasoning models. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
 all dependencies.
 
 ## Setup
@@ -72,6 +72,8 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 Files changed by tools are linted, auto-committed and tested like any Aider edit, following your settings.
 `/undo-agent` restores the files the agent changed in its latest request, also without git.
 Agent mode adds `AGENTS.md` / `CLAUDE.md` from the project root to the chat as read-only instructions.
+
+For a reasoning model, `--agent-think` turns on its thinking trace (`--no-agent-think` turns it off), and `/think on | off | status` toggles it during a session without restarting the server. The choice persists per project in `.aider-agent.json` as `"thinking": true|false`; the CLI flag overrides it, which overrides the model's own default.
 
 Command rules live in `.aider-agent.json` in the project root:
 

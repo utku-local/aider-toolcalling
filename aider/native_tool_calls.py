@@ -82,6 +82,18 @@ def visible_content(message: Any) -> str:
     return strip_text_calls(field(message, "content"))
 
 
+def reasoning_content(message: Any) -> str:
+    """The model's separate thinking trace, if the server returned one (reasoning_content or reasoning)."""
+    return strip_text_calls(field(message, "reasoning_content") or field(message, "reasoning"))
+
+
+def answer_text(message: Any) -> str:
+    """The reply to show the user: the visible content, or the thinking trace when content is empty. With thinking
+    on, a reasoning model can leave its answer in the reasoning field and return empty content, which would
+    otherwise be shown as a blank reply."""
+    return visible_content(message) or reasoning_content(message)
+
+
 def describe_call(call: ToolCall) -> str:
     """One-line summary for the terminal, e.g. `read_file {"path": "a.py"}`."""
     text = f"{call.name} {call.arguments}"

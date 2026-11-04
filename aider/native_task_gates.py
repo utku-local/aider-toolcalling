@@ -60,3 +60,41 @@ def completion_nudge(ledger: OperationLedger, open_tasks: str) -> str:
     if open_tasks and any(r.tool in CHANGE_TOOLS for r in records):
         gaps.append(OPEN_TASKS_GAP.format(tasks=open_tasks))
     return "\n".join([VERIFY_HEADING] + gaps) if gaps else ""
+
+
+# Openers of a first-person promise of imminent work, paired with an action verb below. Measured: a local model
+# ended turns with "Now let me verify my changes and move on to items 4, 5, 6" and made no tool call, so the turn
+# finished as if the work were done; after the repeat stop it answered "sorry, stuck in a loop, I'll fix it now"
+# every time the user asked. A no-tool-call reply that only promises is sent back once.
+ACTION_OPENERS = (
+    "let me ", "let me now ", "i'll ", "i'll now ", "i will ", "i will now ", "now i'll ", "now i will ",
+    "now let me ", "i'm going to ", "i am going to ", "next i'll ", "next, i'll ", "let me go ahead and ",
+)
+ACTION_VERBS = (
+    "verify", "run", "check", "fix", "update", "make", "continue", "start", "do ", "implement", "add", "edit",
+    "create", "write", "work", "go ", "proceed", "test", "rerun", "re-run", "apply", "patch", "look",
+    "investigate", "try", "move on",
+)
+# Promises that already carry their own verb, so they stand alone.
+ACTION_STANDALONE = ("working on it", "will work on", "on it now", "fix it now", "get to work", "stuck in a loop")
+ACTION_PHRASES = frozenset(
+    [opener + verb for opener in ACTION_OPENERS for verb in ACTION_VERBS] + list(ACTION_STANDALONE)
+)
+ACTION_PROMISE_NUDGE = (
+    "You said you would continue but made no tool call, so nothing happened. Either do it now with a tool call, or "
+    "tell the user plainly what is done, what is left, and what is blocking you. Do not say you will work on it later."
+)
+
+
+def announces_action(text: str) -> bool:
+    """True when a no-tool-call reply ends by promising imminent self-action instead of reporting or asking.
+    A weak local model often narrates its next step ('let me verify and move on', 'I'll fix it now') or, after the
+    repeat stop, says it is stuck and will fix it, without calling a tool; that must not count as a finished answer.
+    A trailing question is a genuine hand-back, so it never counts."""
+    lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+    if not lines:
+        return False
+    tail = lines[-1].lower()
+    if tail.endswith("?"):
+        return False
+    return any(phrase in tail for phrase in ACTION_PHRASES)

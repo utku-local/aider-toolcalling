@@ -52,6 +52,7 @@ class AgentConfig:
     web: WebPolicy = WebPolicy()
     before_hooks: tuple[HookRule, ...] = ()
     after_hooks: tuple[HookRule, ...] = ()
+    thinking: Optional[bool] = None
 
 
 class AgentConfigError(ValueError):
@@ -161,8 +162,12 @@ def parse_config(data: Any) -> AgentConfig:
     plan_approval = data.get("plan_approval", True)
     if not isinstance(plan_approval, bool):
         raise AgentConfigError('"plan_approval" must be true or false')
+    thinking = data.get("thinking", None)
+    if thinking is not None and not isinstance(thinking, bool):
+        raise AgentConfigError('"thinking" must be true or false')
     return AgentConfig(rules, sandbox, tuple(parse_mcp_server(name, raw) for name, raw in servers.items()),
-                       plan_approval, parse_web(data.get("network", {})), *parse_hooks(data.get("hooks", {})))
+                       plan_approval, parse_web(data.get("network", {})), *parse_hooks(data.get("hooks", {})),
+                       thinking=thinking)
 
 
 def with_default_search(config: AgentConfig, url: str) -> AgentConfig:
@@ -206,6 +211,26 @@ def add_allow_rule(root: str, config: AgentConfig, rule: CommandRule) -> AgentCo
     path.write_text(json.dumps(data, indent=2) + "\n", encoding=CONFIG_ENCODING)
     rules = CommandRules(allow=config.rules.allow + (rule,), deny=config.rules.deny)
     return dataclasses.replace(config, rules=rules)
+
+
+def read_thinking(root: str) -> Optional[bool]:
+    """The persisted `thinking` choice from .aider-agent.json, or None when unset, absent or unreadable."""
+    path = Path(root) / CONFIG_FILE_NAME
+    if not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding=CONFIG_ENCODING)).get("thinking")
+    except (OSError, ValueError):
+        return None
+    return value if isinstance(value, bool) else None
+
+
+def write_thinking(root: str, enabled: bool) -> None:
+    """Persist the `thinking` choice to .aider-agent.json (created if missing), leaving other settings intact."""
+    path = Path(root) / CONFIG_FILE_NAME
+    data = json.loads(path.read_text(encoding=CONFIG_ENCODING)) if path.is_file() else {}
+    data["thinking"] = enabled
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding=CONFIG_ENCODING)
 
 
 def instruction_files(root: str) -> list[str]:

@@ -18,6 +18,20 @@ MAX_MATCH_LINE_CHARS = 300
 MAX_SEARCH_FILE_BYTES = 2_000_000
 DEFINITION_KIND = "def"
 NO_RESULTS = "No matches."
+# A search for `def NAME` or `class NAME` that finds nothing often means NAME is not defined that way (it is an
+# attribute, a variable, or imported). These point the model at a productive next search instead of retrying.
+_DEFINITION_PATTERN = re.compile(r"^\s*(?:async\s+)?(def|class)\b")
+_IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+# Regex tokens (\s, \w, +, *, ?) between the keyword and the name, stripped so the name itself is found, not "s".
+_REGEX_NOISE = re.compile(r"\\[A-Za-z]|[+*?]")
+_DEF_HINT = (
+    " {name} is not defined with `def` here; it may be an attribute or variable. Search for `{name} =`, "
+    "or `{name}` without `def`, or use find_symbol with name `{name}`."
+)
+_CLASS_HINT = (
+    " No `class {name}` here; it may be imported or defined elsewhere. Search for `{name}` without `class`, "
+    "or use find_symbol with name `{name}`."
+)
 
 FIND_FILES_PARAMETERS = {
     "type": "object",
@@ -52,6 +66,21 @@ FIND_SYMBOL_PARAMETERS = {
 
 class SearchError(NativeToolError):
     """Raised for invalid search input, such as a malformed regular expression."""
+
+
+def definition_search_hint(pattern: str) -> str:
+    """A hint for a `def NAME`/`class NAME` search that returned nothing, else "". Extracts NAME past any regex
+    whitespace tokens and suggests a productive next step, so the model stops retrying near-identical patterns."""
+    kind_match = _DEFINITION_PATTERN.match(pattern)
+    if not kind_match:
+        return ""
+    rest = _REGEX_NOISE.sub(" ", pattern[kind_match.end():])
+    name_match = _IDENTIFIER.search(rest)
+    if not name_match:
+        return ""
+    name = name_match.group(0)
+    template = _DEF_HINT if kind_match.group(1) == DEFINITION_KIND else _CLASS_HINT
+    return template.format(name=name)
 
 
 def limited(lines: list[str], limit: int) -> str:
@@ -91,7 +120,10 @@ def search_code(
                 matches.append(f"{rel_path}:{number}: {line.strip()[:MAX_MATCH_LINE_CHARS]}")
             if len(matches) > MAX_MATCHES:
                 return limited(matches, MAX_MATCHES)
-    return limited(matches, MAX_MATCHES)
+    result = limited(matches, MAX_MATCHES)
+    if result == NO_RESULTS:
+        return result + definition_search_hint(pattern)
+    return result
 
 
 def find_symbol(ctx: ToolContext, name: str) -> str:
