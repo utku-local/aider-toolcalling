@@ -21,6 +21,8 @@ from aider.help import Help, install_help_extra
 from aider.io import CommandCompletionException
 from aider.llm import litellm
 from aider.native_memory_skills import MemorySkillError, skill_message
+from aider.native_thinking import thinking_enabled, with_thinking
+from aider.coders.native_agent_config import write_thinking
 from aider.native_undo import undo_agent_request
 from aider.repo import ANY_GIT_ERROR
 from aider.run_cmd import run_cmd
@@ -556,6 +558,25 @@ class Commands:
     def cmd_undo_agent(self, args: str) -> None:
         "Restore the files changed by the agent's tools in its most recent request"
         undo_agent_request(self.coder)
+
+    def cmd_think(self, args: str) -> None:
+        "Turn the model's thinking trace on or off for agent mode: /think on | off | status"
+        choice = args.strip().lower()
+        model = self.coder.main_model
+        if choice in ("", "status"):
+            state = "on" if thinking_enabled(model.extra_params) else "off"
+            self.io.tool_output(f"Thinking is {state}.")
+            return
+        if choice not in ("on", "off"):
+            self.io.tool_error("Usage: /think on | off | status")
+            return
+        enabled = choice == "on"
+        model.extra_params = with_thinking(model.extra_params, enabled)
+        write_thinking(self.coder.root, enabled)
+        self.io.tool_output(f"Thinking {'on' if enabled else 'off'}; it applies to your next message.")
+
+    def completions_think(self) -> list[str]:
+        return ["on", "off", "status"]
 
     def cmd_skill(self, args: str) -> Optional[str]:
         "Run the agent with a skill's instructions: /skill NAME [request]; /skill alone lists them"

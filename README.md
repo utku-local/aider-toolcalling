@@ -73,6 +73,8 @@ Files changed by tools are linted, auto-committed and tested like any Aider edit
 `/undo-agent` restores the files the agent changed in its latest request, also without git.
 Agent mode adds `AGENTS.md` / `CLAUDE.md` from the project root to the chat as read-only instructions.
 
+For a reasoning model, `--agent-think` turns on its thinking trace (`--no-agent-think` turns it off), and `/think on | off | status` toggles it during a session without restarting the server. The choice persists per project in `.aider-agent.json` as `"thinking": true|false`; the CLI flag overrides it, which overrides the model's own default.
+
 Command rules live in `.aider-agent.json` in the project root:
 
 ```json
