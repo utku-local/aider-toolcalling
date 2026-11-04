@@ -31,8 +31,8 @@ Last updated: 2026-11-03 (after v0.8.7).
 - **Next:**
   1. Watch for the loop in real sessions; when it happens, capture the request and replay it (see the end of this file).
   2. Ideas to try if it comes back:
-     - A "No matches" hint for `def X` searches: search for `X =` or use `find_symbol`.
-     - Treat near-identical search patterns as repeats.
+     - ~~A "No matches" hint for `def X` searches: search for `X =` or use `find_symbol`.~~ Done (2026-11-04): `search_code` appends a hint when a `def NAME`/`class NAME` pattern finds nothing, naming the symbol and suggesting `NAME =`, a plain-name search or `find_symbol` (`definition_search_hint` in `aider/native_tools_search.py`). This targets the exact `def root(` → attribute case; watch whether it breaks the loop in a real session.
+     - Treat near-identical search patterns as repeats. Not done: deferred as too likely to refuse distinct, valid searches (the same over-matching that had to be scoped back for the cross-turn guard).
   3. To rerun the comparison, recreate `compare_long.sh` from this description: per ref, a fresh detached worktree, `python -m aider.agent_main --yes-always --no-auto-commits --message "<the /memory task>"` with `PYTHONPATH` set to the worktree, then the task's tests; alternate the order of the refs to avoid the prompt-cache bias.
 
 ### 2. Heretic (8080) repetition in long /ask sessions
