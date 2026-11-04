@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aider-toolcalling"
-version = "0.8.9"
+version = "0.8.10"
 description = "Aider 0.86.2 with native tool calling and an agent mode for local models"
 readme = "README.md"
 license = {file = "LICENSE.txt"}

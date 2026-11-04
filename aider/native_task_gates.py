@@ -80,6 +80,14 @@ ACTION_STANDALONE = ("working on it", "will work on", "on it now", "fix it now",
 ACTION_PHRASES = frozenset(
     [opener + verb for opener in ACTION_OPENERS for verb in ACTION_VERBS] + list(ACTION_STANDALONE)
 )
+# A reply with no text and no tool call. mlx_vlm answers this way when it rejects a malformed tool call (measured: a
+# 20-minute session ended at a rejected todo_write with nothing saved), so the model gets to try again; the cap stops
+# a server that only ever answers empty from looping.
+MAX_EMPTY_REPLY_RETRIES = 2
+EMPTY_REPLY_NUDGE = (
+    "Your last reply came back empty: no text and no tool call reached the user, possibly because a tool call was "
+    "malformed. Nothing happened. Make the next tool call again, or give your answer."
+)
 ACTION_PROMISE_NUDGE = (
     "You said you would continue but made no tool call, so nothing happened. Either do it now with a tool call, or "
     "tell the user plainly what is done, what is left, and what is blocking you. Do not say you will work on it later."
@@ -98,3 +106,8 @@ def announces_action(text: str) -> bool:
     if tail.endswith("?"):
         return False
     return any(phrase in tail for phrase in ACTION_PHRASES)
+
+
+def may_retry_empty(text: str, retries_used: int) -> bool:
+    """Whether a reply with this visible text is empty and still has a retry left."""
+    return not text.strip() and retries_used < MAX_EMPTY_REPLY_RETRIES

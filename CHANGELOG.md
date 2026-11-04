@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.8.10] - 2026-11-04
+
+### Fixed
+
+- An empty model reply no longer ends a session. `mlx_vlm` answers empty when it rejects a malformed tool call, and one such reply ended a 20-minute session with nothing saved. The agent now sends the model back to try again, up to twice per request.
+
 ## [0.8.9] - 2026-11-04
 
 ### Changed
