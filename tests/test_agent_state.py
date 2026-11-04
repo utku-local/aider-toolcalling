@@ -22,6 +22,7 @@ from aider.native_tool_compaction import COMPACTED_PREFIX, add_working_state, co
 from aider.native_tool_ledger import OperationLedger, OperationStatus
 from aider.native_loop_options import LoopOptions
 from aider.native_tool_loop import (
+    REPEAT_ACROSS_TURNS_REFUSAL,
     REPEAT_COMMAND_REFUSAL,
     REPEAT_NOTE,
     REPEAT_READ_REFUSAL,
@@ -31,8 +32,10 @@ from aider.native_tool_loop import (
     REPLAYED_NOTE,
     build_tool_round_messages,
     drop_refused_repeats,
+    repeat_refusal,
     repeated_in_round,
 )
+from aider.native_tool_calls import ToolCall
 from aider.native_tool_summary import exit_code, summarize_result
 from aider.native_toolcalling import NativeToolRegistry
 from aider.native_working_state import STATE_HEADING, render_working_state
@@ -422,6 +425,50 @@ class RetryResumeTest(unittest.TestCase):
         with open("calc.py") as handle:
             self.assertIn("return a + b", handle.read())
         self.assertIn("Files changed: calc.py", retry["messages"][-1]["content"])
+
+
+class CrossTurnRepeatTest(unittest.TestCase):
+    """The repeat guard is per request; these check it remembers a given-up call across user messages so the loop
+    cannot restart from zero every turn, and forgets it once a file changes."""
+
+    ARGS = {"pattern": "def root("}
+
+    def given_up_ledger(self) -> OperationLedger:
+        ledger = OperationLedger()
+        ledger.start_request()
+        record(ledger, "search_code", self.ARGS, "No matches.", OperationStatus.EXECUTED)
+        record(ledger, "search_code", self.ARGS, REPEAT_REFUSAL.format(count=1), OperationStatus.FAILED)
+        return ledger
+
+    def test_the_same_turn_does_not_count_as_an_earlier_one(self) -> None:
+        ledger = self.given_up_ledger()
+        self.assertFalse(ledger.abandoned("search_code", json.dumps(self.ARGS), REPEAT_REFUSAL_MARKER))
+
+    def test_a_given_up_call_is_remembered_next_turn(self) -> None:
+        ledger = self.given_up_ledger()
+        ledger.start_request()
+        self.assertTrue(ledger.abandoned("search_code", json.dumps(self.ARGS), REPEAT_REFUSAL_MARKER))
+
+    def test_a_file_change_forgets_the_given_up_call(self) -> None:
+        ledger = self.given_up_ledger()
+        ledger.start_request()
+        packed = json.dumps(self.ARGS)
+        self.assertTrue(ledger.abandoned("search_code", packed, REPEAT_REFUSAL_MARKER))
+        record(ledger, "edit_file", {"path": "x.py"}, "Edited", OperationStatus.EXECUTED)
+        self.assertFalse(ledger.abandoned("search_code", packed, REPEAT_REFUSAL_MARKER))
+
+    def test_repeat_refusal_refuses_a_call_given_up_last_turn(self) -> None:
+        ledger = self.given_up_ledger()
+        ledger.start_request()
+        call = ToolCall("c1", "search_code", json.dumps(self.ARGS))
+        self.assertEqual(repeat_refusal(ledger, call), REPEAT_ACROSS_TURNS_REFUSAL)
+        self.assertTrue(REPEAT_ACROSS_TURNS_REFUSAL.startswith(REPEAT_REFUSAL_MARKER))
+
+    def test_a_fresh_call_is_not_refused(self) -> None:
+        ledger = self.given_up_ledger()
+        ledger.start_request()
+        call = ToolCall("c1", "search_code", json.dumps({"pattern": "def main("}))
+        self.assertEqual(repeat_refusal(ledger, call), "")
 
 
 if __name__ == "__main__":

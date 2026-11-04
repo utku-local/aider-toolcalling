@@ -119,6 +119,23 @@ class OperationLedger:
             for r in self.records
         )
 
+    def abandoned(self, tool: str, arguments: str, marker: str) -> bool:
+        """True when this exact call was refused as a repeat in an earlier request and no file-changing or
+        background-process tool has executed since, so retrying it now would only return the same result and
+        loop again. Scans every request, so a new user message does not wipe the memory of a given-up call."""
+        refused_earlier = False
+        for r in self.records:
+            if r.tool in REPEAT_RESET_TOOLS and r.status is OperationStatus.EXECUTED:
+                refused_earlier = False
+            elif (
+                r.tool == tool
+                and r.arguments == arguments
+                and r.request < self.request
+                and r.result.startswith(marker)
+            ):
+                refused_earlier = True
+        return refused_earlier
+
     def repeat_refusals(self, marker: str) -> int:
         """Calls refused as repeats in the current request (their result starts with `marker`)."""
         return sum(1 for r in self.records if r.request == self.request and r.result.startswith(marker))

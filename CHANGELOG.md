@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- The repeat guard reset on every user message, so a model stopped for looping re-ran the same given-up call the moment the user asked again ("are you working on this?"), rebuilding the whole refuse/move-on/stop escalation each turn. A code search (`search_code`, `find_symbol`, `find_files`, `list_files`) refused as a repeat is now remembered across turns until a file changes, so the retry is refused on its first attempt. Reads (the file may have changed), commands (may behave differently) and edits (the user may want them re-applied) keep their per-turn reset.
+- After the loop stop, Heretic often answered in plain text that it was working ("sorry, I'm stuck in a loop, I'll fix it now") without calling a tool, which the loop took as a finished answer: the turn ended with nothing done, and the next "are you working?" repeated it. A reply that makes no tool call and only announces imminent action is now sent back once, asking the model to act with a tool call or say plainly what is blocking it.
+
 ## [0.8.7] - 2026-11-03
 
 ### Fixed

@@ -39,6 +39,10 @@ REPEAT_HINT_TOOLS = frozenset({"read_file", "list_files", "find_files", "search_
 # Measured: a local model ran the same passing test command 100 times without changing a file in between.
 # Measured: Qwen3-Coder-Next sent the same todo_write 98 times in one request.
 REPEAT_GUARD_TOOLS = REPEAT_HINT_TOOLS | {"run_command", "todo_write"}
+# Tools whose refusal is remembered across user turns: a code search gives the same result until a file changes,
+# so re-running it a turn later is pure waste. Reads (the file may have changed), commands (may behave differently)
+# and edits (the user may want them re-applied) keep their per-turn reset instead.
+CROSS_TURN_GUARD_TOOLS = frozenset({"search_code", "find_symbol", "find_files", "list_files"})
 REPEAT_REFUSE_AFTER = 2
 REPEAT_REFUSAL = (
     "Error: refused, this exact call already ran {count} times in this request and its result is unchanged "
@@ -86,6 +90,14 @@ REPEAT_DENIED_REFUSAL = (
     REPEAT_REFUSAL_MARKER + " and the user declined it. Do not ask again: use another approach, or stop and ask "
     "the user how to proceed."
 )
+# Measured: the repeat guard is per request, so a new user message ("are you working on this?") reset it and the
+# model re-ran the same given-up call every turn, promising work it never did. An earlier-turn refusal is remembered
+# until a file changes, so the retry is refused on its first attempt instead of looping the whole escalation again.
+REPEAT_ACROSS_TURNS_REFUSAL = (
+    REPEAT_REFUSAL_MARKER + " in an earlier turn and nothing has changed since, so it will return the same result "
+    "again. Do not retry it: take a genuinely different step, or tell the user plainly that you are blocked and what "
+    "you need from them. Do not say you will work on it and then stop."
+)
 COMMAND_TOOL = "run_command"
 HasPlan = Callable[[], bool]
 # Measured: a local model spent half an hour retrying connections that the sandbox and a stopped service refused.
@@ -106,6 +118,8 @@ def repeat_refusal(ledger: OperationLedger, call: ToolCall, has_plan: Optional[H
         return REPEAT_DENIED_REFUSAL
     if call.name in CHANGE_TOOLS and ledger.applied_before(call.name, call.arguments):
         return REPEAT_EDIT_REFUSAL
+    if call.name in CROSS_TURN_GUARD_TOOLS and ledger.abandoned(call.name, call.arguments, REPEAT_REFUSAL_MARKER):
+        return REPEAT_ACROSS_TURNS_REFUSAL
     return ""
 
 
