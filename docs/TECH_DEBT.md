@@ -71,6 +71,17 @@ Last updated: 2026-11-03 (after v0.8.7).
   1. Try a plan rule for fixes: the step after the probe must test the cheapest candidate (a curl to a mirror, a request to the service) before writing code; measure its token cost as for #95. Also "a 200 status is not proof: check the page shows what you expect".
   2. The "No matches" hint idea from item 1 also fits here: suggest searching the plain name, which may be data or config rather than code.
 
+### 4. Heretic (8080) ran out of GPU memory and used many tokens per round
+
+- **What happened (2026-11-04):** a long agent session on Heretic grew to ~42K prompt tokens; `~/.cache/mlx-serve.log` showed `KV Caches: 10 seq` climbing from 16 GB to 27 GB, then `[METAL] ... Insufficient Memory` and the server crashed. KeepAlive relaunched it with a cold cache, so the next request reprocessed the whole ~32K prompt (the long wait the user saw).
+- **Root cause:** `mlx_lm --prompt-cache-size` defaults to 10 (hold 10 distinct conversation caches); the LaunchAgents never set it, and `--prompt-cache-bytes 8 GB` did not bound the live KV caches in 0.31.3.
+- **Done:** the example templates now pass `--prompt-cache-size 1` (`docs/examples/launchagents/local.mlx-lm-agent.plist`, `local.mlx-serve.plist`), documented in `docs/LOCAL_SETUP.md`. The harness itself is already cache-friendly: `compact_tool_history` changes nothing below ~48K tokens and `add_working_state` appends rather than splicing, so the prefix stays stable.
+- **Pending (needs a server restart, so the user times it):**
+  1. Apply `--prompt-cache-size 1` to the live `~/Library/LaunchAgents/local.mlx-lm-agent.plist` and `local.mlx-serve.plist`, then `launchctl bootout`/`bootstrap`.
+  2. Try `use_repo_map: false` for the agent model: the repo map is a large fixed block re-sent every round, and agent mode already has `search_code`/`find_symbol`/`find_files`. Measure the token drop.
+  3. Revisit `max_tokens: 8192` once thinking is enabled (`/think on`): the reasoning trace shares the output budget and can truncate the answer; try 16384 with thinking on.
+- **Note:** per-round "tokens sent" is the full conversation by design (chat API); the prefix cache saves compute/time, not the displayed token count.
+
 ## Known limits (not planned)
 
 - **mlx_lm buffers tool-call text**, so a model that loops inside a tool call shows nothing until `max_tokens`. The 27B needs `repetition_penalty: 1.05` (see `docs/examples/aider.model.settings.yml`).

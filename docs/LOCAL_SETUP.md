@@ -30,7 +30,10 @@ usage with `footprint -p <pid>` (RSS does not show GPU memory).
 | 32 GB | `lmstudio-community/Qwen3.8-27B-MLX-4bit` | 15 GB on disk, up to ~21 GB in memory | 4294967296 (4 GB) |
 
 `mlx_lm.server` keeps a prompt cache next to the model; without a byte cap it was measured at 14 GB after one
-evaluation run, so always set one.
+evaluation run, so always set one. The templates also pass `--prompt-cache-size 1`, which holds only the current
+conversation's KV cache: the default of 10 let a long agent session reach 27 GB and crash the server with a Metal
+out-of-memory error (2026-11-04), and the byte cap alone did not bound it. Switching to a different conversation
+then reprocesses its prompt cold, which is the right trade when one agent runs at a time.
 
 Run at most one 27B server at a time on a 32 GB Mac, and do not start the optional 8081 server while 8083 is up.
 

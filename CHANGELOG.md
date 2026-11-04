@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- The example mlx_lm LaunchAgent templates (`docs/examples/launchagents/local.mlx-lm-agent.plist`, `local.mlx-serve.plist`) now pass `--prompt-cache-size 1`. The flag's default of 10 let a long agent session accumulate 10 conversation KV caches (27 GB, growing with the ~42K-token prompt) until the Metal backend ran out of memory and the server crashed; `--prompt-cache-bytes` alone did not bound it. Holding one conversation keeps memory bounded, at the cost of a cold reprocess when switching conversations. `docs/LOCAL_SETUP.md` and `docs/TECH_DEBT.md` explain the trade.
+
 ### Added
 
 - Extended thinking can be turned on for reasoning models in agent mode. `--agent-think`/`--no-agent-think` sets it at launch, and `/think on | off | status` toggles it live (it flips `extra_body.chat_template_kwargs.enable_thinking`, which mlx_lm reads on every request, so no server restart is needed). The choice persists per project in `.aider-agent.json` (`"thinking": true|false`); precedence is the CLI flag, then the project setting, then the model's own default. When thinking is on and the model returns its answer in the reasoning field with empty content, the agent now shows that reasoning instead of a blank reply.
