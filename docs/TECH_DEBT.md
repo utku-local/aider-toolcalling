@@ -90,7 +90,7 @@ Last updated: 2026-11-18.
 ### 5. Expert eval set: results and what is still open (2026-11-18)
 
 - **Why:** the hard set saturated (20/20), so it no longer showed where the agent breaks. `evals/expert/` holds eight multi-file tasks with hidden checks and reference solutions (`--set expert --sandbox --timeout 2400`).
-- **Results, one run per task, seed 1001** (before = v0.8.10; after = the `feature/expert-evals` branch, latest valid run):
+- **Results, one run per task, seed 1001** (before = v0.8.10; after = the `feature/expert-evals` branch, released as v0.9.0, latest valid run):
 
   | Task | 27B before | 27B after | Heretic before | Heretic after |
   |---|---|---|---|---|
