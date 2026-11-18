@@ -1,0 +1,1 @@
+`python -m app report data.json` crashes. Make it print the report described in README.md, exactly. `import app.models` and `import app.services` must each work on their own in a fresh interpreter, and data.json must stay as it is.

@@ -55,6 +55,8 @@ from aider.waiting import WaitingSpinner
 
 from ..dump import dump  # noqa: F401
 from .chat_chunks import ChatChunks
+from aider.native_length_cut import LENGTH_CUT_WARNING, shorten_cut_reply
+
 from .native_tool_rounds import prepare_request_messages, run_native_tool_rounds
 from .native_tool_setup import build_native_tools
 
@@ -1924,15 +1926,25 @@ class Coder:
         if show_resp or not native_tool_turn:
             self.io.assistant_output(show_resp, pretty=self.show_pretty())
 
+        self.native_length_cut = False
         if (
             hasattr(completion.choices[0], "finish_reason")
             and completion.choices[0].finish_reason == "length"
         ):
-            raise FinishReasonLength()
+            if not self.native_tools:
+                raise FinishReasonLength()
+            self.note_length_cut()
+
+    def note_length_cut(self) -> None:
+        """With native tools a reply cut at the output limit is sent back by the tool loop, not the end."""
+        self.native_length_cut = True
+        self.partial_response_content = shorten_cut_reply(self.partial_response_content)
+        self.io.tool_warning(LENGTH_CUT_WARNING)
 
     def show_send_output_stream(self, completion):
         received_content = False
         self.native_repetition_tripped = False
+        self.native_length_cut = False
 
         for chunk in completion:
             if len(chunk.choices) == 0:
@@ -1942,7 +1954,10 @@ class Coder:
                 hasattr(chunk.choices[0], "finish_reason")
                 and chunk.choices[0].finish_reason == "length"
             ):
-                raise FinishReasonLength()
+                if not self.native_tools:
+                    raise FinishReasonLength()
+                self.note_length_cut()
+                break
 
             try:
                 func = chunk.choices[0].delta.function_call

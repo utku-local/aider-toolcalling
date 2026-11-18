@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional
 
 from aider.native_tool_calls import ToolCall, field
 from aider.native_sensitive import is_sensitive
+from aider.native_failure_streak import same_error_note
 from aider.native_tool_ledger import CHANGE_TOOLS, OperationLedger
 from aider.native_hooks import after_notes, blocked_by
 from aider.native_loop_options import NO_OPTIONS, LoopOptions
@@ -87,8 +88,8 @@ REPEAT_COMMAND_REFUSAL = (
 )
 # Measured: a local model sent the same declined command more than 30 times; declined calls were never counted.
 REPEAT_DENIED_REFUSAL = (
-    REPEAT_REFUSAL_MARKER + " and the user declined it. Do not ask again: use another approach, or stop and ask "
-    "the user how to proceed."
+    REPEAT_REFUSAL_MARKER + " and it was not approved. Do not send it again: use another approach, or stop and "
+    "tell the user what you need."
 )
 # Measured: the repeat guard is per request, so a new user message ("are you working on this?") reset it and the
 # model re-ran the same given-up call every turn, promising work it never did. An earlier-turn refusal is remembered
@@ -153,6 +154,15 @@ def failing_command_streak(ledger: OperationLedger) -> int:
             break
         streak += 1
     return streak
+
+
+def streak_note(ledger: OperationLedger) -> str:
+    """The note for a run of failing commands: the same-error note when they share one error, else the general one."""
+    same = same_error_note(ledger)
+    if same:
+        return same
+    streak = failing_command_streak(ledger)
+    return FAILING_STREAK_NOTE.format(count=streak) if streak >= FAILING_STREAK_LIMIT else ""
 
 
 def get_tool_calls(message: Optional[Any]) -> list[Any]:
@@ -233,9 +243,9 @@ def execute_tool_call(
         notes = after_notes(options.hooks, call.name, call.arguments, result.content)
         result = ToolResult(result.tool_call_id, result.name, result.content + notes) if notes else result
     ledger.finish(record, result.content, failed)
-    streak = failing_command_streak(ledger) if call.name == COMMAND_TOOL else 0
-    if streak >= FAILING_STREAK_LIMIT:
-        result = ToolResult(result.tool_call_id, result.name, result.content + FAILING_STREAK_NOTE.format(count=streak))
+    note = streak_note(ledger) if call.name == COMMAND_TOOL else ""
+    if note:
+        result = ToolResult(result.tool_call_id, result.name, result.content + note)
     if call.name in REPEAT_HINT_TOOLS and repeats:
         # Local models can loop on re-reading; say plainly that this exact result is already in the conversation.
         return ToolResult(result.tool_call_id, result.name, REPEAT_NOTE + result.content)

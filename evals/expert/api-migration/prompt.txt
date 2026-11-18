@@ -1,0 +1,1 @@
+Change net.client.fetch to the signature `fetch(url, *, timeout_s=10.0, retries=0)`: the timeout becomes keyword-only and is renamed from timeout to timeout_s. Update every caller in the project so each call still passes the same timeout and retries as before. Cache.fetch in net/cache.py is a different function and must keep its signature.

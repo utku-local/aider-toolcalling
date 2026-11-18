@@ -21,7 +21,12 @@ from aider.native_task_gates import (
     PLAN_AFTER_CALLS,
     PLAN_FIRST_MARKER,
     VERIFY_HEADING,
+    ACTION_PROMISE_NUDGE,
+    ACTION_PROMISE_REPEAT_NUDGE,
+    promise_nudge_text,
+    MAX_ACTION_PROMISE_NUDGES,
     announces_action,
+    may_nudge_promise,
     completion_nudge,
     needs_plan,
 )
@@ -133,6 +138,23 @@ class AnnouncesActionTest(unittest.TestCase):
     def test_empty_text_is_not_a_promise(self) -> None:
         self.assertFalse(announces_action("   \n  "))
 
+    def test_a_reply_that_stops_at_a_lead_in_is_a_promise(self) -> None:
+        # Both endings finished a 27B expert-eval request with the work undone.
+        self.assertTrue(announces_action(
+            "The parser looks right in the read, so let me get a fresh trace with plain commands (no pipes):"))
+        self.assertTrue(announces_action("I'll first get a baseline from the old shop.py using a hand-crafted file:"))
+        self.assertTrue(announces_action("Next step:"))
+        self.assertFalse(announces_action("You can check it with:\n```\npytest -q\n```"))
+
+    def test_a_promise_repeated_word_for_word_gets_the_stronger_nudge(self) -> None:
+        self.assertEqual(promise_nudge_text("Let me check it:", "Something else."), ACTION_PROMISE_NUDGE)
+        self.assertEqual(promise_nudge_text("Let me check it:\n", " Let me check it:"), ACTION_PROMISE_REPEAT_NUDGE)
+
+    def test_promise_allowance_is_limited(self) -> None:
+        self.assertTrue(may_nudge_promise("I'll fix it now.", MAX_ACTION_PROMISE_NUDGES - 1))
+        self.assertFalse(may_nudge_promise("I'll fix it now.", MAX_ACTION_PROMISE_NUDGES))
+        self.assertFalse(may_nudge_promise("All tests pass.", 0))
+
 
 class _TrippedCoder:
     """Minimal stand-in for a coder: only what finish_nudge's repetition branch reads."""
@@ -181,3 +203,47 @@ class SendBackFlowTest(unittest.TestCase):
         self.assertEqual(len(nudges), 1)
         self.assertEqual(len(scripted.requests), 4)
         self.assertEqual(coder.partial_response_content, FINAL_TEXT)
+
+    def test_a_promise_after_the_verify_reminder_is_still_sent_back(self) -> None:
+        coder = Coder.create(
+            main_model=Model(MODEL_NAME), edit_format="agent", io=InputOutput(yes=True, pretty=False),
+            fnames=[], use_git=False, map_tokens=0, auto_lint=False, stream=False,
+        )
+        fix = {"path": "calc.py", "old_string": "a - b", "new_string": "a + b"}
+        scripted = ScriptedModel([
+            make_completion(tool_calls=tool_call("r0", "read_file", {"path": "calc.py"})),
+            make_completion(tool_calls=tool_call("e1", "edit_file", fix)),
+            make_completion("Fixed it."),
+            make_completion("The code looks right, so let me get a fresh trace with plain commands:"),
+            make_completion(FINAL_TEXT),
+        ])
+        with patch("aider.models.litellm.completion", side_effect=scripted):
+            coder.run(with_message="Fix add().")
+
+        contents = [str(m.get("content")) for m in scripted.requests[-1]["messages"]]
+        self.assertEqual(len([c for c in contents if VERIFY_HEADING in c]), 1)
+        self.assertEqual(len([c for c in contents if c == ACTION_PROMISE_NUDGE]), 1)
+        self.assertEqual(coder.partial_response_content, FINAL_TEXT)
+
+    def test_the_same_promise_twice_gets_the_stronger_nudge(self) -> None:
+        coder = Coder.create(
+            main_model=Model(MODEL_NAME), edit_format="agent", io=InputOutput(yes=True, pretty=False),
+            fnames=[], use_git=False, map_tokens=0, auto_lint=False, stream=False,
+        )
+        promise = "Let me check the Python version and datetime behavior directly:"
+        scripted = ScriptedModel([
+            make_completion(tool_calls=tool_call("r0", "read_file", {"path": "calc.py"})),
+            make_completion(promise),
+            make_completion(promise),
+            make_completion(FINAL_TEXT),
+        ])
+        with patch("aider.models.litellm.completion", side_effect=scripted):
+            coder.run(with_message="Look at add().")
+
+        nudges = [str(m.get("content")) for m in scripted.requests[-1]["messages"] if m["role"] == "user"]
+        self.assertEqual([n for n in nudges if n in (ACTION_PROMISE_NUDGE, ACTION_PROMISE_REPEAT_NUDGE)],
+                         [ACTION_PROMISE_NUDGE, ACTION_PROMISE_REPEAT_NUDGE])
+        # The repeated promise also moves the model to another sampling seed, so the next draw differs.
+        seeds = [request.get("seed") for request in scripted.requests]
+        self.assertEqual(seeds[:3], [None, None, None])
+        self.assertEqual(seeds[3], 1)

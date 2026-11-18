@@ -21,7 +21,7 @@ class OperationStatus(str, Enum):
 FINAL_STATUSES = frozenset({OperationStatus.DENIED, OperationStatus.EXECUTED, OperationStatus.FAILED})
 NO_RESULT = ""
 # Tools that change project files; a repeat of the same call after one of these is a new check, not a loop.
-CHANGE_TOOLS = frozenset({"edit_file", "multi_edit", "write_file"})
+CHANGE_TOOLS = frozenset({"edit_file", "multi_edit", "write_file", "delete_file", "move_file"})
 # Tools that change what a repeated call would see without touching a file: starting or stopping a background
 # process (a server, a watcher). Measured: a model started a stopped server and was refused re-running its client.
 STATE_TOOLS = frozenset({"start_background", "stop_background"})

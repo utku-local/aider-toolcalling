@@ -48,7 +48,7 @@ class ToolContext:
     Defaults: `check_command` asks for every command, `before_write` keeps no snapshot, `todos` starts empty,
     `wrap_command` runs a command through /bin/sh without a sandbox, and `sandboxed` is False to match.
     `file_state` None skips the read-before-edit check and `spill` None truncates long output instead of saving it.
-    `web` pre-approves no host and no search.
+    `web` pre-approves no host and no search. `unattended` False means a person answers the approval prompts.
     """
 
     root: Path
@@ -65,3 +65,4 @@ class ToolContext:
     file_state: Optional[FileState] = None
     spill: Optional[OutputSpill] = None
     web: WebPolicy = WebPolicy()
+    unattended: bool = False

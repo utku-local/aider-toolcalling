@@ -5,6 +5,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-19
+
+### Added
+
+- `delete_file` and `move_file` tools in agent mode. Removing or relocating a file needed `rm` or `mv`, which the command policy asks about every time and `--yes-always` never approves, so an unattended refactor could not retire a file: in the expert eval, Heretic split `shop.py` into a package, had `rm shop.py` declined and overwrote the file with blank content instead. Both tools are approved like an edit (the removed content is shown), take one file per call, refuse secret files such as `.env`, drop directories they leave empty, and are restored by `/undo-agent`. A deleted file is committed when git tracks it and is skipped by the linter.
+- An expert evaluation set (`python -m evals.run_evals --set expert --sandbox --timeout 2400`): eight multi-file tasks under `evals/expert/`, each with a prompt, a starting project, a hidden check and a reference solution. The hard set had saturated at 20/20; on the first expert run against 0.8.10, Heretic passed 3 of 7 finished tasks and the 27B 5 of 6. `tests/test_expert_tasks.py` proves that every check fails on the starting project and passes on its solution.
+- `--resume RESULTS.jsonl` for `evals.run_evals`: finished (task, run) pairs in that file are skipped and new results appended, so a long run can be stopped and continued, or fed one task at a time with `--tasks`.
+
+- A `task` sub-agent's report now ends with a footer built from the operation log: the commands that really ran with their exit codes, how many were requested but not run, and the files changed. When no command ran it says so and that any output in the report is not from a real run. In the expert eval, Heretic delegated "run `python -m app` and show me the output" to a sub-agent; the command was not approved, the sub-agent answered with output it had worked out from the code, and Heretic reported the fix as verified. The sub-agent's instructions also say to report only output a command really printed.
+
+- A note for commands that keep failing with the same error. After three commands in a row end in the same last line with no file change in between, the result says that another probe will end the same way, that stale caches are not the cause, and to find and read the code that raises the error. In the expert eval the 27B ran probe after probe against a parser fault of its own, blamed stale bytecode and timed out; the general "the last 4 commands all failed" note only told it to ask the user.
+
+- The agent moves to another sampling seed when it detects a loop (a tool call refused as a repeat, or a promise sent back a second time). One seed was sent with every request of a session, so a model stuck on nearly the same prompt drew the same reply each time: on expr-eval the 27B answered four reminders with one identical sentence and one identical command. A run started with the same `--seed` still repeats exactly.
+
+### Changed
+
+- The command policy judges a list joined by `&&`, `||` or `;` command by command: it is allowed only when every part would be, refused when any part is, and otherwise asked with the risks of all parts. A quoted multi-line argument (`python -c "..."` over several lines) and a here-document with a literal body (`python - <<'EOF'`) are judged as the plain command they belong to. These three shapes were most of the verification commands the local models wrote, and each was declined in sandboxed unattended runs although the same program run plainly was allowed: 27 declined commands across 13 expert runs, and one in each of the first three hard-set runs. A hard refusal now also applies to a later part of a list (`pytest; rm -rf ~` is refused, not asked).
+- An allow or deny rule for `python` (or `python3`) now also covers `python -m MODULE`. Only the module name was compared, so with python allowed `python -m app report data.json` matched no rule: in the expert eval the 27B could not run the program it was fixing and finished unverified with a remaining import cycle. Risks are still judged on the module, so `python -m pip install` is asked as before.
+- The agent system prompt names `delete_file` and `move_file` and says which command shapes always need approval, in place of "a compound command always needs approval".
+
+### Fixed
+
+- A reply cut off at the output limit no longer ends an agent request. Upstream stops there with "has hit a token limit"; in the expert eval Heretic read two files, then reasoned in prose for 14,816 tokens without a tool call, and the task ended with no edit. With native tools the cut reply is now shortened to its first 1,500 characters and sent back, at most twice per request, with an instruction to make one tool call instead of continuing the analysis. Chat modes without native tools keep upstream's behaviour.
+- In a `--yes-always` run a command that needed approval was reported to the model as "The user declined this action", and the model passed that on ("you declined my verification command") and stopped verifying. The result now says that nobody is at the prompt, names the cause (the risk, or that no allow rule covers the command) and asks for one plain command an allow rule covers. The working state and the repeat refusal say "not approved" instead of "declined by the user".
+- A reply that only promised more work could end a request once the verify reminder had been used, because both reminders shared one use per request. In the expert eval the 27B ended two tasks this way with the work undone ("so let me get a fresh trace with plain commands (no pipes):"). The promise reminder now has its own allowance of three per request, and a last line ending in a colon counts as a promise, as do "let me get", "I'll use", "I'll read" and "I'll first". A promise repeated word for word gets a stronger reminder that names the usual cause (the command it wants was refused as a repeat, so its result is already above): on the scheduler task the 27B returned the same sentence four times.
+
 ## [0.8.10] - 2026-11-04
 
 ### Fixed
