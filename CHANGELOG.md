@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-19
+
 ### Added
 
 - `delete_file` and `move_file` tools in agent mode. Removing or relocating a file needed `rm` or `mv`, which the command policy asks about every time and `--yes-always` never approves, so an unattended refactor could not retire a file: in the expert eval, Heretic split `shop.py` into a package, had `rm shop.py` declined and overwrote the file with blank content instead. Both tools are approved like an edit (the removed content is shown), take one file per call, refuse secret files such as `.env`, drop directories they leave empty, and are restored by `/undo-agent`. A deleted file is committed when git tracks it and is skipped by the linter.
