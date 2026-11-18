@@ -80,6 +80,17 @@ class CommandPolicyTest(unittest.TestCase):
                 self.assertIs(self.action(command), PolicyAction.ALLOW)
                 self.assertIs(self.action(command, UNTRUSTED), PolicyAction.ASK)
 
+    def test_an_interpreter_rule_covers_its_modules_but_not_their_risks(self) -> None:
+        python = CommandRules(allow=(CommandRule("python"),), deny=(CommandRule("flask"),))
+        for command in ("python -m app report data.json", "python app.py", "python -m unittest discover -s tests"):
+            with self.subTest(command=command):
+                self.assertIs(self.action(command, python, sandboxed=True), PolicyAction.ALLOW)
+        self.assertIs(self.action("python3 -m app", python, sandboxed=True), PolicyAction.ASK)
+        self.assertIs(self.action("python -m pip install requests", python, sandboxed=True), PolicyAction.ASK)
+        self.assertIs(self.action("python -m flask run", python, sandboxed=True), PolicyAction.DENY)
+        no_python = CommandRules(allow=(CommandRule("pytest"),), deny=(CommandRule("python"),))
+        self.assertIs(self.action("python -m pytest", no_python, sandboxed=True), PolicyAction.DENY)
+
     def test_a_refused_part_refuses_the_list(self) -> None:
         for command in ("pytest; rm -rf ~", "pytest && sudo make install", "git push -f || pytest"):
             with self.subTest(command=command):

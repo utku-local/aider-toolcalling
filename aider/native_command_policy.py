@@ -145,6 +145,20 @@ def program_and_args(argv: list[str]) -> tuple[str, list[str]]:
     return program, argv[1:]
 
 
+def rule_targets(argv: list[str]) -> list[tuple[str, list[str]]]:
+    """Every (program, args) reading of `argv` a rule may match: the module run by `python -m`, then the interpreter.
+
+    Measured on the 27B: with python allowed, `python -m app report data.json` matched no rule, because only the
+    module name `app` was compared; the model could not run the program it was fixing and finished unverified.
+    Risks are still judged on the module, so `python -m pip install x` is not covered by a python rule.
+    """
+    targets = [program_and_args(argv)]
+    interpreter = PurePosixPath(argv[0]).name
+    if targets[0][0] != interpreter:
+        targets.append((interpreter, argv[1:]))
+    return targets
+
+
 def outside_root(args: list[str], root: Path) -> bool:
     for arg in args:
         value = arg.split("=", 1)[1] if arg.startswith("-") and "=" in arg else arg
@@ -215,17 +229,20 @@ def decide_one(command: str, tokens: list[str], root: Path, rules: CommandRules,
     """The decision for one command (a plain pipeline); `command` is the whole text, checked for expansions."""
     stages = pipeline_stages(tokens)
     if is_compound(command, tokens):
-        program, args = program_and_args(tokens)
+        argv = tokens
+        program, args = program_and_args(argv)
         risks = risks_of(program, args, root) | {Risk.COMPOUND}
     else:
-        program, args = program_and_args(stages[0])
+        argv = stages[0]
+        program, args = program_and_args(argv)
         risks = set().union(*(risks_of(*program_and_args(stage), root) for stage in stages))
     reason = denial(program, args, risks)
     if reason:
         return PolicyDecision(PolicyAction.DENY, frozenset(risks), reason)
-    if any(matches(rule, program, args) for rule in rules.deny):
+    targets = rule_targets(argv)
+    if any(matches(rule, *target) for rule in rules.deny for target in targets):
         return PolicyDecision(PolicyAction.DENY, frozenset(risks), f"{program} is denied by the project rules")
-    allowed = [rule for rule in rules.allow if matches(rule, program, args)]
+    allowed = [rule for rule in rules.allow if any(matches(rule, *target) for target in targets)]
     if allowed and not risks and (sandboxed or any(rule.trust_unsandboxed for rule in allowed)):
         return PolicyDecision(PolicyAction.ALLOW)
     return PolicyDecision(PolicyAction.ASK, frozenset(risks))

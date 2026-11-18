@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Changed
 
 - The command policy judges a list joined by `&&`, `||` or `;` command by command: it is allowed only when every part would be, refused when any part is, and otherwise asked with the risks of all parts. A quoted multi-line argument (`python -c "..."` over several lines) and a here-document with a literal body (`python - <<'EOF'`) are judged as the plain command they belong to. These three shapes were most of the verification commands the local models wrote, and each was declined in sandboxed unattended runs although the same program run plainly was allowed: 27 declined commands across 13 expert runs, and one in each of the first three hard-set runs. A hard refusal now also applies to a later part of a list (`pytest; rm -rf ~` is refused, not asked).
+- An allow or deny rule for `python` (or `python3`) now also covers `python -m MODULE`. Only the module name was compared, so with python allowed `python -m app report data.json` matched no rule: in the expert eval the 27B could not run the program it was fixing and finished unverified with a remaining import cycle. Risks are still judged on the module, so `python -m pip install` is asked as before.
 - The agent system prompt names `delete_file` and `move_file` and says which command shapes always need approval, in place of "a compound command always needs approval".
 
 ### Fixed

@@ -131,7 +131,8 @@ server without dynamic registration, give the pre-registered client instead:
 `read_file` also reads Jupyter notebooks (cells with outputs) and PDFs (through poppler's `pdftotext`: `brew install
 poppler`); images and other binary files are refused with a short reason, since the model reads text only.
 
-A rule matches the parsed program (`python -m pytest` counts as `pytest`) and optional `subcommands`. Compound
+A rule matches the parsed program (`python -m pytest` counts as `pytest`, and a `python` rule also covers
+`python -m anything`) and optional `subcommands`. Compound
 commands (redirects into files, substitutions, env prefixes, background jobs), paths outside the project and risky
 programs are asked even when a rule matches. A list joined by `&&`, `||` or `;` is judged command by command: it
 runs without asking only when every command in it would, and it is refused when any part is. A quoted multi-line
