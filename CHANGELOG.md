@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-19
+
 ### Changed
 
 - Agent mode waits 1,800 seconds for a model reply instead of upstream's 600 (`--timeout` still overrides it). A full-length reply from the local models takes about 11 minutes, so the old limit cut it off just before the end.
