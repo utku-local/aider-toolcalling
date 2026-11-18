@@ -15,6 +15,7 @@ from unittest.mock import patch
 from test_agent_coder import tool_call
 from test_coder_native_tools import FINAL_TEXT, MODEL_NAME, ScriptedModel, make_completion
 
+from aider.native_subtask_report import NO_COMMAND_RAN
 from aider.coders import Coder
 from aider.coders.native_subtask import TASK_SYSTEM
 from aider.io import InputOutput
@@ -60,7 +61,10 @@ class TaskTest(unittest.TestCase):
         self.assertFalse({"ask_user", "task"} & names)
         self.assertIn("return a + b", Path("calc.py").read_text())
         main_after = scripted.requests[4]["messages"]
-        self.assertEqual([m["content"] for m in main_after if m.get("tool_call_id") == "m1"], [REPORT])
+        (result,) = [m["content"] for m in main_after if m.get("tool_call_id") == "m1"]
+        self.assertTrue(result.startswith(REPORT))
+        self.assertIn(NO_COMMAND_RAN, result)
+        self.assertIn("Files changed: calc.py", result)
 
 
 class BackgroundNoticeTest(unittest.TestCase):
