@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-04.
+Last updated: 2026-11-18.
 
 ## Open
 
@@ -86,6 +86,27 @@ Last updated: 2026-11-04.
   3. Heretic `max_tokens` raised 8192 -> 16384 in `~/.aider.model.settings.yml`, for thinking-trace headroom; a hard-set eval at 16384 held 20/20 with no runaway loops.
 - **Not propagated to the repo:** these live in the user's `~/.aider.model.settings.yml`; `docs/examples/aider.model.settings.yml` still ships the old values. Propagate there if a second Mac should inherit them.
 - **Note:** per-round "tokens sent" is the full conversation by design (chat API); the prefix cache saves compute/time, not the displayed token count.
+
+### 5. Expert eval set: first results and what is still open (2026-11-18)
+
+- **Why:** the hard set saturated (20/20), so it no longer showed where the agent breaks. `evals/expert/` holds eight multi-file tasks with hidden checks and reference solutions (`--set expert --sandbox --timeout 2400`).
+- **Before (v0.8.10, one run per task, seed 1001):**
+  - 27B: 5/7. Passed api-migration (at the 2,400 s limit), circular-import, large-file, perf-dedupe, scheduler; failed expr-eval and split-module; todo-cli not run.
+  - Heretic: 3/7. Passed large-file, perf-dedupe, scheduler; failed api-migration, circular-import, expr-eval (timeout), split-module; todo-cli not run.
+  - 27 commands were auto-declined across those 13 runs; both models were running at once on a Mac deep in swap, so these times are inflated.
+- **Harness faults found and fixed in this cycle** (see `## [Unreleased]`): verification commands written as `a && b`, multi-line `python -c` or a heredoc were declined; `python -m MODULE` was not covered by a python rule; an unattended decline was reported as "the user declined"; no tool could delete or move a file; a reply that only promised work ended the request once the verify reminder was used.
+- **After, 27B alone (same seed):**
+  - split-module: fail (1,726 s, 7 declined) -> pass (772 s), using `delete_file`.
+  - api-migration: pass at the time limit -> pass (601 s).
+  - circular-import: pass (2,312 s) -> fail on the first fix commit, because `python -m app` still matched no rule -> pass (306 s) once a python rule covered it.
+  - expr-eval: fail -> fail (timeout). Its commands ran this time; the model wrote a parser that mishandles `)`, could not find the fault, blamed stale bytecode and repeated one probe until the limit.
+- **Open:**
+  1. Not rerun after the fixes: large-file, perf-dedupe, scheduler (all passed before) and todo-cli (never run) on the 27B; every task on Heretic. Continue with `--resume` into one results file, one model at a time.
+  2. One run per task is a sample, not a rate: circular-import passed, failed and passed on the same seed across three code states. Use `--repeat 3` before reading a single flip as a regression or a gain.
+  3. Heretic's api-migration and circular-import failures were not diagnosed; it reported both as verified.
+  4. expr-eval is the model's limit so far. An idea, untested: when the same command fails several times with the same last line, tell the model to re-read the function named in the traceback instead of probing again.
+  5. The promise-reminder change (commit a06dd6e) is unit-tested but did not fire in any rerun, so its effect on a real run is unobserved.
+  6. A command that mentions `$?` or any `$` is still compound (`python -m app; echo "exit=$?"`); run_command already reports the exit code, and the model recovered in one step each time.
 
 ## Known limits (not planned)
 
