@@ -29,7 +29,7 @@ from aider.native_loop_options import LoopOptions
 from aider.native_task_gates import (
     ACTION_PROMISE_NUDGE,
     EMPTY_REPLY_NUDGE,
-    announces_action,
+    may_nudge_promise,
     completion_nudge,
     may_retry_empty,
 )
@@ -177,8 +177,8 @@ def empty_retry_nudge(coder: Any, completion: Any) -> str:
 
 
 def finish_nudge(coder: Any, completion: Any) -> str:
-    """The once-per-request reminder to verify, finish open tasks, or stop promising and act; empty when the answer
-    may stand. A no-tool-call reply that only announces imminent work is sent back so it acts or reports plainly, and
+    """The reminder to verify or finish open tasks (once per request) or to stop promising and act (a few times);
+    empty when the answer may stand. A no-tool-call reply that only announces imminent work is sent back so it acts or reports plainly, and
     an empty reply is sent back to try again."""
     ledger = coder.native_ledger
     if getattr(coder, "native_repetition_tripped", False):
@@ -188,17 +188,27 @@ def finish_nudge(coder: Any, completion: Any) -> str:
     retry = empty_retry_nudge(coder, completion)
     if retry:
         return retry
-    if getattr(coder, "native_nudged_request", None) == ledger.request:
+    if getattr(coder, "native_nudged_request", None) != ledger.request:
+        open_tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
+        nudge = completion_nudge(ledger, open_tasks)
+        if nudge:
+            coder.native_nudged_request = ledger.request
+            return nudge
+    return promise_nudge(coder, completion)
+
+
+def promise_nudge(coder: Any, completion: Any) -> str:
+    """ACTION_PROMISE_NUDGE when the reply only announces work and the request has allowance left; else empty.
+    The allowance is separate from the verify reminder, so a promise made after that reminder is still sent back."""
+    message = current_message(coder, completion)
+    if message is None:
         return ""
-    open_tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
-    nudge = completion_nudge(ledger, open_tasks)
-    if not nudge:
-        message = current_message(coder, completion)
-        if message is not None and announces_action(visible_content(message)):
-            nudge = ACTION_PROMISE_NUDGE
-    if nudge:
-        coder.native_nudged_request = ledger.request
-    return nudge
+    request_id = coder.native_ledger.request
+    used = getattr(coder, "native_promise_nudges", {}).get(request_id, 0)
+    if not may_nudge_promise(visible_content(message), used):
+        return ""
+    coder.native_promise_nudges = {request_id: used + 1}
+    return ACTION_PROMISE_NUDGE
 
 
 def send_back(coder: Any, messages: list[dict[str, Any]], completion: Any, nudge: str) -> None:
