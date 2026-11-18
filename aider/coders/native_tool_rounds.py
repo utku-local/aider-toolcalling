@@ -30,6 +30,7 @@ from aider.native_task_gates import (
     ACTION_PROMISE_NUDGE,
     EMPTY_REPLY_NUDGE,
     may_nudge_promise,
+    promise_nudge_text,
     completion_nudge,
     may_retry_empty,
 )
@@ -44,6 +45,7 @@ from .native_tool_setup import read_unchanged
 from .native_user_io import take_user_notes
 
 MAX_CONTINUATIONS = 3
+NO_PREVIOUS_PROMISE = ""
 # After this many refused repeats in one request the model is told to move on; after as many again, the loop stops
 # and the model must answer.
 MAX_REPEAT_REFUSALS = 3
@@ -204,11 +206,12 @@ def promise_nudge(coder: Any, completion: Any) -> str:
     if message is None:
         return ""
     request_id = coder.native_ledger.request
-    used = getattr(coder, "native_promise_nudges", {}).get(request_id, 0)
-    if not may_nudge_promise(visible_content(message), used):
+    reply = visible_content(message)
+    used, previous = getattr(coder, "native_promise_nudges", {}).get(request_id, (0, NO_PREVIOUS_PROMISE))
+    if not may_nudge_promise(reply, used):
         return ""
-    coder.native_promise_nudges = {request_id: used + 1}
-    return ACTION_PROMISE_NUDGE
+    coder.native_promise_nudges = {request_id: (used + 1, reply)}
+    return promise_nudge_text(reply, previous) if used else ACTION_PROMISE_NUDGE
 
 
 def send_back(coder: Any, messages: list[dict[str, Any]], completion: Any, nudge: str) -> None:

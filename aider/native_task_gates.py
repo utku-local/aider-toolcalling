@@ -98,6 +98,19 @@ ACTION_PROMISE_NUDGE = (
     "You said you would continue but made no tool call, so nothing happened. Either do it now with a tool call, or "
     "tell the user plainly what is done, what is left, and what is blocking you. Do not say you will work on it later."
 )
+# Measured on the 27B (expert eval, scheduler): sent back for a promise, it returned the same sentence word for
+# word four times; the command it wanted had been refused as a repeat, so it could neither run it nor move on.
+ACTION_PROMISE_REPEAT_NUDGE = (
+    "You sent the same reply again, word for word, and again made no tool call. If the command you want was "
+    "refused as a repeat, its result is already in the conversation above: use that result. Do something different "
+    "now: read the code you changed and fix it with an edit tool, then run the tests; or state plainly what is done "
+    "and what is not."
+)
+
+
+def promise_nudge_text(reply: str, previous_reply: str) -> str:
+    """The nudge for a promise: the stronger one when the reply repeats the previous promise exactly."""
+    return ACTION_PROMISE_REPEAT_NUDGE if reply.strip() == previous_reply.strip() else ACTION_PROMISE_NUDGE
 
 
 def announces_action(text: str) -> bool:
