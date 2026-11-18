@@ -56,6 +56,7 @@ from aider.waiting import WaitingSpinner
 from ..dump import dump  # noqa: F401
 from .chat_chunks import ChatChunks
 from aider.native_length_cut import LENGTH_CUT_WARNING, shorten_cut_reply
+from aider.native_request_timeout import TIMEOUT_STOP, is_timeout
 
 from .native_tool_rounds import prepare_request_messages, run_native_tool_rounds
 from .native_tool_setup import build_native_tools
@@ -1483,6 +1484,10 @@ class Coder:
                         break
 
                     should_retry = ex_info.retry
+                    if self.native_tools and is_timeout(ex_info.name, str(err)):
+                        # A local server keeps generating the abandoned request; a retry queues it again.
+                        should_retry = False
+                        self.io.tool_error(TIMEOUT_STOP)
                     if should_retry:
                         retry_delay *= 2
                         if retry_delay > RETRY_TIMEOUT:

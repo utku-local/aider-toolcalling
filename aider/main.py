@@ -25,6 +25,7 @@ from aider.extra_packages import BROWSER_PACKAGES
 from aider.coders import Coder
 from aider.coders.native_session import resume_session
 from aider.model_seed import with_seed
+from aider.native_request_timeout import AGENT_EDIT_FORMAT, agent_timeout
 from aider.native_thinking import with_thinking
 from aider.coders.native_agent_config import read_thinking
 from aider.coders.base_coder import UnknownEditFormat
@@ -531,8 +532,9 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         # Set verify_ssl on the model_info_manager
         models.model_info_manager.set_verify_ssl(False)
 
-    if args.timeout:
-        models.request_timeout = args.timeout
+    timeout = agent_timeout(args.timeout, args.edit_format == AGENT_EDIT_FORMAT)
+    if timeout:
+        models.request_timeout = timeout
 
     if args.dark_mode:
         args.user_input_color = "#32FF32"

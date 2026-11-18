@@ -161,6 +161,7 @@ installed copy instead.
 
 - `--native-tools` (default off) exposes the read-only and search tools in any chat mode.
 - Works with and without streaming; tool calls are assembled from stream chunks.
+- Agent mode waits up to 30 minutes for a reply (`--timeout` changes it) and does not re-send a request that timed out: a local server is still generating it, and a retry would queue the same work again.
 - After a request with tool calls, Aider prints the number of rounds, calls and the elapsed time.
 - Up to `--max-tool-rounds` (default 25) model/tool round trips per message; then Aider asks whether to continue
   (at most three times) or the model answers without tools.
@@ -199,6 +200,7 @@ installed copy instead.
 | `aider/native_task_gates.py` | Plan-first and verify-before-finishing checks, read from the operation ledger |
 | `aider/native_subtask_report.py`, `native_failure_streak.py` | What a `task` sub-agent really ran, and the note for commands failing with one repeated error |
 | `aider/native_length_cut.py` | Sends back a reply cut off at the output limit instead of ending the request |
+| `aider/native_request_timeout.py` | The agent's request timeout and the rule that a timed-out request is not re-sent |
 | `evals/scenarios.py`, `scenario_scoring.py`, `run_scenarios.py`, `compare_models.py` | Behaviour scenarios, their scoring, runner and model comparison |
 | `aider/coders/native_session.py`, `aider/agent_main.py`, `pyproject.toml` | Session save and `--resume`, the `aider-agent` command, packaging |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
