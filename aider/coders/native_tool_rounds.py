@@ -11,6 +11,7 @@ during the round follow as a user message of their own.
 import time
 from typing import Any, Generator, Optional
 
+from aider.model_seed import next_seed
 from aider.native_tool_calls import answer_text, describe_call, normalize_tool_calls, visible_content
 from aider.native_tool_compaction import add_working_state, compact_tool_history
 from aider.native_tool_loop import (
@@ -131,6 +132,11 @@ def show_results(coder: Any, round_messages: list[dict[str, Any]]) -> None:
             coder.io.tool_output(content)
 
 
+def resample(coder: Any) -> None:
+    """Move the model to another sampling seed after a detected repeat, so the next reply is not the same draw."""
+    coder.main_model.extra_params = next_seed(coder.main_model.extra_params)
+
+
 def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) -> int:
     """Execute the tool calls of the last reply; returns how many there were."""
     message = current_message(coder, completion)
@@ -155,6 +161,7 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     append_operation_log(coder, coder.native_ledger.records[logged:])
     if repeated_in_round(round_messages):
         round_messages.append({"role": "user", "content": REPEAT_NUDGE})
+        resample(coder)
     note = take_user_notes(coder)
     if note is not None:
         round_messages.append(note)
@@ -211,7 +218,10 @@ def promise_nudge(coder: Any, completion: Any) -> str:
     if not may_nudge_promise(reply, used):
         return ""
     coder.native_promise_nudges = {request_id: (used + 1, reply)}
-    return promise_nudge_text(reply, previous) if used else ACTION_PROMISE_NUDGE
+    if not used:
+        return ACTION_PROMISE_NUDGE
+    resample(coder)
+    return promise_nudge_text(reply, previous)
 
 
 def send_back(coder: Any, messages: list[dict[str, Any]], completion: Any, nudge: str) -> None:

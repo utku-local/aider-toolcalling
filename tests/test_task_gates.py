@@ -243,3 +243,7 @@ class SendBackFlowTest(unittest.TestCase):
         nudges = [str(m.get("content")) for m in scripted.requests[-1]["messages"] if m["role"] == "user"]
         self.assertEqual([n for n in nudges if n in (ACTION_PROMISE_NUDGE, ACTION_PROMISE_REPEAT_NUDGE)],
                          [ACTION_PROMISE_NUDGE, ACTION_PROMISE_REPEAT_NUDGE])
+        # The repeated promise also moves the model to another sampling seed, so the next draw differs.
+        seeds = [request.get("seed") for request in scripted.requests]
+        self.assertEqual(seeds[:3], [None, None, None])
+        self.assertEqual(seeds[3], 1)

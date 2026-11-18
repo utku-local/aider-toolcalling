@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from aider.args import get_parser
-from aider.model_seed import with_seed
+from aider.model_seed import next_seed, with_seed
 from aider.models import Model
 
 MODEL_NAME = "openai/test-model"
@@ -22,6 +22,13 @@ class ModelSeedTest(unittest.TestCase):
         original = {"top_p": 1}
         with_seed(original, 3)
         self.assertEqual(original, {"top_p": 1})
+
+    def test_next_seed_steps_on_without_changing_the_original(self) -> None:
+        self.assertEqual(next_seed(None), {"seed": 1})
+        original = {"max_tokens": 9, "seed": 1001}
+        self.assertEqual(next_seed(original), {"max_tokens": 9, "seed": 1002})
+        self.assertEqual(original["seed"], 1001)
+        self.assertEqual(next_seed(next_seed({"seed": 5}))["seed"], 7)
 
     def test_seed_reaches_the_request(self) -> None:
         model = Model(MODEL_NAME)
