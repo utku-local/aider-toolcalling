@@ -4,7 +4,7 @@ This file lists the open work and known weak spots of aider-toolcalling, newest 
 Each item says what is known, what evidence exists, and what the next step is, so work can resume on any machine.
 Remove an item when its fix is merged, and add new ones as they are found.
 
-Last updated: 2026-11-18.
+Last updated: 2026-11-19.
 
 ## Open
 
@@ -111,7 +111,9 @@ Last updated: 2026-11-18.
 - **Harness faults found and fixed** (see `## [Unreleased]`): verification commands written as `a && b`, multi-line `python -c` or a heredoc were declined (27 across the 13 before runs); `python -m MODULE` was not covered by a python rule; an unattended decline was reported as "the user declined"; no tool could delete or move a file; a reply that only promised work ended the request once the verify reminder was used; a `task` sub-agent reported command output it had worked out from the code; a reply cut at the output limit ended the request; one sampling seed for every request made a stuck model repeat itself exactly.
 - **Fixes that no live run has exercised yet** (unit-tested only): the output-limit send-back (Heretic's passing scheduler rerun stayed under the limit), the `task` report footer (no rerun used `task`), and the same-error note (no rerun produced three identical failures). The seed step and the stronger promise reminder went in before the 27B's passing expr-eval run, which did not need a reminder, so their effect is not isolated either.
 - **Open:**
-  1. **mlx_lm keeps generating abandoned requests.** When a request times out, the client retries and the server works through every abandoned generation in turn (about 7 minutes each on the 27B). On 2026-11-18 this cost one run its last request and starved the next task completely (0 tool calls in 2,400 s). For evals: restart the model's server after any task that hits the time limit (`launchctl kickstart -k gui/$(id -u)/local.mlx-lm-agent`, or `local.mlx-serve` for 8080) and wait for `/v1/models`. Not fixed in the harness: the agent still retries a timed-out request, and with a fixed seed the retry asks for the same long generation again.
+  1. **mlx_lm keeps generating abandoned requests.** When a request timed out, the client retried and the server worked through every abandoned generation in turn (about 7 minutes each on the 27B). On 2026-11-18 this cost one run its last request and starved the next task completely (0 tool calls in 2,400 s).
+     - **Fixed in the agent (2026-11-19):** a timed-out request is not sent again, and agent mode waits 1,800 s instead of 600 (`aider/native_request_timeout.py`). Checked live against the 27B with `--timeout 4`: one request, the stop message, exit after 10 s.
+     - **Still true for evals:** a task killed at its time limit leaves its last request generating on the server. Restart the model's server after any task that hits the limit (`launchctl kickstart -k gui/$(id -u)/local.mlx-lm-agent`, or `local.mlx-serve` for 8080) and wait for `/v1/models`; the runner does not do this itself.
   2. **The 27B's expr-eval pass hit the time limit** on a last request that never returned; the cause of that last long generation is unknown (mlx_lm buffers tool-call text, see Known limits).
   3. **Heretic's expr-eval** fails on the model: it gets the visible tests passing and stops, without checking the rest of SPEC.md (1.07M tokens sent in 42 rounds).
   4. **Heretic reasons in prose at length** (about 1,350 log lines between two tool calls in its passing scheduler run). The output-limit send-back only catches the case that reaches the limit.
