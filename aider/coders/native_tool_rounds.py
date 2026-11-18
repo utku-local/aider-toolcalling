@@ -12,6 +12,7 @@ import time
 from typing import Any, Generator, Optional
 
 from aider.model_seed import next_seed
+from aider.native_length_cut import LENGTH_CUT_NUDGE, may_nudge_length_cut
 from aider.native_tool_calls import answer_text, describe_call, normalize_tool_calls, visible_content
 from aider.native_tool_compaction import add_working_state, compact_tool_history
 from aider.native_tool_loop import (
@@ -194,6 +195,9 @@ def finish_nudge(coder: Any, completion: Any) -> str:
         # The stream guard cut off a reply that collapsed into a repeated line; always send it back to answer once.
         coder.native_repetition_tripped = False
         return STREAM_REPETITION_NUDGE
+    cut = length_cut_nudge(coder)
+    if cut:
+        return cut
     retry = empty_retry_nudge(coder, completion)
     if retry:
         return retry
@@ -204,6 +208,19 @@ def finish_nudge(coder: Any, completion: Any) -> str:
             coder.native_nudged_request = ledger.request
             return nudge
     return promise_nudge(coder, completion)
+
+
+def length_cut_nudge(coder: Any) -> str:
+    """LENGTH_CUT_NUDGE when the reply just shown was cut at the output limit and allowance is left; else empty."""
+    if not getattr(coder, "native_length_cut", False):
+        return ""
+    coder.native_length_cut = False
+    request_id = coder.native_ledger.request
+    used = getattr(coder, "native_length_nudges", {}).get(request_id, 0)
+    if not may_nudge_length_cut(used):
+        return ""
+    coder.native_length_nudges = {request_id: used + 1}
+    return LENGTH_CUT_NUDGE
 
 
 def promise_nudge(coder: Any, completion: Any) -> str:

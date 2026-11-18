@@ -198,6 +198,7 @@ installed copy instead.
 | `aider/native_environment.py` | What the agent is told about its command environment, and hints on connection errors |
 | `aider/native_task_gates.py` | Plan-first and verify-before-finishing checks, read from the operation ledger |
 | `aider/native_subtask_report.py`, `native_failure_streak.py` | What a `task` sub-agent really ran, and the note for commands failing with one repeated error |
+| `aider/native_length_cut.py` | Sends back a reply cut off at the output limit instead of ending the request |
 | `evals/scenarios.py`, `scenario_scoring.py`, `run_scenarios.py`, `compare_models.py` | Behaviour scenarios, their scoring, runner and model comparison |
 | `aider/coders/native_session.py`, `aider/agent_main.py`, `pyproject.toml` | Session save and `--resume`, the `aider-agent` command, packaging |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
