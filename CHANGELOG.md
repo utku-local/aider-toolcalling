@@ -5,6 +5,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `delete_file` and `move_file` tools in agent mode. Removing or relocating a file needed `rm` or `mv`, which the command policy asks about every time and `--yes-always` never approves, so an unattended refactor could not retire a file: in the expert eval, Heretic split `shop.py` into a package, had `rm shop.py` declined and overwrote the file with blank content instead. Both tools are approved like an edit (the removed content is shown), take one file per call, refuse secret files such as `.env`, drop directories they leave empty, and are restored by `/undo-agent`. A deleted file is committed when git tracks it and is skipped by the linter.
+- An expert evaluation set (`python -m evals.run_evals --set expert --sandbox --timeout 2400`): eight multi-file tasks under `evals/expert/`, each with a prompt, a starting project, a hidden check and a reference solution. The hard set had saturated at 20/20; on the first expert run against 0.8.10, Heretic passed 3 of 7 finished tasks and the 27B 5 of 6. `tests/test_expert_tasks.py` proves that every check fails on the starting project and passes on its solution.
+- `--resume RESULTS.jsonl` for `evals.run_evals`: finished (task, run) pairs in that file are skipped and new results appended, so a long run can be stopped and continued, or fed one task at a time with `--tasks`.
+
+### Changed
+
+- The command policy judges a list joined by `&&`, `||` or `;` command by command: it is allowed only when every part would be, refused when any part is, and otherwise asked with the risks of all parts. A quoted multi-line argument (`python -c "..."` over several lines) and a here-document with a literal body (`python - <<'EOF'`) are judged as the plain command they belong to. These three shapes were most of the verification commands the local models wrote, and each was declined in sandboxed unattended runs although the same program run plainly was allowed: 27 declined commands across 13 expert runs, and one in each of the first three hard-set runs. A hard refusal now also applies to a later part of a list (`pytest; rm -rf ~` is refused, not asked).
+- The agent system prompt names `delete_file` and `move_file` and says which command shapes always need approval, in place of "a compound command always needs approval".
+
+### Fixed
+
+- In a `--yes-always` run a command that needed approval was reported to the model as "The user declined this action", and the model passed that on ("you declined my verification command") and stopped verifying. The result now says that nobody is at the prompt, names the cause (the risk, or that no allow rule covers the command) and asks for one plain command an allow rule covers. The working state and the repeat refusal say "not approved" instead of "declined by the user".
+
 ## [0.8.10] - 2026-11-04
 
 ### Fixed

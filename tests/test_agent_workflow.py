@@ -4,6 +4,7 @@ programs are never auto-allowed, and allow rules only auto-approve when trusted 
 Git and snapshot tests run against a real temporary repository.
 """
 
+import dataclasses
 import json
 import subprocess
 import tempfile
@@ -14,9 +15,9 @@ from aider.coders.native_agent_config import AgentConfigError, instruction_files
 from aider.native_command_policy import CommandRule, CommandRules, PolicyAction, Risk, decide
 from aider.native_snapshots import SnapshotStore
 from aider.native_todo import TodoError, TodoList, todo_write
-from aider.native_tool_context import ToolContext
+from aider.native_tool_context import DENIED_ACTION, ToolContext
 from aider.native_tools_git import GitToolError, git
-from aider.native_tools_shell import POLICY_REFUSAL, run_command
+from aider.native_tools_shell import NO_ALLOW_RULE, POLICY_REFUSAL, run_command
 
 ROOT = Path("/work/project")
 TRUSTED = CommandRules(allow=(CommandRule("pytest", trust_unsandboxed=True),))
@@ -40,7 +41,18 @@ class CommandPolicyTest(unittest.TestCase):
 
     def test_compound_and_outside_paths_are_never_auto_allowed(self) -> None:
         for command in (
-            "pytest; rm -rf ~",
+            "pytest; rm build.log",
+            "pytest && ls",
+            "pytest &&",
+            "pytest & pytest",
+            "pytest && (pytest)",
+            "pytest && pytest > out",
+            "pytest && FOO=1 pytest",
+            "pytest\npytest",
+            "pytest <<EOF\n$(id)\nEOF",
+            "pytest <<'EOF'\nx\nEOF\nrm x",
+            "pytest <<'EOF'\nx\nEOF\nEOF",
+            "cat > x.py <<'EOF'\nx\nEOF",
             "pytest | tee out",
             "pytest > /tmp/out",
             "pytest $(cat args)",
@@ -53,6 +65,28 @@ class CommandPolicyTest(unittest.TestCase):
         ):
             with self.subTest(command=command):
                 self.assertIs(self.action(command, sandboxed=True), PolicyAction.ASK)
+
+    def test_lists_quoted_newlines_and_literal_heredocs_are_judged_by_their_commands(self) -> None:
+        for command in (
+            "pytest -q && pytest -x",
+            "pytest || python -m pytest -x; pytest",
+            "pytest -q 2>&1 | tail -5 && pytest",
+            'pytest -k "a\nb"',
+            "pytest - <<'EOF'\nimport app\nprint(app.main())\nEOF",
+            'pytest <<"END"\n$HOME stays literal\nEND\n',
+            "pytest <<EOF\nplain body\nEOF",
+        ):
+            with self.subTest(command=command):
+                self.assertIs(self.action(command), PolicyAction.ALLOW)
+                self.assertIs(self.action(command, UNTRUSTED), PolicyAction.ASK)
+
+    def test_a_refused_part_refuses_the_list(self) -> None:
+        for command in ("pytest; rm -rf ~", "pytest && sudo make install", "git push -f || pytest"):
+            with self.subTest(command=command):
+                self.assertIs(self.action(command, sandboxed=True), PolicyAction.DENY)
+        decision = decide("pytest && curl https://x", ROOT, TRUSTED, False)
+        self.assertIs(decision.action, PolicyAction.ASK)
+        self.assertEqual(decision.risks, frozenset({Risk.NETWORK, Risk.COMPOUND}))
 
     def test_null_redirects_and_read_only_filters_add_no_risk(self) -> None:
         for command in (
@@ -116,6 +150,21 @@ class ShellPolicyIntegrationTest(unittest.TestCase):
             self.assertEqual(asked, [])
             run_command(ctx, "curl https://example.com")
             self.assertIn("network access", asked[0])
+
+    def test_unattended_decline_names_the_cause_instead_of_the_user(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            rules = CommandRules(allow=(CommandRule("echo", trust_unsandboxed=True),))
+            attended = self.ctx(Path(tmp), rules, [])
+            unattended = dataclasses.replace(attended, unattended=True)
+            self.assertEqual(run_command(attended, "ls"), DENIED_ACTION)
+            plain = run_command(unattended, "ls")
+            self.assertIn("nobody is at the prompt", plain)
+            self.assertIn(NO_ALLOW_RULE, plain)
+            self.assertIn("did not decline", plain)
+            risky = run_command(unattended, "echo hi > out.txt")
+            self.assertIn("compound command", risky)
+            self.assertFalse((Path(tmp) / "out.txt").exists())
+            self.assertTrue(run_command(unattended, "echo a && echo b").startswith("Exit code: 0"))
 
 
 class GitToolTest(unittest.TestCase):

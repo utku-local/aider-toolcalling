@@ -38,6 +38,10 @@ class FileState:
         if current is not None:
             self.seen[str(path.resolve())] = current
 
+    def forget(self, path: Path) -> None:
+        """Drop the record of a file the agent deleted or moved away."""
+        self.seen.pop(str(path.resolve()), None)
+
     def unchanged(self, path: Path) -> bool:
         """True when `path` was read or written before and is the same on disk now."""
         known = self.seen.get(str(path.resolve()))

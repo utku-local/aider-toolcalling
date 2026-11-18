@@ -66,7 +66,16 @@ class AgentCoder(Coder):
         return None
 
     def apply_updates(self) -> set[str]:
-        """Files changed by tools during this reply, relative to the root."""
+        """Files changed by tools during this reply, relative to the root.
+
+        A file the agent deleted stays in the set only when git tracks it, so the deletion is committed; a file it
+        created and deleted again in the same reply is nothing git or the linter could act on.
+        """
+        tracked = set(self.repo.get_tracked_files()) if self.repo else set()
         edited = {self.get_rel_fname(path) for path in self.native_pending_edits}
         self.native_pending_edits.clear()
-        return edited
+        return {rel for rel in edited if rel in tracked or Path(self.abs_root_path(rel)).exists()}
+
+    def lint_edited(self, fnames: set[str]) -> str:
+        """Lint the files that still exist; a deleted or moved-away file has nothing to lint."""
+        return super().lint_edited([name for name in fnames if name and Path(self.abs_root_path(name)).exists()])

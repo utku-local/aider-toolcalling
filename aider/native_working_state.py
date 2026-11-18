@@ -63,7 +63,7 @@ def render_working_state(records: list[OperationRecord], open_tasks: str = NO_TA
     if command_lines(records):
         sections.append("Commands run:\n" + "\n".join(command_lines(records)))
     if denied:
-        sections.append(f"Declined by the user: {len(denied)} operation(s); do not retry them unchanged.")
+        sections.append(f"Not approved: {len(denied)} operation(s); do not retry them unchanged.")
     if failed:
         sections.append(
             "Recent tool errors:\n" + "\n".join(f"- {r.tool}: {first_line(r.result)}" for r in failed)

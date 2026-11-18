@@ -1,15 +1,20 @@
-"""Tests for how the eval runner starts the agent: flags, seed and the interpreter on PATH for real tasks.
+"""Tests for how the eval runner starts the agent and resumes a run: flags, seed, PATH and skipped tasks.
 subprocess.run is replaced so no agent or model runs; the test inspects the command and environment it receives.
 Each run must pass its own seed so repeated runs sample independently.
 """
 
+import io
+import json
+import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from evals.real_tasks import RealTask
-from evals.run_evals import run_agent
+from evals.metrics import RunMetrics, TaskResult, finished_runs
+from evals.run_evals import main, run_agent
 from evals.tasks import TASKS
 
 
@@ -32,6 +37,29 @@ class RunAgentTest(unittest.TestCase):
         command, env = self.call(task, 1001)
         self.assertTrue(env["PATH"].startswith("/venvs/proj/bin"))
         self.assertIn("tests/test_a.py", command[-1])
+
+
+class ResumeTest(unittest.TestCase):
+    def test_resume_skips_finished_tasks_and_appends_the_rest(self) -> None:
+        first, second = TASKS[0].name, TASKS[1].name
+        metrics = RunMetrics(2, 3, 1.0, 100, 10, 0)
+        ran: list[str] = []
+
+        def fake_run(task: object, *rest: object) -> TaskResult:
+            ran.append(task.name)
+            return TaskResult(task.name, True, 5.0, metrics)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "run.jsonl"
+            path.write_text(json.dumps({**TaskResult(first, False, 9.0, metrics).as_dict(), "run": 1}) + "\n")
+            argv = ["run_evals", "--tasks", f"{first},{second}", "--resume", str(path)]
+            with patch("sys.argv", argv), patch("evals.run_evals.run_task", fake_run), redirect_stdout(io.StringIO()):
+                main()
+            done = finished_runs(path.read_text().splitlines())
+        self.assertEqual(ran, [second])
+        self.assertEqual(sorted(done), sorted([(first, 1), (second, 1)]))
+        self.assertFalse(done[(first, 1)].passed)
+        self.assertTrue(done[(second, 1)].passed)
 
 
 if __name__ == "__main__":

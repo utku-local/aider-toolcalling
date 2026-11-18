@@ -87,8 +87,8 @@ REPEAT_COMMAND_REFUSAL = (
 )
 # Measured: a local model sent the same declined command more than 30 times; declined calls were never counted.
 REPEAT_DENIED_REFUSAL = (
-    REPEAT_REFUSAL_MARKER + " and the user declined it. Do not ask again: use another approach, or stop and ask "
-    "the user how to proceed."
+    REPEAT_REFUSAL_MARKER + " and it was not approved. Do not send it again: use another approach, or stop and "
+    "tell the user what you need."
 )
 # Measured: the repeat guard is per request, so a new user message ("are you working on this?") reset it and the
 # model re-ran the same given-up call every turn, promising work it never did. An earlier-turn refusal is remembered

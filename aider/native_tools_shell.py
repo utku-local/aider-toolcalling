@@ -19,6 +19,14 @@ MAX_OUTPUT_CHARS = 20_000
 OUTPUT_TRUNCATED = "[output truncated; showing the last part]\n"
 NO_OUTPUT = "(no output)"
 POLICY_REFUSAL = "Refused by the command policy: "
+NO_ALLOW_RULE = "no allow rule covers it"
+# Measured on the 27B in unattended evals: told "the user declined", it reported that to the user and stopped
+# verifying, although a plain form of the same command was allowed. The message names the real cause instead.
+UNATTENDED_REFUSAL = (
+    "Not run: this command needs approval and nobody is at the prompt to give it ({why}). The user did not decline "
+    "it. Run one plain command that an allow rule covers, such as the project's tests or a script, without "
+    "redirects, substitutions or other programs; if nothing can check your work, say so in your answer."
+)
 SPILL_LABEL = "command"
 AUTHORIZED = ""
 
@@ -67,8 +75,14 @@ def authorize(ctx: ToolContext, command: str) -> str:
     if decision.action is PolicyAction.ASK and not ctx.approve(
         ToolPermission.EXECUTE, approval_title(decision.risks), command
     ):
-        return DENIED_ACTION
+        return unattended_refusal(decision.risks) if ctx.unattended else DENIED_ACTION
     return AUTHORIZED
+
+
+def unattended_refusal(risks: frozenset[Risk]) -> str:
+    """Why a command that needed approval did not run when no person could approve it."""
+    why = "; ".join(sorted(risk.value for risk in risks)) or NO_ALLOW_RULE
+    return UNATTENDED_REFUSAL.format(why=why)
 
 
 def run_command(ctx: ToolContext, command: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS) -> str:

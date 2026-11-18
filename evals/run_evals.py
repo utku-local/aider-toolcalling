@@ -16,17 +16,22 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from evals.metrics import TaskResult, parse_metrics, summarize
+from evals.metrics import TaskResult, finished_runs, parse_metrics, summarize
 from evals.real_project import build_project, tests_pass, tests_untouched
 from evals.real_tasks import RealTask, load_tasks, task_prompt
 from aider.native_tools_shell import as_text
 from evals.tasks import TASKS, EvalTask
+from evals.tasks_expert import ORIGIN_ENV, ExpertTask, load_expert_tasks
 from evals.tasks_hard import HARD_TASKS
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = REPO_ROOT / "evals" / "results"
 DEFAULT_TIMEOUT_SECONDS = 900
 TASK_SETS = {"basic": TASKS, "hard": HARD_TASKS, "all": TASKS + HARD_TASKS}
+# The expert set is read from fixture folders when it is selected, so importing this module touches no files.
+EXPERT_SET = "expert"
+SET_CHOICES = (*sorted(TASK_SETS), EXPERT_SET)
+PROCESS_ENV = dict(os.environ)
 DEFAULT_SET = "basic"
 DEFAULT_REPEAT = 1
 # Run k uses seed DEFAULT_SEED_BASE + k: repeats sample independently, and a rerun reproduces a run.
@@ -87,10 +92,12 @@ def run_agent(task: EvalTask, root: Path, model: str, timeout: int, seed: int) -
 
 
 def run_check(task: EvalTask, root: Path) -> bool:
+    """Run the task's check in the project; an expert check also gets the pristine project as EVAL_ORIGIN."""
     (root / CHECK_FILE).write_text(task.check)
+    env = {**PROCESS_ENV, ORIGIN_ENV: task.origin} if isinstance(task, ExpertTask) else None
     try:
         done = subprocess.run(
-            [sys.executable, CHECK_FILE], cwd=root, capture_output=True, timeout=CHECK_TIMEOUT_SECONDS
+            [sys.executable, CHECK_FILE], cwd=root, capture_output=True, timeout=CHECK_TIMEOUT_SECONDS, env=env
         )
     except subprocess.TimeoutExpired:
         return False
@@ -128,7 +135,7 @@ def run_task(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the agent evaluation set.")
     parser.add_argument("--tasks", default="", help="Comma-separated task names (default: the whole set)")
-    parser.add_argument("--set", default=DEFAULT_SET, choices=sorted(TASK_SETS), help="Task set (default: basic)")
+    parser.add_argument("--set", default=DEFAULT_SET, choices=SET_CHOICES, help="Task set (default: basic)")
     parser.add_argument("--repeat", type=int, default=DEFAULT_REPEAT, help="Runs per task (default: 1)")
     parser.add_argument(
         "--seed-base", type=int, default=DEFAULT_SEED_BASE, help="Run k uses seed base + k (default: 1000)"
@@ -137,26 +144,44 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default="", help="Model name passed to aider (default: aider config)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECONDS, help="Seconds per task")
     parser.add_argument(
+        "--resume", default="",
+        help="Results .jsonl of an earlier run: its finished (task, run) pairs are skipped and new ones appended",
+    )
+    parser.add_argument(
         "--sandbox", action="store_true", default=False,
         help="Sandbox commands and allow python/pytest without approval (default: False)",
     )
     return parser.parse_args()
 
 
+def results_file(resume: str) -> tuple[Path, dict[tuple[str, int], TaskResult]]:
+    """Where results go and what is already there: a new timestamped file, or the file being resumed."""
+    if not resume:
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        return RESULTS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}.jsonl", {}
+    path = Path(resume).resolve()
+    return path, finished_runs(path.read_text().splitlines())
+
+
 def main() -> None:
     args = parse_args()
     wanted = {name for name in args.tasks.split(",") if name}
-    pool = load_tasks(args.real) if args.real else TASK_SETS[args.set]
+    if args.real:
+        pool = load_tasks(args.real)
+    else:
+        pool = load_expert_tasks() if args.set == EXPERT_SET else TASK_SETS[args.set]
     tasks = [t for t in pool if not wanted or t.name in wanted]
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULTS_DIR / f"{datetime.now():%Y%m%d-%H%M%S}.jsonl"
+    out_path, done = results_file(args.resume)
     logs_dir = out_path.with_suffix("")
-    logs_dir.mkdir()
+    logs_dir.mkdir(exist_ok=True)
     print(f"Repo root: {REPO_ROOT}\nResults: {out_path}\nAgent output: {logs_dir}\nSandbox: {args.sandbox}")
-    results = []
-    with open(out_path, "w") as handle:
+    results = list(done.values())
+    with open(out_path, "a") as handle:
         for run in range(1, args.repeat + 1):
             for task in tasks:
+                if (task.name, run) in done:
+                    print(f"SKIP {task.name} run {run} (already in the results file)")
+                    continue
                 log_path = logs_dir / f"{task.name}-run{run}.log"
                 result = run_task(task, args.model, args.timeout, args.sandbox, log_path, args.seed_base + run)
                 results.append(result)

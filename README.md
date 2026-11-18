@@ -7,7 +7,7 @@ normal edit pipeline.
 
 ## Status
 
-Working agent: read, search, git, edit, shell, background and fetch tools; command policy and sandbox; plan-first and verify-before-finishing checks; operation ledger, working state, sessions; streaming with a runaway-repetition guard; optional extended thinking for reasoning models. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
+Working agent: read, search, git, edit, file delete and move, shell, background and fetch tools; command policy and sandbox; plan-first and verify-before-finishing checks; operation ledger, working state, sessions; streaming with a runaway-repetition guard; optional extended thinking for reasoning models. Only the `aider/` package is tracked; it runs on top of an installed `aider-chat` 0.86.2, which provides
 all dependencies.
 
 ## Setup
@@ -58,6 +58,7 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 |---|---|---|
 | `read_file`, `list_files`, `find_files`, `search_code`, `find_symbol` | `--agent`, `--native-tools` | none (read-only, confined to the project root); secret files such as `.env` or keys are asked every time and skipped by search |
 | `edit_file`, `multi_edit`, `write_file` | `--agent` | diff shown; Yes/No/All/Skip all per request; `--yes-always` approves |
+| `delete_file`, `move_file` | `--agent` | approved like an edit, with the removed content shown; one file per call, never a secret file such as `.env`; `/undo-agent` restores it |
 | `git` (status, diff, log, show, blame) | `--agent`, `--native-tools` | none (read-only, allow-listed flags) |
 | `read_spreadsheet` | `--agent`, `--native-tools` | none (read-only; .xlsx/.xlsm sheets as text, in pages) |
 | `todo_write` | `--agent` | none (the agent's task list); the first plan of a request is shown for approval unless `"plan_approval": false` |
@@ -131,11 +132,18 @@ server without dynamic registration, give the pre-registered client instead:
 poppler`); images and other binary files are refused with a short reason, since the model reads text only.
 
 A rule matches the parsed program (`python -m pytest` counts as `pytest`) and optional `subcommands`. Compound
-commands, paths outside the project and risky programs are asked even when a rule matches. Without
+commands (redirects into files, substitutions, env prefixes, background jobs), paths outside the project and risky
+programs are asked even when a rule matches. A list joined by `&&`, `||` or `;` is judged command by command: it
+runs without asking only when every command in it would, and it is refused when any part is. A quoted multi-line
+argument (`python -c "..."` over several lines) and a here-document with a literal body (`python - <<'EOF'`) count
+as the plain command they belong to. Without
 `trust_unsandboxed`, an allow rule does not auto-approve, because the agent can change the code the command runs.
 Redirects to `/dev/null`, `2>&1`, and pipes into read-only filters (`head`, `tail`, `grep`, `rg`, `wc`, `cut`,
 `sort`, `uniq`, `tr`, `jq`, `nl`, `column`) are not compound: `pytest -q 2>&1 | tail -20` matches a `pytest` rule,
 and the risks of every stage still count.
+
+In a `--yes-always` run nobody can approve a command, so one that needs approval is not run and the model is told
+why (the risk, or that no allow rule covers it) instead of that the user declined.
 
 An approval prompt accepts only the answers it shows (`(Y)es/(N)o` takes yes or no) and asks again for anything else.
 A reply of several words typed at a prompt is not an answer: it is passed to the model as a message from you after
@@ -179,9 +187,11 @@ installed copy instead.
 | `aider/coders/native_tool_setup.py` | Builds the tool registry and approvals for a Coder |
 | `aider/native_tool_context.py` | Context and permission levels shared by the tools |
 | `aider/native_tools_search.py`, `native_tools_edit.py`, `native_tools_shell.py` | Search, edit and shell tools |
+| `aider/native_tools_files.py` | `delete_file` and `move_file` |
 | `aider/models.py`, `aider/coders/base_coder.py`, `aider/args.py`, `aider/main.py` | Small hooks into upstream Aider |
 | `aider/native_tool_ledger.py`, `native_working_state.py` | Operation ledger and the working state built from it |
 | `aider/native_command_policy.py`, `coders/native_agent_config.py` | Command policy and `.aider-agent.json` |
+| `aider/native_command_shape.py` | Lists, quoted newlines and here-documents the policy judges part by part |
 | `aider/native_tools_git.py`, `native_todo.py`, `native_snapshots.py`, `native_undo.py` | Git tool, task list, snapshots and `/undo-agent` |
 | `aider/native_sandbox.py`, `native_tools_background.py`, `native_tools_fetch.py` | Sandbox, background commands, `fetch_url` |
 | `aider/native_environment.py` | What the agent is told about its command environment, and hints on connection errors |
@@ -189,7 +199,8 @@ installed copy instead.
 | `evals/scenarios.py`, `scenario_scoring.py`, `run_scenarios.py`, `compare_models.py` | Behaviour scenarios, their scoring, runner and model comparison |
 | `aider/coders/native_session.py`, `aider/agent_main.py`, `pyproject.toml` | Session save and `--resume`, the `aider-agent` command, packaging |
 | `aider/native_tool_compaction.py`, `native_tool_summary.py` | History compaction and one-line result summaries |
-| `evals/` | Evaluation tasks (basic, hard, mined from real commits), metrics and runner |
+| `evals/` | Evaluation tasks (basic, hard, expert, mined from real commits), metrics and runner |
+| `evals/expert/`, `evals/tasks_expert.py` | Expert task fixtures (prompt, project, hidden check, reference solution) and their loader |
 | `tests/` | Unit and mocked end-to-end tests |
 
 ## Tests
@@ -211,6 +222,18 @@ writes one JSON line per task to `evals/results/`, plus a summary: success rate,
 `--sandbox` adds a sandbox config allowing python and pytest, so the agent can run its own checks.
 `--set hard` (or `all`) selects the harder tasks in `evals/tasks_hard.py`; `--repeat N` runs each task N times and
 reports a pass rate per task.
+
+`--set expert` runs the eight tasks under `evals/expert/`, written because the hard set saturated: a specified
+evaluator with error positions, a command line tool built from a README, three reported bugs behind passing tests,
+a module split that must delete the old file, a circular import hiding two more faults, four precise edits among
+forty near-identical functions, a signature change across every caller, and a quadratic function that must become
+fast with identical output. Each folder holds `prompt.txt`, the starting `project/`, a hidden `check.py` and a
+reference `solution/`; `tests/test_expert_tasks.py` proves every check fails on the project and passes on the
+solution. Run it with `--sandbox --timeout 2400`: the tasks need commands, and a local model needs the time.
+
+A long run does not have to finish in one go. Every result is written as soon as its task ends, so a run can be
+stopped at any time; `--resume evals/results/<stamp>.jsonl` continues it, skipping the tasks already in that file
+and appending the rest. `--tasks a,b` with `--resume` runs chosen tasks one at a time into the same file.
 
 Real-project tasks come from your own bug-fix commits:
 
