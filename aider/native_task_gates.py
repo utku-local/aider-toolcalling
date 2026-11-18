@@ -2,6 +2,7 @@
 Before the first file change of a request that has already explored the project, a model without a task list is
 asked once to plan, with a verification step last. When it answers after changing files, it is sent back once if
 nothing has passed since its last change or its task list still has open items; both checks read only the ledger.
+A reply that only promises more work is sent back too, a few times per request, independent of the other reminder.
 """
 
 from aider.native_tool_ledger import CHANGE_TOOLS, OperationLedger, OperationRecord, OperationStatus
@@ -73,7 +74,7 @@ ACTION_OPENERS = (
 ACTION_VERBS = (
     "verify", "run", "check", "fix", "update", "make", "continue", "start", "do ", "implement", "add", "edit",
     "create", "write", "work", "go ", "proceed", "test", "rerun", "re-run", "apply", "patch", "look",
-    "investigate", "try", "move on",
+    "investigate", "try", "move on", "get", "use", "read", "first ",
 )
 # Promises that already carry their own verb, so they stand alone.
 ACTION_STANDALONE = ("working on it", "will work on", "on it now", "fix it now", "get to work", "stuck in a loop")
@@ -88,24 +89,48 @@ EMPTY_REPLY_NUDGE = (
     "Your last reply came back empty: no text and no tool call reached the user, possibly because a tool call was "
     "malformed. Nothing happened. Make the next tool call again, or give your answer."
 )
+# Measured on the 27B (expert eval, twice): after the verify reminder had been sent, a reply ending "so let me get a
+# fresh trace with plain commands (no pipes):" finished the request, because both reminders shared one use per
+# request. A promise is never an answer, so it has its own, larger allowance.
+MAX_ACTION_PROMISE_NUDGES = 3
+LEAD_IN_END = ":"
 ACTION_PROMISE_NUDGE = (
     "You said you would continue but made no tool call, so nothing happened. Either do it now with a tool call, or "
     "tell the user plainly what is done, what is left, and what is blocking you. Do not say you will work on it later."
 )
+# Measured on the 27B (expert eval, scheduler): sent back for a promise, it returned the same sentence word for
+# word four times; the command it wanted had been refused as a repeat, so it could neither run it nor move on.
+ACTION_PROMISE_REPEAT_NUDGE = (
+    "You sent the same reply again, word for word, and again made no tool call. If the command you want was "
+    "refused as a repeat, its result is already in the conversation above: use that result. Do something different "
+    "now: read the code you changed and fix it with an edit tool, then run the tests; or state plainly what is done "
+    "and what is not."
+)
+
+
+def promise_nudge_text(reply: str, previous_reply: str) -> str:
+    """The nudge for a promise: the stronger one when the reply repeats the previous promise exactly."""
+    return ACTION_PROMISE_REPEAT_NUDGE if reply.strip() == previous_reply.strip() else ACTION_PROMISE_NUDGE
 
 
 def announces_action(text: str) -> bool:
     """True when a no-tool-call reply ends by promising imminent self-action instead of reporting or asking.
     A weak local model often narrates its next step ('let me verify and move on', 'I'll fix it now') or, after the
     repeat stop, says it is stuck and will fix it, without calling a tool; that must not count as a finished answer.
-    A trailing question is a genuine hand-back, so it never counts."""
+    A trailing question is a genuine hand-back, so it never counts; a last line ending in a colon is a lead-in to
+    something that never came, so it always does."""
     lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
     if not lines:
         return False
     tail = lines[-1].lower()
     if tail.endswith("?"):
         return False
-    return any(phrase in tail for phrase in ACTION_PHRASES)
+    return tail.endswith(LEAD_IN_END) or any(phrase in tail for phrase in ACTION_PHRASES)
+
+
+def may_nudge_promise(text: str, nudges_used: int) -> bool:
+    """Whether a no-tool-call reply only promises work (or stops at a lead-in) and may still be sent back."""
+    return nudges_used < MAX_ACTION_PROMISE_NUDGES and announces_action(text)
 
 
 def may_retry_empty(text: str, retries_used: int) -> bool:

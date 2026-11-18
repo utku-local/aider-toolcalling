@@ -8,6 +8,7 @@ answer once three of its calls were refused as repeats, as the main loop does.
 from typing import Any, Optional
 
 from aider.native_loop_options import NO_OPTIONS, LoopOptions
+from aider.native_subtask_report import task_footer
 from aider.native_tool_calls import describe_call, normalize_tool_calls, visible_content
 from aider.native_tool_loop import FINAL_ANSWER_CHOICE, REPEAT_REFUSAL_MARKER, build_tool_round_messages
 from aider.native_toolcalling import NativeToolRegistry
@@ -31,7 +32,8 @@ the facts that answer the question. Do not propose or make changes."""
 TASK_SYSTEM = """You are a sub-agent inside a coding agent, given one self-contained job in the user's project.
 Do it with your tools: read what you need, make the changes, and verify them (run the tests or a command that
 exercises the change). Your edits and commands are checked and approved like the main agent's. Reply with a short
-report: what you changed (files and why), how you verified it, and anything left undone. Do not ask questions."""
+report: what you changed (files and why), how you verified it, and anything left undone. Do not ask questions.
+Report only output a command really printed; if a command did not run, say so and never work out its output."""
 TASK_PARAMETERS = {
     "type": "object",
     "properties": {
@@ -99,6 +101,16 @@ def run_subtask(
     return EMPTY_ANSWER
 
 
+def run_task(coder: Any, registry: NativeToolRegistry, brief: str, options: LoopOptions) -> str:
+    """Run a delegated job and return its report followed by what the operation log says really ran.
+
+    Measured on Heretic: asked to run a command that was not approved, a task sub-agent replied with output it had
+    worked out by reading the code, and the main agent reported the change as verified."""
+    first_record = len(coder.native_ledger.records)
+    report = run_subtask(coder, registry, brief, TASK_SYSTEM, TASK_MAX_ROUNDS, TASK_PREFIX, options)
+    return f"{report}\n\n{task_footer(coder.native_ledger.records[first_record:])}"
+
+
 def register_research_tool(registry: NativeToolRegistry, coder: Any, read_registry: NativeToolRegistry) -> None:
     """Add research, which runs sub-conversations with `read_registry`'s tools, to `registry`."""
     registry.register(
@@ -117,5 +129,5 @@ def register_task_tool(registry: NativeToolRegistry, coder: Any, task_registry: 
         "Delegate a self-contained job (e.g. update every caller of a renamed function and run the tests) to a "
         "sub-agent with your tools; only its report comes back.",
         TASK_PARAMETERS,
-        lambda brief: run_subtask(coder, task_registry, brief, TASK_SYSTEM, TASK_MAX_ROUNDS, TASK_PREFIX, options),
+        lambda brief: run_task(coder, task_registry, brief, options),
     )

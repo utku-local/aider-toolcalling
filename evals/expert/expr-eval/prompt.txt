@@ -1,0 +1,1 @@
+Implement calc/evaluator.py so that it follows SPEC.md exactly, including the error positions. The tests in tests/test_evaluator.py must pass unchanged; they cover only part of the spec. Do not use eval, exec, compile or the ast module.

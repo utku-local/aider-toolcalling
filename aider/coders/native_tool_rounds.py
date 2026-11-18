@@ -11,6 +11,8 @@ during the round follow as a user message of their own.
 import time
 from typing import Any, Generator, Optional
 
+from aider.model_seed import next_seed
+from aider.native_length_cut import LENGTH_CUT_NUDGE, may_nudge_length_cut
 from aider.native_tool_calls import answer_text, describe_call, normalize_tool_calls, visible_content
 from aider.native_tool_compaction import add_working_state, compact_tool_history
 from aider.native_tool_loop import (
@@ -29,7 +31,8 @@ from aider.native_loop_options import LoopOptions
 from aider.native_task_gates import (
     ACTION_PROMISE_NUDGE,
     EMPTY_REPLY_NUDGE,
-    announces_action,
+    may_nudge_promise,
+    promise_nudge_text,
     completion_nudge,
     may_retry_empty,
 )
@@ -44,6 +47,7 @@ from .native_tool_setup import read_unchanged
 from .native_user_io import take_user_notes
 
 MAX_CONTINUATIONS = 3
+NO_PREVIOUS_PROMISE = ""
 # After this many refused repeats in one request the model is told to move on; after as many again, the loop stops
 # and the model must answer.
 MAX_REPEAT_REFUSALS = 3
@@ -129,6 +133,11 @@ def show_results(coder: Any, round_messages: list[dict[str, Any]]) -> None:
             coder.io.tool_output(content)
 
 
+def resample(coder: Any) -> None:
+    """Move the model to another sampling seed after a detected repeat, so the next reply is not the same draw."""
+    coder.main_model.extra_params = next_seed(coder.main_model.extra_params)
+
+
 def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) -> int:
     """Execute the tool calls of the last reply; returns how many there were."""
     message = current_message(coder, completion)
@@ -153,6 +162,7 @@ def run_tool_round(coder: Any, messages: list[dict[str, Any]], completion: Any) 
     append_operation_log(coder, coder.native_ledger.records[logged:])
     if repeated_in_round(round_messages):
         round_messages.append({"role": "user", "content": REPEAT_NUDGE})
+        resample(coder)
     note = take_user_notes(coder)
     if note is not None:
         round_messages.append(note)
@@ -177,28 +187,58 @@ def empty_retry_nudge(coder: Any, completion: Any) -> str:
 
 
 def finish_nudge(coder: Any, completion: Any) -> str:
-    """The once-per-request reminder to verify, finish open tasks, or stop promising and act; empty when the answer
-    may stand. A no-tool-call reply that only announces imminent work is sent back so it acts or reports plainly, and
+    """The reminder to verify or finish open tasks (once per request) or to stop promising and act (a few times);
+    empty when the answer may stand. A no-tool-call reply that only announces imminent work is sent back so it acts or reports plainly, and
     an empty reply is sent back to try again."""
     ledger = coder.native_ledger
     if getattr(coder, "native_repetition_tripped", False):
         # The stream guard cut off a reply that collapsed into a repeated line; always send it back to answer once.
         coder.native_repetition_tripped = False
         return STREAM_REPETITION_NUDGE
+    cut = length_cut_nudge(coder)
+    if cut:
+        return cut
     retry = empty_retry_nudge(coder, completion)
     if retry:
         return retry
-    if getattr(coder, "native_nudged_request", None) == ledger.request:
+    if getattr(coder, "native_nudged_request", None) != ledger.request:
+        open_tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
+        nudge = completion_nudge(ledger, open_tasks)
+        if nudge:
+            coder.native_nudged_request = ledger.request
+            return nudge
+    return promise_nudge(coder, completion)
+
+
+def length_cut_nudge(coder: Any) -> str:
+    """LENGTH_CUT_NUDGE when the reply just shown was cut at the output limit and allowance is left; else empty."""
+    if not getattr(coder, "native_length_cut", False):
         return ""
-    open_tasks = coder.native_todos.render() if coder.native_todos.open_items() else ""
-    nudge = completion_nudge(ledger, open_tasks)
-    if not nudge:
-        message = current_message(coder, completion)
-        if message is not None and announces_action(visible_content(message)):
-            nudge = ACTION_PROMISE_NUDGE
-    if nudge:
-        coder.native_nudged_request = ledger.request
-    return nudge
+    coder.native_length_cut = False
+    request_id = coder.native_ledger.request
+    used = getattr(coder, "native_length_nudges", {}).get(request_id, 0)
+    if not may_nudge_length_cut(used):
+        return ""
+    coder.native_length_nudges = {request_id: used + 1}
+    return LENGTH_CUT_NUDGE
+
+
+def promise_nudge(coder: Any, completion: Any) -> str:
+    """ACTION_PROMISE_NUDGE when the reply only announces work and the request has allowance left; else empty.
+    The allowance is separate from the verify reminder, so a promise made after that reminder is still sent back."""
+    message = current_message(coder, completion)
+    if message is None:
+        return ""
+    request_id = coder.native_ledger.request
+    reply = visible_content(message)
+    used, previous = getattr(coder, "native_promise_nudges", {}).get(request_id, (0, NO_PREVIOUS_PROMISE))
+    if not may_nudge_promise(reply, used):
+        return ""
+    coder.native_promise_nudges = {request_id: (used + 1, reply)}
+    if not used:
+        return ACTION_PROMISE_NUDGE
+    resample(coder)
+    return promise_nudge_text(reply, previous)
 
 
 def send_back(coder: Any, messages: list[dict[str, Any]], completion: Any, nudge: str) -> None:

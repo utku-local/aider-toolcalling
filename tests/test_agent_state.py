@@ -155,7 +155,7 @@ class SummaryAndStateTest(unittest.TestCase):
         self.assertNotIn("b.py", state.split("Declined")[0])
         self.assertNotIn("pending.py", state)
         self.assertIn("`pytest` -> exit 2", state)
-        self.assertIn("Declined by the user: 1", state)
+        self.assertIn("Not approved: 1", state)
         self.assertIn("read_file: Error: Not a file", state)
         self.assertEqual(render_working_state([]), "")
 

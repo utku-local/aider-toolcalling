@@ -35,5 +35,6 @@ class SnapshotStore:
             if content is None:
                 target.unlink(missing_ok=True)
             else:
+                target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(content)
         return sorted(originals)

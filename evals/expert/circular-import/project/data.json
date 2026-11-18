@@ -1,0 +1,7 @@
+[
+  {"customer": "Acme", "region": "eu", "net": "200.00"},
+  {"customer": "globex", "region": "us", "net": "1250.00"},
+  {"customer": "acme", "region": "eu", "net": "58.75"},
+  {"customer": "Initech", "region": "uk", "net": "83.25"},
+  {"customer": "globex", "region": "eu", "net": "999.00", "void": true}
+]

@@ -25,6 +25,7 @@ from aider.native_tools_builtin import ToolPathError, register_read_tools, resol
 from aider.native_tools_background import ProcessManager, register_background_tools
 from aider.native_tools_edit import register_edit_tools
 from aider.native_tools_fetch import register_fetch_tool
+from aider.native_tools_files import register_file_tools
 from aider.native_tools_websearch import register_search_web_tool
 from aider.native_tools_git import register_git_tool
 from aider.native_tools_search import register_search_tools
@@ -37,7 +38,7 @@ from .native_mcp_setup import register_mcp_tools
 from .native_subtask import register_research_tool, register_task_tool
 from .native_hook_setup import project_hooks
 from .native_rule_offer import offer_allow_rule
-from .native_user_io import answer_question, ask_after_decline, ask_text, confirm_plan
+from .native_user_io import answer_question, ask_after_decline, ask_text, confirm_plan, unattended
 
 SKIPPED_DIRS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache"})
 HIDDEN_PREFIX = "."
@@ -156,6 +157,8 @@ def make_tool_context(coder: Any) -> ToolContext:
         file_state=coder.native_file_state,
         spill=coder.native_spill,
         web=coder.native_agent_config.web,
+        # --yes-always answers every prompt itself and never says yes to a command, so nobody declined anything.
+        unattended=unattended(coder),
     )
 
 
@@ -207,6 +210,7 @@ def register_action_tools(registry: NativeToolRegistry, coder: Any, ctx: ToolCon
     register_ask_tool(registry, lambda question, choices: answer_question(coder, question, choices))
     register_memory_skill_tools(registry, root, coder.native_skills)
     register_edit_tools(registry, ctx)
+    register_file_tools(registry, ctx)
     register_shell_tools(registry, ctx)
     register_background_tools(registry, ctx, coder.native_processes)
     register_fetch_tool(registry, ctx)

@@ -4,6 +4,7 @@ into success rate and averages, so runs of different models or prompts can be co
 Missing values stay None instead of zero, so a run that printed nothing is not mistaken for a cheap one.
 """
 
+import json
 import re
 from dataclasses import asdict, dataclass
 from typing import Any, Optional
@@ -34,6 +35,17 @@ class TaskResult:
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def result_from_dict(row: dict[str, Any]) -> TaskResult:
+    """A TaskResult from one line of a results file; keys the runner adds (such as "run") are ignored."""
+    return TaskResult(row["task"], row["passed"], row["seconds"], RunMetrics(**row["metrics"]))
+
+
+def finished_runs(lines: list[str]) -> dict[tuple[str, int], TaskResult]:
+    """Results already recorded in a results file, by (task, run); blank lines are skipped."""
+    rows = [json.loads(line) for line in lines if line.strip()]
+    return {(row["task"], row["run"]): result_from_dict(row) for row in rows}
 
 
 def token_count(number: str, suffix: str) -> int:

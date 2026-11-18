@@ -31,6 +31,7 @@ from aider.native_environment import (
 )
 from aider.native_sandbox import sandbox_available, sandbox_profile, sandboxed_argv
 from aider.native_tool_calls import ToolCall
+from aider.native_failure_streak import SAME_ERROR_LIMIT
 from aider.native_tool_ledger import OperationLedger, OperationStatus
 from aider.native_tool_loop import (
     FAILING_STREAK_LIMIT,
@@ -40,6 +41,7 @@ from aider.native_tool_loop import (
 from aider.native_toolcalling import NativeToolRegistry
 
 STREAK_MARKER = "commands all failed"
+SAME_ERROR_MARKER = "with the same error and no file changed"
 
 
 class EnvironmentNoteTest(unittest.TestCase):
@@ -133,7 +135,8 @@ class SandboxProfileTest(unittest.TestCase):
 
 class FailingStreakTest(unittest.TestCase):
     def test_note_after_several_failing_commands_and_reset_on_success(self) -> None:
-        outcomes = iter(["Exit code: 1\nboom"] * FAILING_STREAK_LIMIT + ["Exit code: 0\nok", "Exit code: 1\nboom"])
+        failures = [f"Exit code: 1\nboom {number}" for number in range(FAILING_STREAK_LIMIT)]
+        outcomes = iter(failures + ["Exit code: 0\nok", "Exit code: 1\nboom"])
         registry = NativeToolRegistry()
         schema = {"type": "object", "properties": {"n": {"type": "integer"}}}
         registry.register("run_command", "Run", schema, lambda n: next(outcomes))
@@ -148,6 +151,37 @@ class FailingStreakTest(unittest.TestCase):
         self.assertTrue(all(STREAK_MARKER not in r for r in results[: FAILING_STREAK_LIMIT - 1]))
         self.assertIn(STREAK_MARKER, results[FAILING_STREAK_LIMIT - 1])
         self.assertNotIn(STREAK_MARKER, results[-1])
+
+
+class SameErrorStreakTest(unittest.TestCase):
+    def run_sequence(self, steps: list[tuple[str, str]]) -> list[str]:
+        outcomes = iter(result for _, result in steps)
+        registry = NativeToolRegistry()
+        schema = {"type": "object", "properties": {"n": {"type": "integer"}}}
+        for tool in ("run_command", "edit_file"):
+            registry.register(tool, tool, schema, lambda n: next(outcomes))
+        ledger = OperationLedger()
+        ledger.start_request()
+        results = []
+        for index, (tool, _) in enumerate(steps):
+            call = ToolCall(f"c{index}", tool, f'{{"n": {index}}}')
+            results.append(build_tool_round_messages(registry, "", [call], ledger)[1]["content"])
+        return results
+
+    def test_note_names_the_error_after_three_identical_failures(self) -> None:
+        error = "Exit code: 1\nTraceback\nEvalError: unexpected token ')'"
+        results = self.run_sequence([("run_command", error)] * SAME_ERROR_LIMIT)
+        self.assertTrue(all(SAME_ERROR_MARKER not in r for r in results[:-1]))
+        self.assertIn(SAME_ERROR_MARKER, results[-1])
+        self.assertIn("EvalError: unexpected token ')'", results[-1].split(SAME_ERROR_MARKER)[1])
+        self.assertNotIn("ask the user", results[-1])
+
+    def test_a_file_change_or_a_different_error_resets_it(self) -> None:
+        error = "Exit code: 1\nEvalError: x"
+        edited = [("run_command", error), ("run_command", error), ("edit_file", "Edited"), ("run_command", error)]
+        self.assertNotIn(SAME_ERROR_MARKER, self.run_sequence(edited)[-1])
+        mixed = [("run_command", error), ("run_command", "Exit code: 1\nKeyError: y"), ("run_command", error)]
+        self.assertNotIn(SAME_ERROR_MARKER, self.run_sequence(mixed)[-1])
 
 
 class DeclinedRepeatTest(unittest.TestCase):

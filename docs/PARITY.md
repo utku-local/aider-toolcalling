@@ -16,6 +16,7 @@ a capability is added to one side, the gap belongs here until it is closed or co
 |---|---|---|
 | Read (line ranges, notebooks, PDFs) | `read_file` (notebooks and PDFs return as text) | `aider/native_tools_builtin.py` |
 | Write / Edit (`replace_all`) / MultiEdit | `write_file` / `edit_file` / `multi_edit` | `aider/native_tools_edit.py` |
+| `rm` / `mv` through Bash, approved by the user | `delete_file` / `move_file` (approved like an edit, so an unattended run can retire a file) | `aider/native_tools_files.py` |
 | Glob / Grep (globs, ignore-case, truncation) | `find_files` / `search_code` / `find_symbol` | `aider/native_tools_search.py` |
 | Bash + BashOutput / KillShell | `run_command` + `start_background` / `read_background` / `stop_background` | `aider/native_tools_shell.py`, `aider/native_tools_background.py` |
 | Task (context-isolated subagents) | `research` (read-only, 10 rounds) + `task` (all tools, 30 rounds) | `aider/coders/native_subtask.py` |

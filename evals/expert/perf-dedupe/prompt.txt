@@ -1,0 +1,1 @@
+find_duplicates in records.py is correct but far too slow: 100,000 records must finish in under 3 seconds. Make it fast and keep its result identical for every input, including the order of the groups and of the indexes inside them. Do not change normalize_email, normalize_name or what counts as a duplicate.
