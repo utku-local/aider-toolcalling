@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- Agent mode waits 1,800 seconds for a model reply instead of upstream's 600 (`--timeout` still overrides it). A full-length reply from the local models takes about 11 minutes, so the old limit cut it off just before the end.
+
+### Fixed
+
+- A model request that timed out is no longer sent again in agent mode. A local server such as mlx_lm cannot cancel a request the client gave up on, so each retry queued the same generation behind the abandoned one: in the expert eval the 27B server spent about 20 minutes on abandoned requests, one run lost its last request and the next task received no reply in 2,400 seconds. The request now stops with a message that says so and that the work so far is kept. Other connection errors are retried as before, and chat modes without native tools are unchanged.
+
 ## [0.9.0] - 2026-11-19
 
 ### Added
