@@ -239,6 +239,8 @@ solution. Run it with `--sandbox --timeout 2400`: the tasks need commands, and a
 A long run does not have to finish in one go. Every result is written as soon as its task ends, so a run can be
 stopped at any time; `--resume evals/results/<stamp>.jsonl` continues it, skipping the tasks already in that file
 and appending the rest. `--tasks a,b` with `--resume` runs chosen tasks one at a time into the same file.
+`--after-timeout 'COMMAND'` runs a shell command after any task that used its whole time limit; use it to restart
+the model server, which otherwise keeps generating the killed task's last request and starves the next task.
 
 Real-project tasks come from your own bug-fix commits:
 

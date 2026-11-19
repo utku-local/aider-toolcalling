@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 from evals.real_tasks import RealTask
 from evals.metrics import RunMetrics, TaskResult, finished_runs
-from evals.run_evals import main, run_agent
+from evals.run_evals import main, run_agent, settle_after_timeout
 from evals.tasks import TASKS
 
 
@@ -60,6 +60,19 @@ class ResumeTest(unittest.TestCase):
         self.assertEqual(sorted(done), sorted([(first, 1), (second, 1)]))
         self.assertFalse(done[(first, 1)].passed)
         self.assertTrue(done[(second, 1)].passed)
+
+
+class SettleAfterTimeoutTest(unittest.TestCase):
+    def test_command_runs_only_after_a_task_that_used_its_whole_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, redirect_stdout(io.StringIO()):
+            marker = Path(tmp) / "ran"
+            command = f"touch {marker}"
+            self.assertFalse(settle_after_timeout(120.0, 2400, command))
+            self.assertFalse(marker.exists())
+            self.assertFalse(settle_after_timeout(2400.0, 2400, ""))
+            self.assertTrue(settle_after_timeout(2400.0, 2400, command))
+            self.assertTrue(marker.exists())
+            self.assertTrue(settle_after_timeout(2400.0, 2400, "exit 3"))
 
 
 if __name__ == "__main__":
