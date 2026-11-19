@@ -222,7 +222,8 @@ Run from the repo root so the patched package is imported:
 ~/.local/share/uv/tools/aider-chat/bin/python -m evals.run_evals [--tasks fix-discount,find-the-bug] [--model M]
 ```
 
-Runs the tasks in `evals/tasks.py` in temporary repos with `--agent --yes-always` (edits approved, commands not) and
+Runs the tasks in `evals/tasks.py` in temporary repos through the `aider-agent` entry point (so the model settings in
+`~/.aider.agent.model.settings.yml` apply, as in real use) with `--yes-always` (edits approved, commands not) and
 writes one JSON line per task to `evals/results/`, plus a summary: success rate, rounds, calls, time, tokens.
 `--sandbox` adds a sandbox config allowing python and pytest, so the agent can run its own checks.
 `--set hard` (or `all`) selects the harder tasks in `evals/tasks_hard.py`; `--repeat N` runs each task N times and
@@ -239,6 +240,8 @@ solution. Run it with `--sandbox --timeout 2400`: the tasks need commands, and a
 A long run does not have to finish in one go. Every result is written as soon as its task ends, so a run can be
 stopped at any time; `--resume evals/results/<stamp>.jsonl` continues it, skipping the tasks already in that file
 and appending the rest. `--tasks a,b` with `--resume` runs chosen tasks one at a time into the same file.
+`--after-timeout 'COMMAND'` runs a shell command after any task that used its whole time limit; use it to restart
+the model server, which otherwise keeps generating the killed task's last request and starves the next task.
 
 Real-project tasks come from your own bug-fix commits:
 

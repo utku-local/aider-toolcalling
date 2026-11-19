@@ -5,6 +5,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-19
+
+### Fixed
+
+- Deleting a file that the same request created (a scratch check script) no longer counts as an unverified change. The 27B deleted its own passing `verify_todo.py`, was told "no command has passed since your last change" and spent the rest of its time limit verifying again (expert eval, todo-cli, 2026-11-19). Deleting a file that existed before the request still needs a passing command afterwards.
+- `evals.run_evals` starts the agent through the `aider-agent` entry point (`aider.agent_main`), as `evals.run_scenarios` already did, so it loads `~/.aider.agent.model.settings.yml`. Started as plain `aider --agent`, the 27B ran with the chat settings: `max_tokens` 32768 instead of 8192, other sampling values and no agent-only server. One runaway tool call then held the server for 62 minutes (13:58 to 15:00 on 2026-11-19, ended by mlx_lm as "tool text was likely truncated mid-generation"), which is what the earlier "the server stopped answering" stalls were. Results recorded before this change measured the chat settings, not what `aider-agent` runs.
+
+### Added
+
+- The eval runner appends the hidden check's verdict and output to each task's log (`[eval check] failed` and the assertion). A failed run used to leave no trace of which requirement it missed, because the temporary project is deleted.
+- `--after-timeout COMMAND` for `evals.run_evals`: a shell command run after a task that used its whole time limit, before the next task. A task killed at the limit leaves its last request generating on a local server, which starved the following task in the 2026-11-18 runs; a restart of the model server (`launchctl kickstart -k ...` and a wait for `/v1/models`) goes here.
+
+### Fixed
+
+- A `research` or `task` sub-agent whose model request times out now returns that as its answer, with the instruction not to delegate again while the server may still be generating. Before, the timeout came back as a tool error, and delegating again would have queued the same work behind the abandoned request.
+
 ## [0.9.1] - 2026-11-19
 
 ### Changed

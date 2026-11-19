@@ -43,6 +43,11 @@ def record(ledger: OperationLedger, tool: str, result: str) -> None:
     ledger.finish(entry, result, failed=False)
 
 
+def record_call(ledger: OperationLedger, tool: str, arguments: dict, result: str) -> None:
+    entry = ledger.begin(f"id{len(ledger.records)}", tool, json.dumps(arguments))
+    ledger.finish(entry, result, failed=False)
+
+
 def explored_ledger(calls: int) -> OperationLedger:
     ledger = OperationLedger()
     ledger.start_request()
@@ -98,6 +103,28 @@ class CompletionNudgeTest(unittest.TestCase):
         self.assertEqual(completion_nudge(ledger, ""), "")
         record(ledger, "edit_file", "Edited again")
         self.assertNotEqual(completion_nudge(ledger, ""), "")
+
+    def test_deleting_a_scratch_file_of_this_request_needs_no_new_check(self) -> None:
+        ledger = explored_ledger(1)
+        record_call(ledger, "write_file", {"path": "todo.py"}, "Overwrote todo.py")
+        record_call(ledger, "write_file", {"path": "verify.py"}, "Created verify.py")
+        record(ledger, "run_command", "Exit code: 0\nOK")
+        record_call(ledger, "delete_file", {"path": "verify.py"}, "Deleted verify.py")
+        self.assertEqual(completion_nudge(ledger, ""), "")
+
+    def test_deleting_a_file_that_was_there_before_needs_a_check(self) -> None:
+        ledger = explored_ledger(1)
+        record_call(ledger, "write_file", {"path": "todo.py"}, "Overwrote todo.py")
+        record(ledger, "run_command", "Exit code: 0\nOK")
+        record_call(ledger, "delete_file", {"path": "todo.py"}, "Deleted todo.py")
+        self.assertIn("no command has passed", completion_nudge(ledger, ""))
+
+    def test_a_scratch_delete_does_not_hide_an_earlier_unchecked_change(self) -> None:
+        ledger = explored_ledger(1)
+        record_call(ledger, "write_file", {"path": "verify.py"}, "Created verify.py")
+        record(ledger, "edit_file", "Edited")
+        record_call(ledger, "delete_file", {"path": "verify.py"}, "Deleted verify.py")
+        self.assertIn("no command has passed", completion_nudge(ledger, ""))
 
     def test_open_tasks_are_named(self) -> None:
         ledger = explored_ledger(1)
