@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- The eval runner appends the hidden check's verdict and output to each task's log (`[eval check] failed` and the assertion). A failed run used to leave no trace of which requirement it missed, because the temporary project is deleted.
 - `--after-timeout COMMAND` for `evals.run_evals`: a shell command run after a task that used its whole time limit, before the next task. A task killed at the limit leaves its last request generating on a local server, which starved the following task in the 2026-11-18 runs; a restart of the model server (`launchctl kickstart -k ...` and a wait for `/v1/models`) goes here.
 
 ### Fixed
