@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `--after-timeout COMMAND` for `evals.run_evals`: a shell command run after a task that used its whole time limit, before the next task. A task killed at the limit leaves its last request generating on a local server, which starved the following task in the 2026-11-18 runs; a restart of the model server (`launchctl kickstart -k ...` and a wait for `/v1/models`) goes here.
+
+### Fixed
+
+- A `research` or `task` sub-agent whose model request times out now returns that as its answer, with the instruction not to delegate again while the server may still be generating. Before, the timeout came back as a tool error, and delegating again would have queued the same work behind the abandoned request.
+
 ## [0.9.1] - 2026-11-19
 
 ### Changed

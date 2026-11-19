@@ -37,6 +37,7 @@ DEFAULT_REPEAT = 1
 # Run k uses seed DEFAULT_SEED_BASE + k: repeats sample independently, and a rerun reproduces a run.
 DEFAULT_SEED_BASE = 1000
 CHECK_TIMEOUT_SECONDS = 60
+AFTER_TIMEOUT_LIMIT_SECONDS = 600
 GIT_IDENTITY = ("-c", "user.email=eval@localhost", "-c", "user.name=eval")
 AIDER_FLAGS = (
     "--agent",
@@ -148,10 +149,32 @@ def parse_args() -> argparse.Namespace:
         help="Results .jsonl of an earlier run: its finished (task, run) pairs are skipped and new ones appended",
     )
     parser.add_argument(
+        "--after-timeout", default="",
+        help="Shell command run after a task that hit --timeout, before the next task, for example a restart of "
+        "the model server, which otherwise keeps generating the killed task's last request (default: none)",
+    )
+    parser.add_argument(
         "--sandbox", action="store_true", default=False,
         help="Sandbox commands and allow python/pytest without approval (default: False)",
     )
     return parser.parse_args()
+
+
+def settle_after_timeout(seconds: float, timeout: int, command: str) -> bool:
+    """Run `command` when a task used its whole time limit; returns whether it ran.
+
+    A task killed at the limit leaves its last request generating on a local server, which starves the next task
+    (measured: a task that received no reply in 2,400 s). The command's own failure or overrun is only reported."""
+    if not command or seconds < timeout:
+        return False
+    print(f"Task hit the time limit; running: {command}")
+    try:
+        done = subprocess.run(command, shell=True, timeout=AFTER_TIMEOUT_LIMIT_SECONDS)
+        if done.returncode:
+            print(f"The after-timeout command exited with {done.returncode}")
+    except subprocess.TimeoutExpired:
+        print(f"The after-timeout command did not finish in {AFTER_TIMEOUT_LIMIT_SECONDS}s")
+    return True
 
 
 def results_file(resume: str) -> tuple[Path, dict[tuple[str, int], TaskResult]]:
@@ -188,6 +211,7 @@ def main() -> None:
                 handle.write(json.dumps({**result.as_dict(), "run": run}) + "\n")
                 handle.flush()
                 print(f"{'PASS' if result.passed else 'FAIL'} {task.name} run {run} ({result.seconds}s)")
+                settle_after_timeout(result.seconds, args.timeout, args.after_timeout)
     print(json.dumps(summarize(results), indent=2))
 
 

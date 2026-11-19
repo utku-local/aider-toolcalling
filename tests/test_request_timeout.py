@@ -14,6 +14,7 @@ from test_agent_coder import tool_call
 from test_coder_native_tools import FINAL_TEXT, MODEL_NAME, ScriptedModel, make_completion
 
 from aider.coders import Coder
+from aider.coders.native_subtask import SUBTASK_TIMEOUT
 from aider.io import InputOutput
 from aider.models import Model
 from aider.native_request_timeout import AGENT_REQUEST_TIMEOUT_SECONDS, agent_timeout, is_timeout
@@ -77,6 +78,30 @@ class TimeoutFlowTest(unittest.TestCase):
         ):
             with self.subTest(error=type(error).__name__):
                 self.assertEqual(len(self.run_agent(error).requests), 2)
+
+    def test_a_sub_agent_timeout_becomes_its_answer_and_is_not_re_sent(self) -> None:
+        coder = Coder.create(
+            main_model=Model(MODEL_NAME), edit_format="agent", io=InputOutput(yes=True, pretty=False),
+            fnames=[], use_git=False, map_tokens=0, auto_lint=False, stream=False,
+        )
+        timeout = litellm.Timeout(message="Request timed out.", llm_provider="openai", model=MODEL_NAME)
+        scripted = ScriptedModel([
+            make_completion(tool_calls=tool_call("q1", "research", {"question": "Where is add defined?"})),
+            timeout, make_completion(FINAL_TEXT),
+        ])
+        take = scripted.__call__
+
+        def respond(**kwargs: object) -> object:
+            result = take(**kwargs)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        with patch("aider.models.litellm.completion", side_effect=respond):
+            coder.run(with_message="Find add().")
+        self.assertEqual(len(scripted.requests), 3)
+        results = [m["content"] for m in scripted.requests[-1]["messages"] if m.get("tool_call_id") == "q1"]
+        self.assertEqual(results, [SUBTASK_TIMEOUT])
 
     def test_another_connection_error_is_still_retried(self) -> None:
         outage = litellm.APIConnectionError(message="Connection refused", llm_provider="openai", model=MODEL_NAME)
