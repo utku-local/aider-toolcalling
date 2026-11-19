@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- Deleting a file that the same request created (a scratch check script) no longer counts as an unverified change. The 27B deleted its own passing `verify_todo.py`, was told "no command has passed since your last change" and spent the rest of its time limit verifying again (expert eval, todo-cli, 2026-11-19). Deleting a file that existed before the request still needs a passing command afterwards.
 - `evals.run_evals` starts the agent through the `aider-agent` entry point (`aider.agent_main`), as `evals.run_scenarios` already did, so it loads `~/.aider.agent.model.settings.yml`. Started as plain `aider --agent`, the 27B ran with the chat settings: `max_tokens` 32768 instead of 8192, other sampling values and no agent-only server. One runaway tool call then held the server for 62 minutes (13:58 to 15:00 on 2026-11-19, ended by mlx_lm as "tool text was likely truncated mid-generation"), which is what the earlier "the server stopped answering" stalls were. Results recorded before this change measured the chat settings, not what `aider-agent` runs.
 
 ### Added

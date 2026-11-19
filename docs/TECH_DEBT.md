@@ -87,7 +87,7 @@ Last updated: 2026-11-19.
 - **Not propagated to the repo:** these live in the user's `~/.aider.model.settings.yml`; `docs/examples/aider.model.settings.yml` still ships the old values. Propagate there if a second Mac should inherit them.
 - **Note:** per-round "tokens sent" is the full conversation by design (chat API); the prefix cache saves compute/time, not the displayed token count.
 
-### 5. Expert eval set: results and what is still open (2026-11-18)
+### 5. Expert eval set: results and what is still open (2026-11-18, repeat runs 2026-11-19)
 
 - **Why:** the hard set saturated (20/20), so it no longer showed where the agent breaks. `evals/expert/` holds eight multi-file tasks with hidden checks and reference solutions (`--set expert --sandbox --timeout 2400`).
 - **Results, one run per task, seed 1001** (before = v0.8.10; after = the `feature/expert-evals` branch, released as v0.9.0, latest valid run):
@@ -108,13 +108,34 @@ Last updated: 2026-11-19.
   - One run per task is a sample, not a rate. On the branch the 27B's scheduler failed once and passed once, its circular-import failed once (before the `python -m` fix) and passed once, and Heretic's scheduler failed once (output limit) and passed once. Use `--repeat 3` before reading a single flip as a gain or a regression.
   - The before runs had two models loaded at once on a Mac about 50 GB into swap; the after runs had one model. Times are only roughly comparable.
   - The after runs were made on different commits of the branch as fixes landed, not all on its head.
+- **Repeat runs, 2026-11-19** (`--repeat 3`, one model at a time, expr-eval once per model because it takes up to 40 minutes; v0.9.1 plus the eval-runner changes of 0.9.2):
+
+  | Task | Heretic | 27B, chat settings | 27B, agent settings |
+  |---|---|---|---|
+  | api-migration | 3/3 (516 to 625 s) | 3/3 | not rerun |
+  | circular-import | 3/3 (402 to 715 s) | 3/3 | not rerun |
+  | large-file | 3/3 (132 to 406 s) | 3/3 | not rerun |
+  | perf-dedupe | 3/3 (92 to 114 s) | 3/3 | not rerun |
+  | split-module | 3/3 (459 to 608 s) | 3/3 | not rerun |
+  | scheduler | 3/3 (186 to 651 s) | 1/3 | 3/3 (406 to 784 s) |
+  | todo-cli | 3/3 (705 s, 1,165 s, one at the limit) | 0/3 | 2/3 (1,433 s fail, 1,860 s, one at the limit) |
+  | expr-eval | 0/1 | 0/1 | 1/1 (1,106 s) |
+  | Total | 21/22 | 16/22 | 6/7 |
+
+  - **The "chat settings" column is not what `aider-agent` runs.** Until 0.9.2 the runner started `python -m aider --agent`, which does not load `~/.aider.agent.model.settings.yml`; the 27B ran with `max_tokens` 32768 and the chat sampling values. Two of its six failures were one runaway tool call each that held the server for about an hour. The five tasks at 3/3 were not repeated on the agent settings; the three that had failed were.
+  - **27B agent settings for the rerun:** `max_tokens` 8192, `top_k` 20, `presence_penalty` 1.0, `repetition_penalty` 1.05, repo map off. The repetition penalty next to the presence penalty was new that day and showed no garbled code in 7 runs.
+  - **Heretic's times** were measured while another project's servers ran on the same Mac; read them as upper bounds.
+  - **Failures that are the model's:** Heretic's expr-eval raises `ValueError` on the number `.` (the hidden check feeds SPEC.md cases the visible tests do not); the 27B's failed todo-cli sorts `--sort due` wrongly and reported the order as checked.
+  - **Passes at the limit:** both todo-cli runs that hit 2,400 s had a correct `todo.py` and were still verifying. Heretic kept running one command per reply; the 27B deleted its own passing check script and was sent back to verify again (fixed, see `## [Unreleased]`).
+  - **Seen live in these runs:** the same-error note (27B, twice), the no-retry stop on a server timeout, `delete_file`/`move_file` (5 runs), and the unattended decline wording (26 declines in 29 runs, none fatal).
+  - **Declined commands that remain:** `CMD; echo "exit: $?"` (open item 6), `cd PROJECT_ROOT && CMD` with the absolute sandbox path, `rm -f` of a scratch data file, and `sh check.sh`. The models recovered each time by running the plain command.
 - **Harness faults found and fixed** (see `## [Unreleased]`): verification commands written as `a && b`, multi-line `python -c` or a heredoc were declined (27 across the 13 before runs); `python -m MODULE` was not covered by a python rule; an unattended decline was reported as "the user declined"; no tool could delete or move a file; a reply that only promised work ended the request once the verify reminder was used; a `task` sub-agent reported command output it had worked out from the code; a reply cut at the output limit ended the request; one sampling seed for every request made a stuck model repeat itself exactly.
-- **Fixes that no live run has exercised yet** (unit-tested only): the output-limit send-back (Heretic's passing scheduler rerun stayed under the limit), the `task` report footer (no rerun used `task`), and the same-error note (no rerun produced three identical failures). The seed step and the stronger promise reminder went in before the 27B's passing expr-eval run, which did not need a reminder, so their effect is not isolated either.
+- **Fixes that no live run has exercised yet** (unit-tested only): the output-limit send-back and the `task` report footer. No run in either round reached the output limit with the agent settings or used `task`.
 - **Open:**
   1. **mlx_lm keeps generating abandoned requests.** When a request timed out, the client retried and the server worked through every abandoned generation in turn (about 7 minutes each on the 27B). On 2026-11-18 this cost one run its last request and starved the next task completely (0 tool calls in 2,400 s).
      - **Fixed in the agent (2026-11-19):** a timed-out request is not sent again, and agent mode waits 1,800 s instead of 600 (`aider/native_request_timeout.py`). Checked live against the 27B with `--timeout 4`: one request, the stop message, exit after 10 s.
-     - **Still true for evals:** a task killed at its time limit leaves its last request generating on the server. Restart the model's server after any task that hits the limit (`launchctl kickstart -k gui/$(id -u)/local.mlx-lm-agent`, or `local.mlx-serve` for 8080) and wait for `/v1/models`; the runner does not do this itself.
-  2. **The 27B's expr-eval pass hit the time limit** on a last request that never returned; the cause of that last long generation is unknown (mlx_lm buffers tool-call text, see Known limits).
+     - **Evals:** a task killed at its time limit leaves its last request generating on the server. Pass `--after-timeout CMD` with a command that restarts the model's server and waits for `/v1/models` (`launchctl kickstart -k gui/$(id -u)/local.mlx-lm-agent`, or `local.mlx-serve` for 8080); the runner runs it after every task that hits the limit.
+  2. **expr-eval is one sample per model.** The 27B passed it in 1,106 s on the agent settings (2026-11-19) after a pass at the limit and a fail on the chat settings; the hour-long last requests of the earlier runs came from the chat `max_tokens` of 32768.
   3. **Heretic's expr-eval** fails on the model: it gets the visible tests passing and stops, without checking the rest of SPEC.md (1.07M tokens sent in 42 rounds).
   4. **Heretic reasons in prose at length** (about 1,350 log lines between two tool calls in its passing scheduler run). The output-limit send-back only catches the case that reaches the limit.
   5. **The verify gate accepts any passing command.** Heretic's before run of api-migration missed a caller, ran "all modules import OK" and was let through. No mechanical rule is known that would catch this without refusing honest checks.
