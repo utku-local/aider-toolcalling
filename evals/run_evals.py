@@ -1,6 +1,6 @@
 """Runs the evaluation tasks against the agent mode and records one JSON line per task.
-Each task gets a fresh temporary git repo; the patched Aider runs with --agent --yes-always, so edits are approved
-and shell commands are not, then the task's check script decides pass or fail.
+Each task gets a fresh temporary git repo; the agent starts through the aider-agent entry point with --yes-always,
+so edits are approved and shell commands are not, then the task's check script decides pass or fail.
 Run it with the aider-chat interpreter from the repo root: python -m evals.run_evals [--tasks a,b] [--model M].
 With --sandbox each project gets a .aider-agent.json that sandboxes commands and allows python and pytest, so the
 agent can verify its work without approval inside the sandbox.
@@ -41,8 +41,11 @@ AFTER_TIMEOUT_LIMIT_SECONDS = 600
 CHECK_OUTPUT_CHARS = 2000
 CHECK_HEADING = "[eval check]"
 GIT_IDENTITY = ("-c", "user.email=eval@localhost", "-c", "user.name=eval")
+# The entry point of the aider-agent command: it selects agent mode and loads ~/.aider.agent.model.settings.yml, so
+# an eval runs the model with the settings real use has. Measured: started as plain `aider --agent`, the 27B ran
+# with the chat settings (max_tokens 32768 instead of 8192), and one runaway tool call held the server for 62 minutes.
+AGENT_MODULE = "aider.agent_main"
 AIDER_FLAGS = (
-    "--agent",
     "--yes-always",
     "--no-auto-commits",
     "--no-check-update",
@@ -76,7 +79,7 @@ def setup_project(task: EvalTask, root: Path, sandbox: bool) -> None:
 
 def run_agent(task: EvalTask, root: Path, model: str, timeout: int, seed: int) -> tuple[str, float]:
     prompt = task_prompt(task) if isinstance(task, RealTask) else task.prompt
-    command = [sys.executable, "-m", "aider", *AIDER_FLAGS, "--seed", str(seed), "--message", prompt]
+    command = [sys.executable, "-m", AGENT_MODULE, *AIDER_FLAGS, "--seed", str(seed), "--message", prompt]
     if model:
         command += ["--model", model]
     env = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}

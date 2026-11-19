@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- `evals.run_evals` starts the agent through the `aider-agent` entry point (`aider.agent_main`), as `evals.run_scenarios` already did, so it loads `~/.aider.agent.model.settings.yml`. Started as plain `aider --agent`, the 27B ran with the chat settings: `max_tokens` 32768 instead of 8192, other sampling values and no agent-only server. One runaway tool call then held the server for 62 minutes (13:58 to 15:00 on 2026-11-19, ended by mlx_lm as "tool text was likely truncated mid-generation"), which is what the earlier "the server stopped answering" stalls were. Results recorded before this change measured the chat settings, not what `aider-agent` runs.
+
 ### Added
 
 - The eval runner appends the hidden check's verdict and output to each task's log (`[eval check] failed` and the assertion). A failed run used to leave no trace of which requirement it missed, because the temporary project is deleted.

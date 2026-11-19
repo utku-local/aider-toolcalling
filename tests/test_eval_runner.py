@@ -28,7 +28,8 @@ class RunAgentTest(unittest.TestCase):
 
     def test_seed_and_flags(self) -> None:
         command, _ = self.call(TASKS[0], 1002)
-        self.assertIn("--agent", command)
+        self.assertEqual(command[1:3], ["-m", "aider.agent_main"])
+        self.assertNotIn("--agent", command)
         self.assertEqual(command[command.index("--seed") + 1], "1002")
 
     def test_real_task_puts_its_interpreter_first_on_path(self) -> None:
