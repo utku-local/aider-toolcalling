@@ -2,13 +2,21 @@
 Before the first file change of a request that has already explored the project, a model without a task list is
 asked once to plan, with a verification step last. When it answers after changing files, it is sent back once if
 nothing has passed since its last change or its task list still has open items; both checks read only the ledger.
+Deleting a file the same request created (a scratch script) is cleanup and needs no new passing command.
 A reply that only promises more work is sent back too, a few times per request, independent of the other reminder.
 """
+
+import json
 
 from aider.native_tool_ledger import CHANGE_TOOLS, OperationLedger, OperationRecord, OperationStatus
 from aider.native_tool_summary import exit_code
 
 COMMAND_TOOL = "run_command"
+WRITE_TOOL = "write_file"
+DELETE_TOOL = "delete_file"
+PATH_ARGUMENT = "path"
+CREATED_PREFIX = "Created "
+NO_PATH = ""
 SUCCESS_EXIT = 0
 # Exploring calls after which a change needs a plan; a direct one- or two-step fix never does.
 PLAN_AFTER_CALLS = 3
@@ -41,15 +49,38 @@ def needs_plan(ledger: OperationLedger, tool: str, has_plan: bool) -> bool:
     return not asked and not changed and len(records) >= PLAN_AFTER_CALLS
 
 
+def path_of(record: OperationRecord) -> str:
+    """The `path` argument of a file tool call; empty when the arguments do not parse or name none."""
+    try:
+        arguments = json.loads(record.arguments)
+    except ValueError:
+        return NO_PATH
+    path = arguments.get(PATH_ARGUMENT, NO_PATH) if isinstance(arguments, dict) else NO_PATH
+    return path if isinstance(path, str) else NO_PATH
+
+
+def needs_check(record: OperationRecord, created: set[str]) -> bool:
+    """True for a file change that a command has to pass after. Deleting a file this request created does not:
+    measured on the 27B (expert eval, todo-cli), it deleted its own passing check script, was sent back to verify
+    again and spent the rest of its time limit on that."""
+    if record.tool not in CHANGE_TOOLS:
+        return False
+    return record.tool != DELETE_TOOL or path_of(record) not in created
+
+
 def verified_since_change(records: list[OperationRecord]) -> bool:
-    """True when the request changed nothing, or a command exited 0 after its last change."""
+    """True when the request changed nothing, or a command exited 0 after its last change that needs a check."""
     executed = [r for r in records if r.status is OperationStatus.EXECUTED]
-    changes = [i for i, r in enumerate(executed) if r.tool in CHANGE_TOOLS]
-    if not changes:
-        return True
-    return any(
-        r.tool == COMMAND_TOOL and exit_code(r.result) == SUCCESS_EXIT for r in executed[changes[-1] + 1 :]
-    )
+    created: set[str] = set()
+    verified = True
+    for r in executed:
+        if r.tool == WRITE_TOOL and r.result.startswith(CREATED_PREFIX) and path_of(r):
+            created.add(path_of(r))
+        if needs_check(r, created):
+            verified = False
+        elif r.tool == COMMAND_TOOL and exit_code(r.result) == SUCCESS_EXIT:
+            verified = True
+    return verified
 
 
 def completion_nudge(ledger: OperationLedger, open_tasks: str) -> str:
