@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from evals.run_evals import run_check
+from evals.run_evals import check_note, check_outcome, run_check
 from evals.tasks_expert import SOLUTION_DIR, ExpertTask, load_expert_tasks, solution_removes
 
 MINIMUM_TASKS = 8
@@ -38,6 +38,15 @@ class ExpertTasksTest(unittest.TestCase):
                 with self.subTest(task=task.name, solved=solved), tempfile.TemporaryDirectory() as tmp:
                     build(task, Path(tmp), solved)
                     self.assertEqual(run_check(task, Path(tmp)), solved)
+
+    def test_a_failed_check_reports_what_failed(self) -> None:
+        task = next(task for task in load_expert_tasks() if task.name == "split-module")
+        with tempfile.TemporaryDirectory() as tmp:
+            build(task, Path(tmp), solved=False)
+            passed, detail = check_outcome(task, Path(tmp))
+        self.assertFalse(passed)
+        self.assertIn("shop.py still exists", detail)
+        self.assertIn("[eval check] failed", check_note(passed, detail))
 
 
 if __name__ == "__main__":

@@ -38,6 +38,8 @@ DEFAULT_REPEAT = 1
 DEFAULT_SEED_BASE = 1000
 CHECK_TIMEOUT_SECONDS = 60
 AFTER_TIMEOUT_LIMIT_SECONDS = 600
+CHECK_OUTPUT_CHARS = 2000
+CHECK_HEADING = "[eval check]"
 GIT_IDENTITY = ("-c", "user.email=eval@localhost", "-c", "user.name=eval")
 AIDER_FLAGS = (
     "--agent",
@@ -92,17 +94,30 @@ def run_agent(task: EvalTask, root: Path, model: str, timeout: int, seed: int) -
     return output, time.monotonic() - started
 
 
-def run_check(task: EvalTask, root: Path) -> bool:
-    """Run the task's check in the project; an expert check also gets the pristine project as EVAL_ORIGIN."""
+def check_outcome(task: EvalTask, root: Path) -> tuple[bool, str]:
+    """Run the task's check in the project; returns whether it passed and the end of what it printed.
+
+    An expert check also gets the pristine project as EVAL_ORIGIN. The output names the assertion that failed,
+    which is the only trace of why once the temporary project is gone."""
     (root / CHECK_FILE).write_text(task.check)
     env = {**PROCESS_ENV, ORIGIN_ENV: task.origin} if isinstance(task, ExpertTask) else None
     try:
         done = subprocess.run(
-            [sys.executable, CHECK_FILE], cwd=root, capture_output=True, timeout=CHECK_TIMEOUT_SECONDS, env=env
+            [sys.executable, CHECK_FILE], cwd=root, capture_output=True, timeout=CHECK_TIMEOUT_SECONDS, env=env,
+            text=True, errors="replace",
         )
     except subprocess.TimeoutExpired:
-        return False
-    return done.returncode == 0
+        return False, f"check timed out after {CHECK_TIMEOUT_SECONDS}s"
+    return done.returncode == 0, (done.stdout + done.stderr)[-CHECK_OUTPUT_CHARS:]
+
+
+def run_check(task: EvalTask, root: Path) -> bool:
+    return check_outcome(task, root)[0]
+
+
+def check_note(passed: bool, detail: str) -> str:
+    """The lines added to a task's log after the agent's output: the check's verdict and what it printed."""
+    return f"\n{CHECK_HEADING} {'passed' if passed else 'failed'}\n{detail.strip()}\n"
 
 
 def setup_real_project(task: RealTask, root: Path, sandbox: bool) -> None:
@@ -128,8 +143,8 @@ def run_task(
         else:
             setup_project(task, root, sandbox)
         output, seconds = run_agent(task, root, model, timeout, seed)
-        log_path.write_text(output)
-        passed = check_real(task, root) if real else run_check(task, root)
+        passed, detail = (check_real(task, root), "") if real else check_outcome(task, root)
+        log_path.write_text(output + check_note(passed, detail))
         return TaskResult(task.name, passed, round(seconds, 1), parse_metrics(output))
 
 
