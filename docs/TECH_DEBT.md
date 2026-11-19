@@ -119,13 +119,13 @@ Last updated: 2026-11-19.
   | split-module | 3/3 (459 to 608 s) | 3/3 | not rerun |
   | scheduler | 3/3 (186 to 651 s) | 1/3 | 3/3 (406 to 784 s) |
   | todo-cli | 3/3 (705 s, 1,165 s, one at the limit) | 0/3 | 2/3 (1,433 s fail, 1,860 s, one at the limit) |
-  | expr-eval | 0/1 | 0/1 | 1/1 (1,106 s) |
-  | Total | 21/22 | 16/22 | 6/7 |
+  | expr-eval | 0/3 (two more runs on 2026-11-20) | 0/1 | 1/1 (1,106 s) |
+  | Total | 21/24 | 16/22 | 6/7 |
 
   - **The "chat settings" column is not what `aider-agent` runs.** Until 0.9.2 the runner started `python -m aider --agent`, which does not load `~/.aider.agent.model.settings.yml`; the 27B ran with `max_tokens` 32768 and the chat sampling values. Two of its six failures were one runaway tool call each that held the server for about an hour. The five tasks at 3/3 were not repeated on the agent settings; the three that had failed were.
   - **27B agent settings for the rerun:** `max_tokens` 8192, `top_k` 20, `presence_penalty` 1.0, `repetition_penalty` 1.05, repo map off. The repetition penalty next to the presence penalty was new that day and showed no garbled code in 7 runs.
   - **Heretic's times** were measured while another project's servers ran on the same Mac; read them as upper bounds.
-  - **Failures that are the model's:** Heretic's expr-eval raises `ValueError` on the number `.` (the hidden check feeds SPEC.md cases the visible tests do not); the 27B's failed todo-cli sorts `--sort due` wrongly and reported the order as checked.
+  - **Failures that are the model's:** Heretic's three expr-eval runs each miss a case SPEC.md states and the visible tests leave out (a `ValueError` on `.`, an "unexpected character", and `2 ** -1` rejected); each time it stopped once the visible tests passed and reported the spec as followed, without reaching the time or output limit. the 27B's failed todo-cli sorts `--sort due` wrongly and reported the order as checked.
   - **Passes at the limit:** both todo-cli runs that hit 2,400 s had a correct `todo.py` and were still verifying. Heretic kept running one command per reply; the 27B deleted its own passing check script and was sent back to verify again (fixed, see `## [Unreleased]`).
   - **Seen live in these runs:** the same-error note (27B, twice), the no-retry stop on a server timeout, `delete_file`/`move_file` (5 runs), and the unattended decline wording (26 declines in 29 runs, none fatal).
   - **Declined commands that remain:** `CMD; echo "exit: $?"` (open item 6), `cd PROJECT_ROOT && CMD` with the absolute sandbox path, `rm -f` of a scratch data file, and `sh check.sh`. The models recovered each time by running the plain command.
@@ -136,7 +136,7 @@ Last updated: 2026-11-19.
      - **Fixed in the agent (2026-11-19):** a timed-out request is not sent again, and agent mode waits 1,800 s instead of 600 (`aider/native_request_timeout.py`). Checked live against the 27B with `--timeout 4`: one request, the stop message, exit after 10 s.
      - **Evals:** a task killed at its time limit leaves its last request generating on the server. Pass `--after-timeout CMD` with a command that restarts the model's server and waits for `/v1/models` (`launchctl kickstart -k gui/$(id -u)/local.mlx-lm-agent`, or `local.mlx-serve` for 8080); the runner runs it after every task that hits the limit.
   2. **expr-eval is one sample per model.** The 27B passed it in 1,106 s on the agent settings (2026-11-19) after a pass at the limit and a fail on the chat settings; the hour-long last requests of the earlier runs came from the chat `max_tokens` of 32768.
-  3. **Heretic's expr-eval** fails on the model: it gets the visible tests passing and stops, without checking the rest of SPEC.md (1.07M tokens sent in 42 rounds).
+  3. **Heretic's expr-eval** fails on the model (0/3): it gets the visible tests passing and stops, without running the examples in SPEC.md. Untested idea: when the task names a spec file, ask which of its examples were run before accepting the answer; it may add rounds to tasks that pass today.
   4. **Heretic reasons in prose at length** (about 1,350 log lines between two tool calls in its passing scheduler run). The output-limit send-back only catches the case that reaches the limit.
   5. **The verify gate accepts any passing command.** Heretic's before run of api-migration missed a caller, ran "all modules import OK" and was let through. No mechanical rule is known that would catch this without refusing honest checks.
   6. A command that contains `$` is still compound (`python -m app; echo "exit=$?"`); run_command already reports the exit code and the models recovered in one step.
