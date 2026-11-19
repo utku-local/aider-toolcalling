@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-19
+
 ### Fixed
 
 - Deleting a file that the same request created (a scratch check script) no longer counts as an unverified change. The 27B deleted its own passing `verify_todo.py`, was told "no command has passed since your last change" and spent the rest of its time limit verifying again (expert eval, todo-cli, 2026-11-19). Deleting a file that existed before the request still needs a passing command afterwards.
