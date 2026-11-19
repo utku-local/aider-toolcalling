@@ -222,7 +222,8 @@ Run from the repo root so the patched package is imported:
 ~/.local/share/uv/tools/aider-chat/bin/python -m evals.run_evals [--tasks fix-discount,find-the-bug] [--model M]
 ```
 
-Runs the tasks in `evals/tasks.py` in temporary repos with `--agent --yes-always` (edits approved, commands not) and
+Runs the tasks in `evals/tasks.py` in temporary repos through the `aider-agent` entry point (so the model settings in
+`~/.aider.agent.model.settings.yml` apply, as in real use) with `--yes-always` (edits approved, commands not) and
 writes one JSON line per task to `evals/results/`, plus a summary: success rate, rounds, calls, time, tokens.
 `--sandbox` adds a sandbox config allowing python and pytest, so the agent can run its own checks.
 `--set hard` (or `all`) selects the harder tasks in `evals/tasks_hard.py`; `--repeat N` runs each task N times and
