@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-11-20
+
 ### Added
 
 - `/agent` command: without a request it switches the session to agent mode, with one it runs that request in agent mode and returns to the current mode, like `/ask` and `/code`. Before, `/chat-mode agent` was the only way back from ask mode.
