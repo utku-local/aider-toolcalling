@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- The LaunchAgent templates and `docs/LOCAL_SETUP.md` use `--prompt-cache-size 3` instead of 1. With 1, mlx_lm 0.31.3 kept only the system prompt in its cache for requests without a seed, so every round of an interactive agent session re-processed the whole conversation (13,612 tokens and 3.5 minutes per round on the 27B, 2026-11-20). Seeded eval runs were not affected. No code change in the agent.
+
 ## [0.9.4] - 2026-11-20
 
 ### Added
