@@ -3,6 +3,8 @@ They replace the edit-format instructions of the other modes with a tool-driven 
 The rest of the prompt set is inherited from the ask mode, which shares no edit format either.
 """
 
+from aider.native_session_help import SESSION_COMMANDS_NOTE
+
 from .ask_prompts import AskPrompts
 
 
@@ -41,7 +43,7 @@ explain and ask how to proceed.
 
 When the task is done, reply with a short summary of what you changed and how you verified it.
 Always reply to the user in {language}.
-"""
+""" + SESSION_COMMANDS_NOTE
 
     repo_content_prefix = """Here are summaries of some files present in the project.
 Use your tools to read any file you need; you do not have to ask me to add files to the chat.

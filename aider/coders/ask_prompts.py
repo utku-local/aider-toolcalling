@@ -1,5 +1,7 @@
 # flake8: noqa: E501
 
+from aider.native_session_help import SESSION_COMMANDS_NOTE
+
 from .base_prompts import CoderPrompts
 
 
@@ -9,7 +11,7 @@ Answer questions about the supplied code.
 Always reply to the user in {language}.
 
 If you need to describe code changes, do so *briefly*.
-"""
+""" + SESSION_COMMANDS_NOTE
 
     example_messages = []
 
