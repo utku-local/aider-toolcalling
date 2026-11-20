@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-11-20
+
 ### Fixed
 
 - A file change that repeats an earlier one is no longer refused as "already applied" once another call has written, deleted or moved a whole file in between. The 27B wrote a check script, deleted it, wrote it again and was refused the second `delete_file` twice; it could not clean up and ran into its time limit (expert eval, expr-eval, 2026-11-20). A repeated `edit_file` with only other edits in between is still refused.
