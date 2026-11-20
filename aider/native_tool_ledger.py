@@ -24,6 +24,10 @@ NO_RESULT = ""
 CHANGE_TOOLS = frozenset({"edit_file", "multi_edit", "write_file", "delete_file", "move_file"})
 # Tools that change what a repeated call would see without touching a file: starting or stopping a background
 # process (a server, a watcher). Measured: a model started a stopped server and was refused re-running its client.
+# Tools that replace or remove a whole file, after which an earlier change may be made again. Measured on the 27B
+# (expert eval, expr-eval): it wrote a check script, deleted it, wrote it again and was refused the second delete
+# as "already applied"; it could not clean up and ran into its time limit.
+WHOLE_FILE_TOOLS = frozenset({"write_file", "delete_file", "move_file"})
 STATE_TOOLS = frozenset({"start_background", "stop_background"})
 REPEAT_RESET_TOOLS = CHANGE_TOOLS | STATE_TOOLS
 
@@ -104,12 +108,17 @@ class OperationLedger:
         return False
 
     def applied_before(self, tool: str, arguments: str) -> bool:
-        """True when this exact call already executed in the current request, regardless of later changes."""
-        return any(
-            r.request == self.request and r.tool == tool and r.arguments == arguments
-            and r.status is OperationStatus.EXECUTED
-            for r in self.records
-        )
+        """True when this exact call already executed in the current request and no other call has replaced or
+        removed a whole file since; edits in between do not count, so a repeated edit stays refused."""
+        applied = False
+        for r in self.records:
+            if r.request != self.request or r.status is not OperationStatus.EXECUTED:
+                continue
+            if r.tool == tool and r.arguments == arguments:
+                applied = True
+            elif r.tool in WHOLE_FILE_TOOLS:
+                applied = False
+        return applied
 
     def denied_before(self, tool: str, arguments: str) -> bool:
         """True when the user already declined this exact call in the current request."""
