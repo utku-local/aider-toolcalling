@@ -30,10 +30,14 @@ usage with `footprint -p <pid>` (RSS does not show GPU memory).
 | 32 GB | `lmstudio-community/Qwen3.8-27B-MLX-4bit` | 15 GB on disk, up to ~21 GB in memory | 4294967296 (4 GB) |
 
 `mlx_lm.server` keeps a prompt cache next to the model; without a byte cap it was measured at 14 GB after one
-evaluation run, so always set one. The templates also pass `--prompt-cache-size 1`, which holds only the current
-conversation's KV cache: the default of 10 let a long agent session reach 27 GB and crash the server with a Metal
-out-of-memory error (2026-11-04), and the byte cap alone did not bound it. Switching to a different conversation
-then reprocesses its prompt cold, which is the right trade when one agent runs at a time.
+evaluation run, so always set one. The templates also pass `--prompt-cache-size 3`: the default of 10 let a long
+agent session reach 27 GB and crash the server with a Metal out-of-memory error (2026-11-04), and the byte cap alone
+did not bound it. Do not go down to 1. For a chat request without a seed, mlx_lm 0.31.3 stores the system prompt as
+a cache entry of its own and evicts conversation entries before system entries, so with room for one entry only the
+system prompt survived and every agent round re-processed the whole conversation (measured 2026-11-20 on the 27B:
+13,612 tokens, 3.5 minutes per round; after the change a round processed 340 to 600 tokens). Eval runs pass `--seed`,
+which takes mlx_lm's unsegmented path, so they did not show it. To check a server, read its log: a healthy session
+shows a `user` or `assistant` sequence in the "Prompt Cache" lines and small "Prompt processing progress" totals.
 
 Run at most one 27B server at a time on a 32 GB Mac, and do not start the optional 8081 server while 8083 is up.
 
