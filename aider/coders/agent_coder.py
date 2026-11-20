@@ -22,6 +22,12 @@ from .native_tool_setup import build_native_tools
 
 AGENT_MAX_MAP_TOKENS = 1024
 AGENT_MAP_MULTIPLIER = 1
+# Aider's default refresh re-ranks the repo map by the names in the latest messages, so in agent mode the map
+# changed on every tool round. It sits before the conversation, so a local server's prompt cache then held only
+# the system prompt. Measured on the 27B (2026-11-20): each round reprocessed the whole prompt, 13,612 tokens in
+# 3.5 minutes. "files" keeps one map until the project's file list changes, as Aider does for --cache-prompts.
+MAP_REFRESH_AUTO = "auto"
+MAP_REFRESH_FILES = "files"
 
 
 class AgentCoder(Coder):
@@ -36,6 +42,8 @@ class AgentCoder(Coder):
         # round: cap it and drop the "no files in chat" multiplier. --map-tokens 0 still turns it off.
         kwargs["map_tokens"] = min(kwargs.get("map_tokens", AGENT_MAX_MAP_TOKENS), AGENT_MAX_MAP_TOKENS)
         kwargs["map_mul_no_files"] = AGENT_MAP_MULTIPLIER
+        if kwargs.get("map_refresh", MAP_REFRESH_AUTO) == MAP_REFRESH_AUTO:
+            kwargs["map_refresh"] = MAP_REFRESH_FILES
         super().__init__(*args, **kwargs)
         # Project instructions (AGENTS.md, CLAUDE.md) are always in view, like a coding agent's memory file.
         self.abs_read_only_fnames.update(instruction_files(self.root))

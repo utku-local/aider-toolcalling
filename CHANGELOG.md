@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- Agent mode keeps one repo map until the project's file list changes (`--map-refresh files`) instead of re-ranking it on every tool round. The map sits before the conversation, so each new map invalidated a local server's prompt cache: on the 27B every round reprocessed the whole prompt, 13,612 tokens in 3.5 minutes, and a read-only request looked hung (2026-11-20). An explicit `--map-refresh` choice is left alone. Eval runs did not show this because their projects are small enough for the map to stay the same.
+
 ## [0.9.4] - 2026-11-20
 
 ### Added
