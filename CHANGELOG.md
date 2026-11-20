@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- Documentation: `use_repo_map: false` in a model settings file does not turn the repo map off when Aider is started from the command line, because startup always passes a map size. The example settings file and the tech-debt notes said it did; they now name `map-tokens: 0` as the switch. No code change.
+
 ## [0.9.3] - 2026-11-20
 
 ### Fixed

@@ -3,8 +3,9 @@
 # extra_body.chat_template_kwargs is ignored by mlx_lm (thinking is turned off by the server's
 # --chat-template-args) and keeps replies in message.content if a model is served by mlx_lm without it.
 # repetition_penalty 1.05 stops a loop where the model repeats one line inside a tool call until max_tokens.
-# use_repo_map is false: agent mode explores with search_code/find_symbol/find_files, so the repo map is a large
-# fixed block re-sent every round for no benefit. Set it true only if you also use these models in non-agent modes.
+# use_repo_map: false below does not turn the repo map off when Aider is started from the command line: Aider
+# always passes a map size, which wins. Use `map-tokens: 0` in ~/.aider.conf.yml (or --map-tokens 0) to turn it off;
+# agent mode caps the map at 1,024 tokens either way.
 - name: openai/lmstudio-community/Qwen3.8-27B-MLX-4bit
   edit_format: diff
   weak_model_name: openai/lmstudio-community/Qwen3.8-27B-MLX-4bit
