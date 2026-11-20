@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- `/agent` command: without a request it switches the session to agent mode, with one it runs that request in agent mode and returns to the current mode, like `/ask` and `/code`. Before, `/chat-mode agent` was the only way back from ask mode.
+- The ask and agent system prompts name the mode commands (`/agent`, `/ask`, `/code`, `/chat-mode`, `/model`, `/undo-agent`, `/help`) and tell the model not to invent others (`aider/native_session_help.py`). Asked in ask mode how to return to agent mode, the 27B had advised `/model` and a `/mode` command "if it exists"; with the note it answers `/agent`.
+
 ### Fixed
 
 - Documentation: `use_repo_map: false` in a model settings file does not turn the repo map off when Aider is started from the command line, because startup always passes a map size. The example settings file and the tech-debt notes said it did; they now name `map-tokens: 0` as the switch. No code change.
