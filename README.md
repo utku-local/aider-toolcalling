@@ -72,6 +72,7 @@ PYTHONPATH=~/aider-toolcalling-dev ~/.local/share/uv/tools/aider-chat/bin/python
 
 Files changed by tools are linted, auto-committed and tested like any Aider edit, following your settings.
 `/undo-agent` restores the files the agent changed in its latest request, also without git.
+`/agent` switches a session back to agent mode (for example after `/ask`); `/agent REQUEST` runs one request in agent mode and returns to the current mode. The ask and agent prompts list the mode commands, so the model can answer questions about them.
 Agent mode adds `AGENTS.md` / `CLAUDE.md` from the project root to the chat as read-only instructions.
 
 For a reasoning model, `--agent-think` turns on its thinking trace (`--no-agent-think` turns it off), and `/think on | off | status` toggles it during a session without restarting the server. The choice persists per project in `.aider-agent.json` as `"thinking": true|false`; the CLI flag overrides it, which overrides the model's own default.

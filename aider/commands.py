@@ -23,6 +23,7 @@ from aider.llm import litellm
 from aider.native_memory_skills import MemorySkillError, skill_message
 from aider.native_thinking import thinking_enabled, with_thinking
 from aider.coders.native_agent_config import write_thinking
+from aider.native_session_help import AGENT_MODE
 from aider.native_undo import undo_agent_request
 from aider.repo import ANY_GIT_ERROR
 from aider.run_cmd import run_cmd
@@ -1215,6 +1216,12 @@ class Commands:
     def cmd_ask(self, args):
         """Ask questions about the code base without editing any files. If no prompt provided, switches to ask mode."""  # noqa
         return self._generic_chat_command(args, "ask")
+
+    def cmd_agent(self, args: str) -> None:
+        """Work on the project through tools. If no prompt provided, switches to agent mode."""  # noqa
+        if not args.strip():
+            raise SwitchCoder(edit_format=AGENT_MODE, summarize_from_coder=False)
+        return self._generic_chat_command(args, AGENT_MODE)
 
     def cmd_code(self, args):
         """Ask for changes to your code. If no prompt provided, switches to code mode."""  # noqa
