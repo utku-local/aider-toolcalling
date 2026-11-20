@@ -1,8 +1,8 @@
 """Recognizes shell command shapes the command policy can judge part by part instead of calling them compound.
 A newline inside quotes belongs to an argument (`python -c "two\nlines"`), a here-document with a literal body is
 only the standard input of the command on its first line, and a list joined by &&, || or ; is a sequence of
-separate commands. Measured on the 27B: these three shapes were most of the verification commands it wrote, and
-each was declined in unattended runs although the same program run plainly was allowed.
+separate commands, of which an `echo` of literal text between two others only prints a separator. Measured on the
+27B: these shapes were most of the verification commands it wrote, and each was declined in unattended runs.
 Everything here is pure text handling; nothing is executed.
 """
 
@@ -14,6 +14,9 @@ DOUBLE_QUOTE = '"'
 ESCAPE = "\\"
 NEWLINE = "\n"
 LIST_SEPARATORS = frozenset({"&&", "||", ";"})
+OPERATOR_CHARS = frozenset("|&;<>()")
+# Programs that only print their arguments; as a middle part of a list they change neither files nor the exit code.
+PRINT_ONLY_PROGRAMS = frozenset({"echo"})
 BODY_EXPANSION_CHARS = frozenset("$`")
 # `<head> <<'WORD'`, the body, then WORD alone on the last line; the head must hold no other `<`.
 HEREDOC = re.compile(
@@ -71,3 +74,16 @@ def list_segments(tokens: list[str]) -> list[list[str]]:
         else:
             segments[-1].append(token)
     return segments
+
+
+def prints_only(segment: list[str]) -> bool:
+    """True for `echo` with plain arguments: no pipe, redirect or other operator among its tokens."""
+    return bool(segment) and segment[0] in PRINT_ONLY_PROGRAMS and not any(
+        token and set(token) <= OPERATOR_CHARS for token in segment
+    )
+
+
+def without_separator_echoes(segments: list[list[str]]) -> list[list[str]]:
+    """`segments` without print-only parts, except the last one: the last command decides the exit code, so an
+    echo there would report success whatever happened before it."""
+    return [s for s in segments[:-1] if not prints_only(s)] + segments[-1:]

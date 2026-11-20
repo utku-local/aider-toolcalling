@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- `run_command` drops a trailing `; echo "exit: $?"` (also with `&&`) and a trailing `|| true` before judging and running a command (`aider/native_status_tail.py`). The exit-status echo was the most common reason a verification command was declined in the unattended expert runs of 2026-11-19, because `$` makes a command compound; with the tail in place the command also always exited 0, so the tool now reports the real exit code. An echo that expands anything but `$?`, or is redirected, is left alone.
+- An `echo` of literal text between two commands of a list (`a; echo "---"; b`) is no longer judged by the command policy, so the list is allowed when its other parts are. An echo that ends the list is still judged, because it would hide the exit code of the command before it.
+
 ## [0.9.2] - 2026-11-19
 
 ### Fixed
