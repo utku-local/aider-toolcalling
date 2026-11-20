@@ -15,7 +15,13 @@ from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Optional
 
-from aider.native_command_shape import has_unquoted_newline, list_segments, without_heredoc
+from aider.native_command_shape import (
+    OPERATOR_CHARS,
+    has_unquoted_newline,
+    list_segments,
+    without_heredoc,
+    without_separator_echoes,
+)
 
 
 class PolicyAction(str, Enum):
@@ -57,7 +63,6 @@ class PolicyDecision:
     reason: str = ""
 
 
-OPERATOR_CHARS = frozenset("|&;<>()")
 EXPANSION_CHARS = frozenset("$`")
 PYTHON_PROGRAMS = frozenset({"python", "python3"})
 NETWORK_PROGRAMS = frozenset({"curl", "wget", "ssh", "scp", "sftp", "rsync", "nc", "ncat", "telnet", "ftp"})
@@ -252,15 +257,18 @@ def decide(command: str, root: Path, rules: CommandRules, sandboxed: bool) -> Po
     """The policy decision for one run_command call; rules match the first stage of a pipeline.
 
     A list of commands is refused when any part is refused and allowed only when every part is; otherwise it is
-    asked, with the risks of all its parts.
+    asked, with the risks of all its parts. An `echo` of literal text between two parts is not judged.
     """
     command = judged_text(command)
     tokens = tokenize(command)
     if not tokens or not tokens[0] or tokens[0] == PIPE:
         return PolicyDecision(PolicyAction.ASK, frozenset({Risk.UNPARSEABLE}))
     segments = list_segments(tokens)
-    if len(segments) == 1 or not all(segments):
+    if not all(segments):
         return decide_one(command, tokens, root, rules, sandboxed)
+    segments = without_separator_echoes(segments)
+    if len(segments) == 1:
+        return decide_one(command, segments[0], root, rules, sandboxed)
     decisions = [decide_one(command, segment, root, rules, sandboxed) for segment in segments]
     refused = [decision for decision in decisions if decision.action is PolicyAction.DENY]
     if refused:

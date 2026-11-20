@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-11-20
+
+### Fixed
+
+- A file change that repeats an earlier one is no longer refused as "already applied" once another call has written, deleted or moved a whole file in between. The 27B wrote a check script, deleted it, wrote it again and was refused the second `delete_file` twice; it could not clean up and ran into its time limit (expert eval, expr-eval, 2026-11-20). A repeated `edit_file` with only other edits in between is still refused.
+- `run_command` drops a trailing `; echo "exit: $?"`, a trailing `&& echo OK` and a trailing `|| true` before judging and running a command (`aider/native_status_tail.py`). The exit-status echo was the most common reason a verification command was declined in the unattended expert runs of 2026-11-19, because `$` makes a command compound; with the tail in place the command also always exited 0, so the tool now reports the real exit code. An echo that expands anything but `$?`, or is redirected, is left alone.
+- An `echo` of literal text between two commands of a list (`a; echo "---"; b`) is no longer judged by the command policy, so the list is allowed when its other parts are. An echo that ends the list is still judged, because it would hide the exit code of the command before it.
+
 ## [0.9.2] - 2026-11-19
 
 ### Fixed

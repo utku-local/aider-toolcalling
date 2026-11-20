@@ -194,6 +194,7 @@ installed copy instead.
 | `aider/native_tool_ledger.py`, `native_working_state.py` | Operation ledger and the working state built from it |
 | `aider/native_command_policy.py`, `coders/native_agent_config.py` | Command policy and `.aider-agent.json` |
 | `aider/native_command_shape.py` | Lists, quoted newlines and here-documents the policy judges part by part |
+| `aider/native_status_tail.py` | Drops a trailing `; echo "exit: $?"`, `&& echo OK` or `\|\| true`, so run_command reports the real exit code |
 | `aider/native_tools_git.py`, `native_todo.py`, `native_snapshots.py`, `native_undo.py` | Git tool, task list, snapshots and `/undo-agent` |
 | `aider/native_sandbox.py`, `native_tools_background.py`, `native_tools_fetch.py` | Sandbox, background commands, `fetch_url` |
 | `aider/native_environment.py` | What the agent is told about its command environment, and hints on connection errors |
